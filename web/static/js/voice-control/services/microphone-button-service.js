@@ -5,6 +5,7 @@
 
 import { BaseService } from '../core/base-service.js';
 import { Events, eventManager } from '../events/event-manager.js';
+import { ConversationEvents } from '../conversation/constants.js'; // ADDED: для conversation events
 import { createLogger } from '../core/logger.js';
 import { MediaManager } from './microphone/media-manager.js';
 import { ButtonStateManager } from './microphone/button-state-manager.js';
@@ -630,7 +631,8 @@ export class MicrophoneButtonService extends BaseService {
     // FIXED (11.10.2025 - 21:15): Використовуємо this.eventManager замість глобального
 
     // Quick-send режим (одне натискання -> запис -> Whisper -> чат)
-    this.eventManager.on('CONVERSATION_MODE_QUICK_SEND_START', async (event) => {
+    // FIXED (11.10.2025 - 22:05): використовуємо ConversationEvents константу
+    this.eventManager.on(ConversationEvents.CONVERSATION_MODE_QUICK_SEND_START, async (event) => {
       console.log('[MICROPHONE_BUTTON] 🔔 Received CONVERSATION_MODE_QUICK_SEND_START event!', {
         event,
         payload: event?.payload,
@@ -642,13 +644,15 @@ export class MicrophoneButtonService extends BaseService {
     });
 
     // Conversation режим - початок запису після виявлення keyword
-    this.eventManager.on('CONVERSATION_RECORDING_START', async (event) => {
+    // FIXED (11.10.2025 - 22:05): використовуємо ConversationEvents константу
+    this.eventManager.on(ConversationEvents.CONVERSATION_RECORDING_START, async (event) => {
       this.logger.info('🎤 Conversation recording start via conversation manager');
       await this.handleConversationRecordingStart(event.payload);
     });
 
     // Запит на початок keyword detection
-    this.eventManager.on('START_KEYWORD_DETECTION', async (event) => {
+    // FIXED (11.10.2025 - 22:05): використовуємо Events.START_KEYWORD_DETECTION константу
+    this.eventManager.on(Events.START_KEYWORD_DETECTION, async (event) => {
       this.logger.info('🔍 Starting keyword detection for conversation mode', event.payload);
       // Keyword detection service має підхопити цю подію
     });
@@ -909,27 +913,27 @@ export class MicrophoneButtonService extends BaseService {
     }
 
     switch (this.currentState) {
-      case 'idle':
-        await this.startRecording(trigger, metadata);
-        break;
+    case 'idle':
+      await this.startRecording(trigger, metadata);
+      break;
 
-      case 'listening':
-      case 'recording':
-        await this.stopRecording('user_stop');
-        break;
+    case 'listening':
+    case 'recording':
+      await this.stopRecording('user_stop');
+      break;
 
-      case 'processing':
-        this.logger.debug('Ignoring activation during processing');
-        break;
+    case 'processing':
+      this.logger.debug('Ignoring activation during processing');
+      break;
 
-      case 'error':
-        // Спроба відновлення
-        await this.resetToIdle();
-        break;
+    case 'error':
+      // Спроба відновлення
+      await this.resetToIdle();
+      break;
 
-      case 'disabled':
-        this.logger.warn('Cannot activate: microphone disabled');
-        break;
+    case 'disabled':
+      this.logger.warn('Cannot activate: microphone disabled');
+      break;
     }
   }
 
