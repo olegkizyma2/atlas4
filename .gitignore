@@ -246,3 +246,5 @@ combined.log
 third_party/whisper.cpp.upstream/
 unused_files/goose/mcp/temp_servers/
 unused_files/goose_mcp_servers/mcp/temp_servers/
+
+# Keep logs directory ignored on main (do not re-include logs/ here)
