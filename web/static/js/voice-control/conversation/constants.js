@@ -50,7 +50,14 @@ export const UIClasses = {
     WAITING_RESPONSE: 'waiting-response',
     CONTINUOUS_LISTENING: 'continuous-listening',
     ATLAS_SPEAKING: 'atlas-speaking',
-    CONVERSATION_ACTIVE: 'conversation-active'
+    CONVERSATION_ACTIVE: 'conversation-active',
+    // Режими роботи (візуальна індикація)
+    MODE_IDLE: 'mode-idle',
+    MODE_QUICK_SEND: 'mode-quick-send',
+    MODE_CONVERSATION: 'mode-conversation',
+    // Додаткові стани
+    PROCESSING: 'processing',
+    SPEAKING: 'speaking'
 };
 
 /**
@@ -87,8 +94,13 @@ export const StatusMessages = {
     ATLAS_RESPONDING: 'відповідає...',
     CONTINUOUS_LISTENING: 'Слухаю... (говоріть або мовчіть 5 сек для виходу)',
     UNCLEAR_PHRASE: 'Не зрозумів, скажіть "Атлас" для продовження...',
-    CONVERSATION_ACTIVE: 'Режим розмови',
-    CONVERSATION_HINT: 'Говоріть після сигналу...'
+    CONVERSATION_ACTIVE: 'Режим розмови активний',
+    CONVERSATION_HINT: 'Говоріть після сигналу...',
+    QUICK_SEND_RECORDING: 'Записую... (відпустіть для завершення)',
+    QUICK_SEND_ACTIVE: 'Режим швидкого запису',
+    TIMEOUT: 'Час очікування вичерпано',
+    WAITING_RESPONSE: 'Очікую вашої відповіді...',
+    SPEAKING: 'Atlas відповідає...'
 };
 
 /**
