@@ -1,0 +1,50 @@
+[
+  {
+    "timestamp": "2025-10-11T10:09:06.852Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 745,
+    "tags": {
+      "success": true,
+      "stage": 0,
+      "name": "stage0_chat",
+      "contextSize": 4
+    }
+  },
+  {
+    "timestamp": "2025-10-11T10:09:06.853Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 3274,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-11T10:09:31.695Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 2399,
+    "tags": {
+      "success": true,
+      "stage": 0,
+      "name": "stage0_chat",
+      "contextSize": 6
+    }
+  },
+  {
+    "timestamp": "2025-10-11T10:09:31.696Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 4994,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  }
+]

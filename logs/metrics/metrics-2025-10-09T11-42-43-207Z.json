@@ -1,0 +1,80 @@
+[
+  {
+    "timestamp": "2025-10-09T11:41:49.894Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 7984,
+    "tags": {
+      "success": true,
+      "stage": 1,
+      "name": "initial_process"
+    }
+  },
+  {
+    "timestamp": "2025-10-09T11:41:52.040Z",
+    "category": "execution",
+    "name": "agent_stage_tetyana",
+    "value": 2145,
+    "tags": {
+      "success": true,
+      "stage": 2,
+      "name": "execution"
+    }
+  },
+  {
+    "timestamp": "2025-10-09T11:41:54.563Z",
+    "category": "execution",
+    "name": "agent_stage_grisha",
+    "value": 2522,
+    "tags": {
+      "success": true,
+      "stage": 7,
+      "name": "verification"
+    }
+  },
+  {
+    "timestamp": "2025-10-09T11:41:54.564Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 18963,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-09T11:42:08.766Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 7034,
+    "tags": {
+      "success": true,
+      "stage": 1,
+      "name": "initial_process"
+    }
+  },
+  {
+    "timestamp": "2025-10-09T11:42:11.059Z",
+    "category": "execution",
+    "name": "agent_stage_tetyana",
+    "value": 2293,
+    "tags": {
+      "success": true,
+      "stage": 2,
+      "name": "execution"
+    }
+  },
+  {
+    "timestamp": "2025-10-09T11:42:25.223Z",
+    "category": "execution",
+    "name": "agent_stage_grisha",
+    "value": 14163,
+    "tags": {
+      "success": true,
+      "stage": 7,
+      "name": "verification"
+    }
+  }
+]

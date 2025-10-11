@@ -1,0 +1,38 @@
+[
+  {
+    "timestamp": "2025-10-11T11:32:13.068Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 1029,
+    "tags": {
+      "success": true,
+      "stage": 0,
+      "name": "stage0_chat",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-11T11:32:13.071Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 3409,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-11T11:32:22.863Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 3,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/tts/completed",
+      "status": 200
+    }
+  }
+]

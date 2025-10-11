@@ -1,0 +1,75 @@
+[
+  {
+    "timestamp": "2025-10-09T11:32:16.637Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 4.74365234375,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-09T11:32:16.638Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.8459305763244629,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-09T11:32:48.290Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 10420,
+    "tags": {
+      "success": true,
+      "stage": 1,
+      "name": "initial_process"
+    }
+  },
+  {
+    "timestamp": "2025-10-09T11:32:51.290Z",
+    "category": "execution",
+    "name": "agent_stage_tetyana",
+    "value": 2999,
+    "tags": {
+      "success": true,
+      "stage": 2,
+      "name": "execution"
+    }
+  },
+  {
+    "timestamp": "2025-10-09T11:32:58.072Z",
+    "category": "execution",
+    "name": "agent_stage_grisha",
+    "value": 6782,
+    "tags": {
+      "success": true,
+      "stage": 7,
+      "name": "verification"
+    }
+  },
+  {
+    "timestamp": "2025-10-09T11:32:58.073Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 20217,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-09T11:33:16.637Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 5.0771484375,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-09T11:33:16.637Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.90863037109375,
+    "tags": {}
+  }
+]

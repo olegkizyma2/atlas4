@@ -1,0 +1,136 @@
+[
+  {
+    "timestamp": "2025-10-10T14:22:10.629Z",
+    "category": "execution",
+    "name": "agent_stage_tetyana",
+    "value": 34527,
+    "tags": {
+      "success": true,
+      "stage": 2,
+      "name": "execution",
+      "contextSize": 3
+    }
+  },
+  {
+    "timestamp": "2025-10-10T14:22:25.493Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 4,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/tts/completed",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T14:22:25.495Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 1,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/confirm",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T14:22:43.927Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 0,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/tts/completed",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T14:22:45.248Z",
+    "category": "execution",
+    "name": "agent_stage_grisha",
+    "value": 34617,
+    "tags": {
+      "success": true,
+      "stage": 7,
+      "name": "verification",
+      "contextSize": 3
+    }
+  },
+  {
+    "timestamp": "2025-10-10T14:22:47.904Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 2655,
+    "tags": {
+      "success": true,
+      "stage": 1,
+      "name": "initial_processing",
+      "contextSize": 3
+    }
+  },
+  {
+    "timestamp": "2025-10-10T14:22:52.616Z",
+    "category": "execution",
+    "name": "agent_stage_tetyana",
+    "value": 4712,
+    "tags": {
+      "success": true,
+      "stage": 2,
+      "name": "execution",
+      "contextSize": 3
+    }
+  },
+  {
+    "timestamp": "2025-10-10T14:22:56.516Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 1,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/tts/completed",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T14:22:58.666Z",
+    "category": "execution",
+    "name": "agent_stage_grisha",
+    "value": 6049,
+    "tags": {
+      "success": true,
+      "stage": 7,
+      "name": "verification",
+      "contextSize": 3
+    }
+  },
+  {
+    "timestamp": "2025-10-10T14:23:01.317Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 2651,
+    "tags": {
+      "success": true,
+      "stage": 1,
+      "name": "initial_processing",
+      "contextSize": 3
+    }
+  },
+  {
+    "timestamp": "2025-10-10T14:23:05.117Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 1.6435546875,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T14:23:05.117Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.9322566986083984,
+    "tags": {}
+  }
+]

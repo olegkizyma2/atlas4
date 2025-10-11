@@ -1,0 +1,28 @@
+[
+  {
+    "timestamp": "2025-10-10T18:19:18.173Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 2.07373046875,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T18:19:18.173Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.8510746955871582,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T18:20:03.232Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 3568,
+    "tags": {
+      "success": true,
+      "stage": 1,
+      "name": "initial_processing",
+      "contextSize": 2
+    }
+  }
+]

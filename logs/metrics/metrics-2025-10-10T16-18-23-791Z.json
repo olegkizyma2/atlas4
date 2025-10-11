@@ -1,0 +1,100 @@
+[
+  {
+    "timestamp": "2025-10-10T16:18:00.436Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 4222,
+    "tags": {
+      "success": true,
+      "stage": 1,
+      "name": "initial_processing",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T16:18:03.768Z",
+    "category": "execution",
+    "name": "agent_stage_tetyana",
+    "value": 3332,
+    "tags": {
+      "success": true,
+      "stage": 2,
+      "name": "execution",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T16:18:05.760Z",
+    "category": "execution",
+    "name": "agent_stage_grisha",
+    "value": 1991,
+    "tags": {
+      "success": true,
+      "stage": 7,
+      "name": "verification",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T16:18:08.788Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 3028,
+    "tags": {
+      "success": true,
+      "stage": 1,
+      "name": "initial_processing",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T16:18:16.464Z",
+    "category": "execution",
+    "name": "agent_stage_tetyana",
+    "value": 7676,
+    "tags": {
+      "success": true,
+      "stage": 2,
+      "name": "execution",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T16:18:18.414Z",
+    "category": "execution",
+    "name": "agent_stage_grisha",
+    "value": 1949,
+    "tags": {
+      "success": true,
+      "stage": 7,
+      "name": "verification",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T16:18:22.717Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 4301,
+    "tags": {
+      "success": true,
+      "stage": 1,
+      "name": "initial_processing",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T16:18:23.791Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 1.59033203125,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T16:18:23.791Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.866215705871582,
+    "tags": {}
+  }
+]

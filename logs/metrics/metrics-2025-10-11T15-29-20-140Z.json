@@ -1,0 +1,26 @@
+[
+  {
+    "timestamp": "2025-10-11T15:28:49.860Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 2157,
+    "tags": {
+      "success": true,
+      "stage": 0,
+      "name": "stage0_chat",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-11T15:28:49.862Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 3148,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  }
+]

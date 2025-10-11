@@ -1,0 +1,78 @@
+[
+  {
+    "timestamp": "2025-10-10T09:21:01.799Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 1.09033203125,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T09:21:01.800Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.7859106063842773,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T09:21:24.545Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 3966,
+    "tags": {
+      "success": true,
+      "stage": 1,
+      "name": "initial_processing",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T09:21:42.735Z",
+    "category": "execution",
+    "name": "agent_stage_tetyana",
+    "value": 18190,
+    "tags": {
+      "success": true,
+      "stage": 2,
+      "name": "execution",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T09:21:55.627Z",
+    "category": "execution",
+    "name": "agent_stage_grisha",
+    "value": 12891,
+    "tags": {
+      "success": false,
+      "stage": 7,
+      "name": "verification",
+      "error": "Goose agent failed: Goose agent returned empty response - NO FALLBACK"
+    }
+  },
+  {
+    "timestamp": "2025-10-10T09:21:55.628Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 36103,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T09:22:01.798Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 2.63525390625,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T09:22:01.798Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.842376708984375,
+    "tags": {}
+  }
+]

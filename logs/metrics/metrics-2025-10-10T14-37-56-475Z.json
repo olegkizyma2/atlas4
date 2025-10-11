@@ -1,0 +1,102 @@
+[
+  {
+    "timestamp": "2025-10-10T14:36:56.473Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 1.82275390625,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T14:36:56.474Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.6971287727355957,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T14:37:31.235Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 4745,
+    "tags": {
+      "success": true,
+      "stage": 1,
+      "name": "initial_processing",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T14:37:37.373Z",
+    "category": "execution",
+    "name": "agent_stage_tetyana",
+    "value": 6137,
+    "tags": {
+      "success": true,
+      "stage": 2,
+      "name": "execution",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T14:37:39.311Z",
+    "category": "execution",
+    "name": "agent_stage_grisha",
+    "value": 1937,
+    "tags": {
+      "success": true,
+      "stage": 7,
+      "name": "verification",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T14:37:42.982Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 3670,
+    "tags": {
+      "success": true,
+      "stage": 1,
+      "name": "initial_processing",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T14:37:50.021Z",
+    "category": "execution",
+    "name": "agent_stage_tetyana",
+    "value": 7038,
+    "tags": {
+      "success": true,
+      "stage": 2,
+      "name": "execution",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T14:37:51.864Z",
+    "category": "execution",
+    "name": "agent_stage_grisha",
+    "value": 1843,
+    "tags": {
+      "success": true,
+      "stage": 7,
+      "name": "verification",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T14:37:56.474Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 3.24169921875,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T14:37:56.474Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.8635783195495605,
+    "tags": {}
+  }
+]

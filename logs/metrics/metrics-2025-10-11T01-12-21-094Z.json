@@ -1,0 +1,52 @@
+[
+  {
+    "timestamp": "2025-10-11T01:11:21.097Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 3.66552734375,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-11T01:11:21.097Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.7631125450134277,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-11T01:11:44.930Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 1257,
+    "tags": {
+      "success": true,
+      "stage": 0,
+      "name": "stage0_chat",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-11T01:11:44.934Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 2436,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-11T01:11:53.607Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 3,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/tts/completed",
+      "status": 200
+    }
+  }
+]

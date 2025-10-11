@@ -1,0 +1,98 @@
+[
+  {
+    "timestamp": "2025-10-10T16:23:52.247Z",
+    "category": "execution",
+    "name": "agent_stage_grisha",
+    "value": 2048,
+    "tags": {
+      "success": true,
+      "stage": 7,
+      "name": "verification",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T16:23:57.364Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 5116,
+    "tags": {
+      "success": true,
+      "stage": 1,
+      "name": "initial_processing",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T16:24:02.072Z",
+    "category": "execution",
+    "name": "agent_stage_tetyana",
+    "value": 4707,
+    "tags": {
+      "success": true,
+      "stage": 2,
+      "name": "execution",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T16:24:05.454Z",
+    "category": "execution",
+    "name": "agent_stage_grisha",
+    "value": 3381,
+    "tags": {
+      "success": true,
+      "stage": 7,
+      "name": "verification",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T16:24:05.458Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 34775,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T16:24:28.946Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 1,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/tts/completed",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T16:24:28.970Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 1,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/confirm",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T16:24:45.895Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 2,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/tts/completed",
+      "status": 200
+    }
+  }
+]

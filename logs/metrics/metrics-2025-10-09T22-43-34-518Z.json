@@ -1,0 +1,40 @@
+[
+  {
+    "timestamp": "2025-10-09T22:42:34.523Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 1.05810546875,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-09T22:42:34.523Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.9518718719482422,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-09T22:43:02.758Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 1799,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-09T22:43:09.236Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 0,
+    "tags": {
+      "success": false,
+      "method": "POST",
+      "path": "/admin/reload-config",
+      "status": 404
+    }
+  }
+]

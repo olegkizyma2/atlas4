@@ -1,0 +1,62 @@
+[
+  {
+    "timestamp": "2025-10-10T19:38:52.388Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 5,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/tts/completed",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T19:38:56.707Z",
+    "category": "execution",
+    "name": "agent_stage_tetyana",
+    "value": 4320,
+    "tags": {
+      "success": true,
+      "stage": 2,
+      "name": "execution",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T19:38:56.733Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 1,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/confirm",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T19:39:16.291Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 5,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/tts/completed",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T19:39:23.330Z",
+    "category": "execution",
+    "name": "agent_stage_grisha",
+    "value": 7041,
+    "tags": {
+      "success": true,
+      "stage": 7,
+      "name": "verification",
+      "contextSize": 2
+    }
+  }
+]

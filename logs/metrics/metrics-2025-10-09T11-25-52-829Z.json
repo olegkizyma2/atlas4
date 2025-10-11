@@ -1,0 +1,117 @@
+[
+  {
+    "timestamp": "2025-10-09T11:25:05.742Z",
+    "category": "execution",
+    "name": "agent_stage_grisha",
+    "value": 17843,
+    "tags": {
+      "success": true,
+      "stage": 7,
+      "name": "verification"
+    }
+  },
+  {
+    "timestamp": "2025-10-09T11:25:12.223Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 6481,
+    "tags": {
+      "success": true,
+      "stage": 1,
+      "name": "initial_process"
+    }
+  },
+  {
+    "timestamp": "2025-10-09T11:25:15.469Z",
+    "category": "execution",
+    "name": "agent_stage_tetyana",
+    "value": 3246,
+    "tags": {
+      "success": true,
+      "stage": 2,
+      "name": "execution"
+    }
+  },
+  {
+    "timestamp": "2025-10-09T11:25:18.235Z",
+    "category": "execution",
+    "name": "agent_stage_grisha",
+    "value": 2765,
+    "tags": {
+      "success": true,
+      "stage": 7,
+      "name": "verification"
+    }
+  },
+  {
+    "timestamp": "2025-10-09T11:25:18.236Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 30338,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-09T11:25:48.343Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 3988,
+    "tags": {
+      "success": true,
+      "stage": 1,
+      "name": "initial_process"
+    }
+  },
+  {
+    "timestamp": "2025-10-09T11:25:49.974Z",
+    "category": "execution",
+    "name": "agent_stage_tetyana",
+    "value": 1631,
+    "tags": {
+      "success": true,
+      "stage": 2,
+      "name": "execution"
+    }
+  },
+  {
+    "timestamp": "2025-10-09T11:25:51.802Z",
+    "category": "execution",
+    "name": "agent_stage_grisha",
+    "value": 1826,
+    "tags": {
+      "success": true,
+      "stage": 7,
+      "name": "verification"
+    }
+  },
+  {
+    "timestamp": "2025-10-09T11:25:51.803Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 7449,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-09T11:25:52.828Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 3.431640625,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-09T11:25:52.828Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.8858833312988281,
+    "tags": {}
+  }
+]

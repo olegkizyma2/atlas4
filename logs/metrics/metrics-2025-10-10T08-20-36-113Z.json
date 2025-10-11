@@ -1,0 +1,66 @@
+[
+  {
+    "timestamp": "2025-10-10T08:19:36.109Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 53.59521484375,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T08:19:36.110Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.6201472282409668,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T08:20:13.820Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 2,
+    "tags": {
+      "success": true,
+      "method": "GET",
+      "path": "/health",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T08:20:18.929Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 1409,
+    "tags": {
+      "success": true,
+      "stage": 0,
+      "name": "stage0_chat",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T08:20:18.930Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 2551,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T08:20:36.111Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 20.88671875,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T08:20:36.111Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.740443229675293,
+    "tags": {}
+  }
+]

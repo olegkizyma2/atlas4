@@ -1,0 +1,42 @@
+[
+  {
+    "timestamp": "2025-10-10T17:06:58.875Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 0.7822265625,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T17:06:58.876Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.698143482208252,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T17:07:49.940Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 1538,
+    "tags": {
+      "success": true,
+      "stage": 0,
+      "name": "stage0_chat",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T17:07:58.876Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 2.384765625,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T17:07:58.876Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.7965841293334961,
+    "tags": {}
+  }
+]

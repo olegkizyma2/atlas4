@@ -1,0 +1,54 @@
+[
+  {
+    "timestamp": "2025-10-09T16:40:50.425Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 3.62451171875,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-09T16:40:50.426Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.8167586326599121,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-09T16:41:26.173Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 1652,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-09T16:41:34.959Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 1470,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-09T16:41:50.429Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 4.88232421875,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-09T16:41:50.429Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.8502311706542969,
+    "tags": {}
+  }
+]

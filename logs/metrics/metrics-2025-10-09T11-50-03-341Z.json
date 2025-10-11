@@ -1,0 +1,110 @@
+[
+  {
+    "timestamp": "2025-10-09T11:49:03.339Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 4.798828125,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-09T11:49:03.340Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.6870946884155273,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-09T11:49:25.279Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 6151,
+    "tags": {
+      "success": true,
+      "stage": 0,
+      "name": "stage0_chat"
+    }
+  },
+  {
+    "timestamp": "2025-10-09T11:49:25.280Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 10257,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-09T11:49:33.579Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 1840,
+    "tags": {
+      "success": true,
+      "stage": 0,
+      "name": "stage0_chat"
+    }
+  },
+  {
+    "timestamp": "2025-10-09T11:49:43.038Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 3381,
+    "tags": {
+      "success": true,
+      "stage": 0,
+      "name": "stage0_chat"
+    }
+  },
+  {
+    "timestamp": "2025-10-09T11:49:43.039Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 4060,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-09T11:50:02.043Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 1657,
+    "tags": {
+      "success": true,
+      "stage": 0,
+      "name": "stage0_chat"
+    }
+  },
+  {
+    "timestamp": "2025-10-09T11:50:02.044Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 2762,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-09T11:50:03.339Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 3.61328125,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-09T11:50:03.339Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.768826961517334,
+    "tags": {}
+  }
+]

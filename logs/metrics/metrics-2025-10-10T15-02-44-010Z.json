@@ -1,0 +1,40 @@
+[
+  {
+    "timestamp": "2025-10-10T15:01:59.538Z",
+    "category": "execution",
+    "name": "agent_stage_tetyana",
+    "value": 23182,
+    "tags": {
+      "success": false,
+      "stage": 2,
+      "name": "execution",
+      "error": "Goose agent failed: Goose agent returned empty response - NO FALLBACK"
+    }
+  },
+  {
+    "timestamp": "2025-10-10T15:01:59.538Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 29609,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T15:02:44.009Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 2.19775390625,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T15:02:44.009Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.8970890045166016,
+    "tags": {}
+  }
+]

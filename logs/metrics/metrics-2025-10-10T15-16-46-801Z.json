@@ -1,0 +1,50 @@
+[
+  {
+    "timestamp": "2025-10-10T15:15:53.334Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 6913,
+    "tags": {
+      "success": true,
+      "stage": 1,
+      "name": "initial_processing",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T15:15:59.022Z",
+    "category": "execution",
+    "name": "agent_stage_tetyana",
+    "value": 5687,
+    "tags": {
+      "success": true,
+      "stage": 2,
+      "name": "execution",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T15:16:00.850Z",
+    "category": "execution",
+    "name": "agent_stage_grisha",
+    "value": 1827,
+    "tags": {
+      "success": true,
+      "stage": 7,
+      "name": "verification",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T15:16:00.851Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 50237,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  }
+]

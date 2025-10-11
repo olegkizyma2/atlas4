@@ -1,0 +1,40 @@
+[
+  {
+    "timestamp": "2025-10-10T15:23:46.804Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 1.5458984375,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T15:23:46.804Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.9842743873596191,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T15:24:14.762Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 1,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/tts/completed",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T15:24:14.765Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 0,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/confirm",
+      "status": 200
+    }
+  }
+]

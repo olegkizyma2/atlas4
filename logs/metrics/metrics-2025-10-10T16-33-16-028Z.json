@@ -1,0 +1,88 @@
+[
+  {
+    "timestamp": "2025-10-10T16:32:16.030Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 4.30517578125,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T16:32:16.030Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.996823787689209,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T16:32:35.513Z",
+    "category": "execution",
+    "name": "agent_stage_tetyana",
+    "value": 20806,
+    "tags": {
+      "success": true,
+      "stage": 4,
+      "name": "retry",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T16:32:38.183Z",
+    "category": "execution",
+    "name": "agent_stage_grisha",
+    "value": 2669,
+    "tags": {
+      "success": true,
+      "stage": 7,
+      "name": "verification",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T16:32:43.594Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 5409,
+    "tags": {
+      "success": true,
+      "stage": 3,
+      "name": "clarification",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T16:33:04.345Z",
+    "category": "execution",
+    "name": "agent_stage_tetyana",
+    "value": 20751,
+    "tags": {
+      "success": true,
+      "stage": 4,
+      "name": "retry",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T16:33:08.557Z",
+    "category": "execution",
+    "name": "agent_stage_grisha",
+    "value": 4212,
+    "tags": {
+      "success": true,
+      "stage": 7,
+      "name": "verification",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T16:33:12.088Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 3530,
+    "tags": {
+      "success": true,
+      "stage": 3,
+      "name": "clarification",
+      "contextSize": 2
+    }
+  }
+]

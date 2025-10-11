@@ -1,0 +1,102 @@
+[
+  {
+    "timestamp": "2025-10-10T09:33:18.518Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 1.56640625,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T09:33:18.519Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.8569459915161133,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T09:33:42.801Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 1077,
+    "tags": {
+      "success": true,
+      "stage": 0,
+      "name": "stage0_chat",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T09:33:42.802Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 3967,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T09:33:45.507Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 1739,
+    "tags": {
+      "success": true,
+      "stage": 0,
+      "name": "stage0_chat",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T09:33:45.508Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 2685,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T09:33:47.859Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 1435,
+    "tags": {
+      "success": true,
+      "stage": 0,
+      "name": "stage0_chat",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T09:33:47.861Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 2329,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T09:34:18.518Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 1.95849609375,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T09:34:18.518Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.8554768562316895,
+    "tags": {}
+  }
+]

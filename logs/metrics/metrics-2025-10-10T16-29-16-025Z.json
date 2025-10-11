@@ -1,0 +1,40 @@
+[
+  {
+    "timestamp": "2025-10-10T16:28:24.733Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 8,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/tts/completed",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T16:29:07.893Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 5643,
+    "tags": {
+      "success": true,
+      "stage": 1,
+      "name": "initial_processing",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T16:29:16.025Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 1.42578125,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T16:29:16.025Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.8418745994567871,
+    "tags": {}
+  }
+]

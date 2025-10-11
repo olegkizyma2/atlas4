@@ -1,0 +1,30 @@
+[
+  {
+    "timestamp": "2025-10-11T01:58:24.733Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 4.814453125,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-11T01:58:24.733Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.9364452362060547,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-11T01:59:24.707Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 5.14501953125,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-11T01:59:24.707Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.9355564117431641,
+    "tags": {}
+  }
+]

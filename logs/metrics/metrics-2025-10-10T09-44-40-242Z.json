@@ -1,0 +1,88 @@
+[
+  {
+    "timestamp": "2025-10-10T09:43:50.115Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 1412,
+    "tags": {
+      "success": true,
+      "stage": 0,
+      "name": "stage0_chat",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T09:43:50.118Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 2379,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T09:43:52.168Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 1104,
+    "tags": {
+      "success": true,
+      "stage": 0,
+      "name": "stage0_chat",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T09:43:52.169Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 2027,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T09:44:23.013Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 30015,
+    "tags": {
+      "success": false,
+      "stage": 0,
+      "name": "stage0_chat",
+      "error": "timeout of 30000ms exceeded"
+    }
+  },
+  {
+    "timestamp": "2025-10-10T09:44:23.014Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 30821,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T09:44:40.241Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 1.42333984375,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T09:44:40.241Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.8174052238464355,
+    "tags": {}
+  }
+]

@@ -1,0 +1,28 @@
+[
+  {
+    "timestamp": "2025-10-10T15:17:46.802Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 1.26025390625,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T15:17:46.802Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.9060077667236328,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T15:18:08.293Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 2,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/tts/completed",
+      "status": 200
+    }
+  }
+]

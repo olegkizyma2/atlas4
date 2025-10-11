@@ -1,0 +1,61 @@
+[
+  {
+    "timestamp": "2025-10-09T11:23:15.560Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 3320,
+    "tags": {
+      "success": true,
+      "stage": 1,
+      "name": "initial_process"
+    }
+  },
+  {
+    "timestamp": "2025-10-09T11:23:17.089Z",
+    "category": "execution",
+    "name": "agent_stage_tetyana",
+    "value": 1528,
+    "tags": {
+      "success": true,
+      "stage": 2,
+      "name": "execution"
+    }
+  },
+  {
+    "timestamp": "2025-10-09T11:23:31.212Z",
+    "category": "execution",
+    "name": "agent_stage_grisha",
+    "value": 14122,
+    "tags": {
+      "success": true,
+      "stage": 7,
+      "name": "verification"
+    }
+  },
+  {
+    "timestamp": "2025-10-09T11:23:31.213Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 18976,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-09T11:23:52.829Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 2.58203125,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-09T11:23:52.829Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.8958277702331543,
+    "tags": {}
+  }
+]

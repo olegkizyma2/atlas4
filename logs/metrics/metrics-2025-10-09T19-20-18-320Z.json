@@ -1,0 +1,16 @@
+[
+  {
+    "timestamp": "2025-10-09T19:19:18.342Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 5.0146484375,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-09T19:19:18.342Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.7856311798095703,
+    "tags": {}
+  }
+]

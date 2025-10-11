@@ -1,0 +1,88 @@
+[
+  {
+    "timestamp": "2025-10-09T22:51:28.839Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 1.46240234375,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-09T22:51:28.840Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.889073371887207,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-09T22:51:48.812Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 3343,
+    "tags": {
+      "success": true,
+      "stage": 0,
+      "name": "stage0_chat"
+    }
+  },
+  {
+    "timestamp": "2025-10-09T22:51:48.814Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 4451,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-09T22:52:05.976Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 3,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/tts/completed",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-09T22:52:26.634Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 2123,
+    "tags": {
+      "success": true,
+      "stage": 0,
+      "name": "stage0_chat"
+    }
+  },
+  {
+    "timestamp": "2025-10-09T22:52:26.635Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 3288,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-09T22:52:28.840Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 1.73583984375,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-09T22:52:28.840Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.9837417602539062,
+    "tags": {}
+  }
+]

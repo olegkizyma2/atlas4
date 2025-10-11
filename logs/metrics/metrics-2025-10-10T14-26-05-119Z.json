@@ -1,0 +1,64 @@
+[
+  {
+    "timestamp": "2025-10-10T14:25:05.456Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 2,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/tts/completed",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T14:25:05.462Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 3,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/confirm",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T14:25:19.685Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 2,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/tts/completed",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T14:25:28.365Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 1,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/tts/completed",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T14:26:05.119Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 3.2783203125,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T14:26:05.119Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.9679841995239258,
+    "tags": {}
+  }
+]

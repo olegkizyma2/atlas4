@@ -1,0 +1,42 @@
+[
+  {
+    "timestamp": "2025-10-09T21:31:22.656Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 5.23681640625,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-09T21:31:22.657Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.872927188873291,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-09T21:31:51.209Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 2945,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-09T21:32:22.656Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 3.80224609375,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-09T21:32:22.656Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.9656352996826172,
+    "tags": {}
+  }
+]

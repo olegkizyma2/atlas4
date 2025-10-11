@@ -1,0 +1,42 @@
+[
+  {
+    "timestamp": "2025-10-10T08:49:36.070Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 1.42529296875,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T08:49:36.070Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.7954573631286621,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T08:50:05.159Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 1,
+    "tags": {
+      "success": true,
+      "method": "GET",
+      "path": "/health",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T08:50:36.070Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 1.49609375,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T08:50:36.070Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.7951459884643555,
+    "tags": {}
+  }
+]

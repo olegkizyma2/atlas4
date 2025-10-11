@@ -1,0 +1,78 @@
+[
+  {
+    "timestamp": "2025-10-09T11:03:43.157Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 9.0302734375,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-09T11:03:43.158Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.8149776458740234,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-09T11:03:56.938Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 2,
+    "tags": {
+      "success": false,
+      "stage": 1,
+      "name": "initial_process",
+      "error": "logger.info is not a function"
+    }
+  },
+  {
+    "timestamp": "2025-10-09T11:03:56.940Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 22,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-09T11:04:19.896Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 3,
+    "tags": {
+      "success": false,
+      "stage": 1,
+      "name": "initial_process",
+      "error": "logger.info is not a function"
+    }
+  },
+  {
+    "timestamp": "2025-10-09T11:04:19.898Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 13,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-09T11:04:43.157Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 9.4208984375,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-09T11:04:43.158Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.8385448455810547,
+    "tags": {}
+  }
+]

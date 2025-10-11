@@ -1,0 +1,102 @@
+[
+  {
+    "timestamp": "2025-10-10T09:51:41.569Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 3.703125,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T09:51:41.570Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.9109277725219727,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T09:51:57.981Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 2919,
+    "tags": {
+      "success": true,
+      "stage": 1,
+      "name": "initial_processing",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T09:52:01.377Z",
+    "category": "execution",
+    "name": "agent_stage_tetyana",
+    "value": 3395,
+    "tags": {
+      "success": true,
+      "stage": 2,
+      "name": "execution",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T09:52:04.170Z",
+    "category": "execution",
+    "name": "agent_stage_grisha",
+    "value": 2792,
+    "tags": {
+      "success": true,
+      "stage": 7,
+      "name": "verification",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T09:52:04.172Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 10297,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T09:52:38.323Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 2776,
+    "tags": {
+      "success": true,
+      "stage": 1,
+      "name": "initial_processing",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T09:52:40.989Z",
+    "category": "execution",
+    "name": "agent_stage_tetyana",
+    "value": 2666,
+    "tags": {
+      "success": true,
+      "stage": 2,
+      "name": "execution",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T09:52:41.570Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 2.49267578125,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T09:52:41.570Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.9118304252624512,
+    "tags": {}
+  }
+]

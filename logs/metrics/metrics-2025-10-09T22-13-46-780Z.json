@@ -1,0 +1,28 @@
+[
+  {
+    "timestamp": "2025-10-09T22:12:46.782Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 2.798828125,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-09T22:12:46.782Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.9944438934326172,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-09T22:12:49.427Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 2422,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  }
+]

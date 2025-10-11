@@ -1,0 +1,79 @@
+2025-09-25 15:57:11,090 [INFO] atlas.whisper.detector: 🚀 Запуск ATLAS Whisper Keyword Detector на порту 3003...
+2025-09-25 15:57:11,090 [INFO] atlas.whisper.detector: 🔊 Детекція ключових слів: атлас, atlas
+2025-09-25 15:57:11,090 [INFO] atlas.whisper.detector: 🛑 Стоп-команди: 20 варіантів
+2025-09-25 15:57:11,090 [INFO] atlas.whisper.detector: 🧠 Модель: base
+2025-09-25 15:57:11,091 [INFO] atlas.whisper.detector: 💻 Пристрій: cpu
+2025-09-25 15:57:11,091 [INFO] atlas.whisper.detector: ⚡ Тип обчислень: float32
+2025-09-25 15:57:11,091 [INFO] atlas.whisper.detector: 🤖 Завантаження детектора ключових слів (модель base)...
+2025-09-25 15:57:11,091 [INFO] atlas.whisper.detector: Device: cpu, Compute type: float32
+2025-09-25 15:57:11,680 [INFO] atlas.whisper.detector: ✅ Детектор ключових слів завантажено за 0.59 секунд!
+2025-09-25 15:57:11,680 [INFO] atlas.whisper.detector: ✅ Детектор готовий до роботи!
+ * Serving Flask app 'whisper_detector_service'
+ * Debug mode: off
+2025-09-25 15:57:11,687 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:3003
+ * Running on http://10.1.15.215:3003
+2025-09-25 15:57:11,687 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
+2025-09-25 15:57:15,185 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 15:57:15] "GET /health HTTP/1.1" 200 -
+2025-09-25 15:57:17,040 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 15:57:17] "GET /health HTTP/1.1" 200 -
+2025-09-25 15:57:19,445 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 15:57:19] "GET /health HTTP/1.1" 200 -
+2025-09-25 15:57:27,062 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 15:57:27] "GET /health HTTP/1.1" 200 -
+2025-09-25 15:57:29,447 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 15:57:29] "GET /health HTTP/1.1" 200 -
+2025-09-25 15:57:37,054 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 15:57:37] "GET /health HTTP/1.1" 200 -
+2025-09-25 15:57:39,443 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 15:57:39] "GET /health HTTP/1.1" 200 -
+2025-09-25 15:57:47,051 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 15:57:47] "GET /health HTTP/1.1" 200 -
+2025-09-25 15:57:49,444 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 15:57:49] "GET /health HTTP/1.1" 200 -
+2025-09-25 15:57:57,052 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 15:57:57] "GET /health HTTP/1.1" 200 -
+2025-09-25 15:57:59,443 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 15:57:59] "GET /health HTTP/1.1" 200 -
+2025-09-25 15:58:07,058 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 15:58:07] "GET /health HTTP/1.1" 200 -
+2025-09-25 15:58:09,447 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 15:58:09] "GET /health HTTP/1.1" 200 -
+2025-09-25 15:58:17,060 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 15:58:17] "GET /health HTTP/1.1" 200 -
+2025-09-25 15:58:19,452 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 15:58:19] "GET /health HTTP/1.1" 200 -
+2025-09-25 15:58:27,065 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 15:58:27] "GET /health HTTP/1.1" 200 -
+2025-09-25 15:58:29,457 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 15:58:29] "GET /health HTTP/1.1" 200 -
+2025-09-25 15:58:37,066 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 15:58:37] "GET /health HTTP/1.1" 200 -
+2025-09-25 15:58:39,456 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 15:58:39] "GET /health HTTP/1.1" 200 -
+2025-09-25 15:58:47,066 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 15:58:47] "GET /health HTTP/1.1" 200 -
+2025-09-25 15:58:49,458 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 15:58:49] "GET /health HTTP/1.1" 200 -
+2025-09-25 15:58:57,066 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 15:58:57] "GET /health HTTP/1.1" 200 -
+2025-09-25 15:58:59,460 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 15:58:59] "GET /health HTTP/1.1" 200 -
+2025-09-25 15:59:07,068 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 15:59:07] "GET /health HTTP/1.1" 200 -
+2025-09-25 15:59:09,457 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 15:59:09] "GET /health HTTP/1.1" 200 -
+2025-09-25 15:59:17,068 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 15:59:17] "GET /health HTTP/1.1" 200 -
+2025-09-25 15:59:19,460 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 15:59:19] "GET /health HTTP/1.1" 200 -
+2025-09-25 15:59:27,070 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 15:59:27] "GET /health HTTP/1.1" 200 -
+2025-09-25 15:59:29,460 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 15:59:29] "GET /health HTTP/1.1" 200 -
+2025-09-25 15:59:37,066 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 15:59:37] "GET /health HTTP/1.1" 200 -
+2025-09-25 15:59:39,456 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 15:59:39] "GET /health HTTP/1.1" 200 -
+2025-09-25 15:59:47,066 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 15:59:47] "GET /health HTTP/1.1" 200 -
+2025-09-25 15:59:49,459 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 15:59:49] "GET /health HTTP/1.1" 200 -
+2025-09-25 15:59:57,066 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 15:59:57] "GET /health HTTP/1.1" 200 -
+2025-09-25 15:59:59,461 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 15:59:59] "GET /health HTTP/1.1" 200 -
+2025-09-25 16:00:07,068 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 16:00:07] "GET /health HTTP/1.1" 200 -
+2025-09-25 16:00:09,463 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 16:00:09] "GET /health HTTP/1.1" 200 -
+2025-09-25 16:00:17,066 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 16:00:17] "GET /health HTTP/1.1" 200 -
+2025-09-25 16:00:19,464 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 16:00:19] "GET /health HTTP/1.1" 200 -
+2025-09-25 16:00:27,069 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 16:00:27] "GET /health HTTP/1.1" 200 -
+2025-09-25 16:00:29,460 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 16:00:29] "GET /health HTTP/1.1" 200 -
+2025-09-25 16:00:37,067 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 16:00:37] "GET /health HTTP/1.1" 200 -
+2025-09-25 16:00:39,457 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 16:00:39] "GET /health HTTP/1.1" 200 -
+2025-09-25 16:00:47,071 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 16:00:47] "GET /health HTTP/1.1" 200 -
+2025-09-25 16:00:49,459 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 16:00:49] "GET /health HTTP/1.1" 200 -
+2025-09-25 16:00:57,069 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 16:00:57] "GET /health HTTP/1.1" 200 -
+2025-09-25 16:00:59,460 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 16:00:59] "GET /health HTTP/1.1" 200 -
+2025-09-25 16:01:07,070 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 16:01:07] "GET /health HTTP/1.1" 200 -
+2025-09-25 16:01:09,458 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 16:01:09] "GET /health HTTP/1.1" 200 -
+2025-09-25 16:01:17,067 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 16:01:17] "GET /health HTTP/1.1" 200 -
+2025-09-25 16:01:19,461 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 16:01:19] "GET /health HTTP/1.1" 200 -
+2025-09-25 16:01:27,071 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 16:01:27] "GET /health HTTP/1.1" 200 -
+2025-09-25 16:01:29,461 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 16:01:29] "GET /health HTTP/1.1" 200 -
+2025-09-25 16:01:30,471 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 16:01:30] "GET /health HTTP/1.1" 200 -
+2025-09-25 16:01:39,459 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 16:01:39] "GET /health HTTP/1.1" 200 -
+2025-09-25 16:01:40,475 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 16:01:40] "GET /health HTTP/1.1" 200 -
+2025-09-25 16:01:49,459 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 16:01:49] "GET /health HTTP/1.1" 200 -
+2025-09-25 16:01:50,477 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 16:01:50] "GET /health HTTP/1.1" 200 -
+2025-09-25 16:01:59,460 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 16:01:59] "GET /health HTTP/1.1" 200 -
+2025-09-25 16:02:00,475 [INFO] werkzeug: 127.0.0.1 - - [25/Sep/2025 16:02:00] "GET /health HTTP/1.1" 200 -
+/opt/homebrew/Cellar/python@3.13/3.13.7/Frameworks/Python.framework/Versions/3.13/lib/python3.13/multiprocessing/resource_tracker.py:324: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown: {'/mp-vj78g_wn'}
+  warnings.warn(

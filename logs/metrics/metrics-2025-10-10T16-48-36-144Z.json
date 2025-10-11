@@ -1,0 +1,112 @@
+[
+  {
+    "timestamp": "2025-10-10T16:47:36.146Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 3.515625,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T16:47:36.146Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.7580771446228027,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T16:47:39.025Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 975,
+    "tags": {
+      "success": true,
+      "stage": 0,
+      "name": "stage0_chat",
+      "contextSize": 4
+    }
+  },
+  {
+    "timestamp": "2025-10-10T16:47:39.026Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 2003,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T16:47:49.224Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 1,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/tts/completed",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T16:47:57.728Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 1420,
+    "tags": {
+      "success": true,
+      "stage": 0,
+      "name": "stage0_chat",
+      "contextSize": 6
+    }
+  },
+  {
+    "timestamp": "2025-10-10T16:47:57.729Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 2594,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T16:48:08.555Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 2,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/tts/completed",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T16:48:21.701Z",
+    "category": "execution",
+    "name": "agent_stage_atlas",
+    "value": 3190,
+    "tags": {
+      "success": true,
+      "stage": 0,
+      "name": "stage0_chat",
+      "contextSize": 8
+    }
+  },
+  {
+    "timestamp": "2025-10-10T16:48:21.703Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 4255,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  }
+]

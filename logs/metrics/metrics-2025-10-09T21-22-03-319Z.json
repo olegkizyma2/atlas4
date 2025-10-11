@@ -1,0 +1,28 @@
+[
+  {
+    "timestamp": "2025-10-09T21:21:03.319Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 3.78564453125,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-09T21:21:03.319Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.9719867706298828,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-09T21:22:02.206Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 0,
+    "tags": {
+      "success": true,
+      "method": "GET",
+      "path": "/health",
+      "status": 200
+    }
+  }
+]

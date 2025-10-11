@@ -1,0 +1,76 @@
+[
+  {
+    "timestamp": "2025-10-10T14:06:42.500Z",
+    "category": "execution",
+    "name": "agent_stage_tetyana",
+    "value": 13550,
+    "tags": {
+      "success": true,
+      "stage": 2,
+      "name": "execution",
+      "contextSize": 4
+    }
+  },
+  {
+    "timestamp": "2025-10-10T14:06:45.234Z",
+    "category": "execution",
+    "name": "agent_stage_grisha",
+    "value": 2733,
+    "tags": {
+      "success": true,
+      "stage": 7,
+      "name": "verification",
+      "contextSize": 4
+    }
+  },
+  {
+    "timestamp": "2025-10-10T14:06:45.235Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 21231,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T14:07:34.595Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 1,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/tts/completed",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T14:07:34.601Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 0,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/confirm",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T14:07:34.602Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 1.595703125,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T14:07:34.602Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.9538002014160156,
+    "tags": {}
+  }
+]

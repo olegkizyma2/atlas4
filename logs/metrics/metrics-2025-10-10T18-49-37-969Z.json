@@ -1,0 +1,88 @@
+[
+  {
+    "timestamp": "2025-10-10T18:48:38.286Z",
+    "category": "execution",
+    "name": "agent_stage_tetyana",
+    "value": 3672,
+    "tags": {
+      "success": true,
+      "stage": 2,
+      "name": "execution",
+      "contextSize": 2
+    }
+  },
+  {
+    "timestamp": "2025-10-10T18:49:26.990Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 2,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/tts/completed",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T18:49:26.996Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 2,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/confirm",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T18:49:31.983Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 6,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/tts/completed",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T18:49:35.791Z",
+    "category": "execution",
+    "name": "agent_stage_grisha",
+    "value": 3811,
+    "tags": {
+      "success": false,
+      "stage": 7,
+      "name": "verification",
+      "error": "Goose agent failed: Goose agent returned empty response - NO FALLBACK"
+    }
+  },
+  {
+    "timestamp": "2025-10-10T18:49:35.792Z",
+    "category": "execution",
+    "name": "http_request",
+    "value": 68253,
+    "tags": {
+      "success": true,
+      "method": "POST",
+      "path": "/chat/stream",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-10-10T18:49:37.968Z",
+    "category": "resource",
+    "name": "cpu",
+    "value": 3.70263671875,
+    "tags": {}
+  },
+  {
+    "timestamp": "2025-10-10T18:49:37.968Z",
+    "category": "resource",
+    "name": "memory",
+    "value": 0.9928040504455566,
+    "tags": {}
+  }
+]
