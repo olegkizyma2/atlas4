@@ -11,7 +11,7 @@
  * - VAD: Визначає кінець фрази (1.5 сек тиші)
  * - System: Автостоп → Whisper транскрипція → відправка в чат
  * - Atlas: Відповідь → TTS → повернення до idle
- * 
+ *
  * WORKFLOW Conversation (Mode 2):
  * - User: Утримання кнопки 2 секунди
  * - System: Активація conversation mode
@@ -286,7 +286,8 @@ export class ConversationModeManager {
 
     if (this.state.getCurrentMode() === ConversationModes.QUICK_SEND) {
       this.logger.info('🛑 Stopping quick-send by click');
-      this.eventManager.emit('CONVERSATION_MODE_QUICK_SEND_END', {
+      // FIXED (11.10.2025 - 22:05): використовуємо ConversationEvents константу
+      this.eventManager.emit(ConversationEvents.CONVERSATION_MODE_QUICK_SEND_END, {
         mode: 'idle',
         timestamp: Date.now()
       });
@@ -485,7 +486,7 @@ export class ConversationModeManager {
 
     // КРИТИЧНО: Озвучуємо відповідь ПЕРЕД початком запису
     this.logger.info(`🔊 Playing activation response: "${activationResponse}"`);
-    
+
     try {
       // Емітуємо подію для TTS (isActivationResponse=true означає що після цього треба запис)
       this.eventManager.emit('TTS_SPEAK_REQUEST', {
@@ -498,10 +499,10 @@ export class ConversationModeManager {
 
       // Після TTS завершення (через TTS_COMPLETED event) автоматично запуститься запис
       // Це обробляється в handleTTSCompleted()
-      
+
     } catch (error) {
       this.logger.error('Failed to play activation response', null, error);
-      
+
       // Fallback: якщо TTS failed - одразу запускаємо запис
       this.startConversationRecording();
     }
@@ -525,7 +526,8 @@ export class ConversationModeManager {
     this.ui?.showStatus('Записую...');
 
     // Емісія події для початку запису
-    this.eventManager.emit('CONVERSATION_RECORDING_START', {
+    // FIXED (11.10.2025 - 22:05): використовуємо ConversationEvents константу замість string literal
+    this.eventManager.emit(ConversationEvents.CONVERSATION_RECORDING_START, {
       mode: 'conversation',
       timestamp: Date.now()
     });
@@ -632,9 +634,10 @@ export class ConversationModeManager {
     this.state.setWaitingForUserResponse(false);
     this.ui?.showIdleMode(); // Скидання всіх класів
 
-    // Додавання в історію розмови
-    this.conversationHistory.push({
-      role: 'user',
+    // Додавання в історію розмови через state manager
+    // FIXED (11.10.2025 - 22:05): використовуємо state.addToHistory() замість прямого this.conversationHistory.push()
+    this.state.addToHistory({
+      type: 'user', // StateManager використовує 'type' замість 'role'
       text,
       timestamp: Date.now(),
       confidence
@@ -678,14 +681,14 @@ export class ConversationModeManager {
     if (isActivationResponse) {
       this.logger.info('🎙️ Activation response completed - starting conversation recording');
       this.ui?.showIdleMode();
-      
+
       // Невелика пауза для природності (300ms)
       setTimeout(() => {
         if (this.state.isInConversation()) {
           this.startConversationRecording();
         }
       }, 300);
-      
+
       return; // Не запускаємо continuous listening після activation response
     }
 
@@ -759,7 +762,8 @@ export class ConversationModeManager {
     this.logger.info(`📨 Sending to chat: "${text}"`);
 
     // Емісія події для відправки в чат
-    this.eventManager.emit('SEND_CHAT_MESSAGE', {
+    // FIXED (11.10.2025 - 22:05): використовуємо ConversationEvents константу
+    this.eventManager.emit(ConversationEvents.SEND_CHAT_MESSAGE, {
       text,
       source: 'voice',
       mode: this.state.getCurrentMode(),
