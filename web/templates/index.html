@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ATLAS Minimal Interface v4.0</title>
+    <link rel="icon" href="{{ url_for('static', filename='assets/atlas-icon.svg') }}" type="image/svg+xml">
+    <link rel="icon" href="{{ url_for('static', filename='assets/favicon.ico') }}" type="image/x-icon">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='assets/apple-touch-icon.png') }}">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+</head>
+
+<body>
+    <!-- 3D Model Background -->
+    <div class="model-container">
+        <model-viewer id="model-viewer"
+            src="{{ url_for('static', filename='assets/DamagedHelmet.glb') }}"
+            auto-rotate
+            auto-rotate-delay="500"
+            rotation-per-second="30deg"
+            camera-controls
+            camera-target="auto auto auto"
+            shadow-intensity="0.3"
+            shadow-softness="0.8"
+            environment-image="neutral"
+            disable-zoom
+            loading="eager"
+            ar-status="not-presenting"
+            interaction-prompt="none"
+            interaction-prompt-threshold="0"
+            exposure="1.5"
+            tone-mapping="commerce"
+            style="--poster-color: transparent; --progress-bar-color: transparent; --progress-bar-height: 0;">
+        </model-viewer>
+    </div>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Status dots will be mounted next to the right-side logo (agent-indicator) dynamically -->
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <div class="logs-panel desktop">
+                <div id="logs-container-desktop" class="logs-container"></div>
+
+                <div class="minimal-chat-panel">
+                    <div class="chat-content" id="chat-content">
+                        <div id="chat-container" class="chat-container">
+                            <!-- Chat messages will render here -->
+                        </div>
+                        <div class="input-container">
+                            <input type="text" id="message-input" placeholder="Введіть повідомлення..."
+                                autocomplete="off" maxlength="1000">
+                            <div class="button-row">
+                                <button id="send-button" class="btn btn-primary">
+                                    <span class="btn-text">Send</span>
+                                    <span class="btn-shortcut">↵</span>
+                                </button>
+                                <button id="microphone-btn" class="btn btn-secondary">
+                                    <span class="btn-text">🔵</span>
+                                </button>
+                                <button id="tts-toggle" class="btn btn-secondary" title="Перемкнути озвучення TTS">
+                                    <span class="btn-text">🔊</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- Whisper overlay (shown on recognition events) -->
+    <div id="whisper-overlay" class="whisper-overlay">
+        <div class="whisper-overlay-content">
+            <div class="whisper-header">
+                <h3>🎤 Розпізнаний текст</h3>
+                <button id="clear-whisper-results" class="btn btn-secondary" title="Очистити таблицю">🗑️</button>
+            </div>
+            <div class="whisper-table-container">
+                <table id="whisper-results-table" class="whisper-table">
+                    <thead>
+                        <tr>
+                            <th>Час</th>
+                            <th>Режим</th>
+                            <th>Розпізнаний текст</th>
+                            <th>Мова</th>
+                            <th>Статус</th>
+                        </tr>
+                    </thead>
+                    <tbody id="whisper-results-body">
+                        <!-- Результати будуть додаватися динамічно -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">Initializing ATLAS...</div>
+        </div>
+    </div>
+
+    <!-- Scripts - Refactored Modular Architecture -->
+    <!-- Load main application -->
+    <script type="module" src="{{ url_for('static', filename='js/app-refactored.js') }}?v={{ timestamp }}"></script>
+
+    <!-- Load Atlas GLB Living System Test Suite (for development/testing) -->
+    <script type="module"
+        src="{{ url_for('static', filename='js/components/model3d/test-glb-living.js') }}?v={{ timestamp }}"></script>
+
+    <!-- Load diagnostics (for development) -->
+    <script src="{{ url_for('static', filename='js/diagnostics.js') }}?v={{ timestamp }}"></script>
+    <script src="{{ url_for('static', filename='js/debug-3d-model.js') }}?v={{ timestamp }}"></script>
+
+    <!-- Service Worker -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('{{ url_for("static", filename="js/service-worker.js") }}')
+                .then(registration => console.log('SW registered:', registration))
+                .catch(error => console.log('SW registration failed:', error));
+        }
+
+    </script>
+</body>
+
+</html>

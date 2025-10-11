@@ -1,0 +1,1590 @@
+/* Atlas Minimal Interface - Hacker Style */
+
+/* === ОСНОВНЫЕ ПЕРЕМЕННЫЕ === */
+:root {
+    --chat-gap: 20px;
+    --chat-width: calc((100vw - var(--chat-gap)) / 3);
+    --primary-green: #00ff7f;
+    --secondary-green: #4a9c5a;
+    --dark-green: rgba(0, 20, 10, 0.6);
+    --error-red: #d16969;
+    --warning-yellow: #d1a643;
+}
+
+/* === ОБЩИЕ СТИЛИ === */
+body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Courier New', monospace;
+    background: #000;
+    color: var(--secondary-green);
+    font-size: 11px;
+    line-height: 1.3;
+    overflow: hidden;
+}
+
+/* === КНОПКИ И ЭЛЕМЕНТЫ УПРАВЛЕНИЯ === */
+.btn {
+    flex: 1;
+    background: var(--dark-green);
+    color: var(--primary-green);
+    border: none;
+    border-radius: 4px;
+    padding: 6px 8px;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: bold;
+    transition: all 0.3s ease;
+    font-family: 'Courier New', monospace;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 32px;
+}
+
+.btn:hover {
+    background: rgba(0, 20, 10, 0.8);
+    box-shadow: 0 0 6px rgba(0, 255, 127, 0.3);
+}
+
+.btn:active {
+    transform: translateY(1px);
+}
+
+.btn:disabled {
+    background: rgba(64, 64, 64, 0.3);
+    color: #666666;
+    cursor: not-allowed;
+}
+
+.btn-primary {
+    background: rgba(0, 255, 127, 0.2);
+    margin-right: 5px;
+    font-weight: bold;
+}
+
+.btn-primary:hover:not(:disabled) {
+    background: rgba(0, 255, 127, 0.3);
+}
+
+.btn-secondary {
+    background: rgba(0, 20, 10, 0.6);
+}
+
+.btn-secondary:hover:not(:disabled) {
+    background: rgba(0, 20, 10, 0.8);
+}
+
+.btn-text {
+    display: inline-block;
+}
+
+.btn-shortcut {
+    font-size: 10px;
+    opacity: 0.7;
+    margin-left: 4px;
+}
+
+.btn.listening {
+    animation: pulse 1.5s ease-in-out infinite;
+    box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
+}
+
+/* === CONVERSATION MODE STYLES === */
+
+/* Pressing state - під час утримання кнопки */
+.btn.pressing {
+    transform: scale(0.95);
+    box-shadow: 0 0 15px rgba(0, 136, 255, 0.8);
+    transition: all 0.1s ease;
+}
+
+/* Quick-send mode */
+.btn.quick-send {
+    background: linear-gradient(135deg, #00d4ff 0%, #0088ff 100%);
+    animation: quick-pulse 1s ease-in-out infinite;
+}
+
+@keyframes quick-pulse {
+
+    0%,
+    100% {
+        box-shadow: 0 0 10px rgba(0, 136, 255, 0.5);
+    }
+
+    50% {
+        box-shadow: 0 0 20px rgba(0, 136, 255, 1.0);
+    }
+}
+
+/* Conversation mode */
+.btn.conversation-mode {
+    background: linear-gradient(135deg, #00ff7f 0%, #00aa55 100%);
+    animation: conversation-pulse 2s ease-in-out infinite;
+    border: 2px solid #00ff7f;
+}
+
+@keyframes conversation-pulse {
+
+    0%,
+    100% {
+        box-shadow: 0 0 15px rgba(0, 255, 127, 0.6);
+        transform: scale(1);
+    }
+
+    50% {
+        box-shadow: 0 0 30px rgba(0, 255, 127, 1.0);
+        transform: scale(1.05);
+    }
+}
+
+/* Атлас говорить в conversation mode */
+.btn.atlas-speaking {
+    background: linear-gradient(135deg, #ff8800 0%, #ff5500 100%);
+    animation: atlas-speaking-pulse 1s ease-in-out infinite;
+}
+
+@keyframes atlas-speaking-pulse {
+
+    0%,
+    100% {
+        box-shadow: 0 0 15px rgba(255, 136, 0, 0.7);
+    }
+
+    50% {
+        box-shadow: 0 0 35px rgba(255, 136, 0, 1.0);
+    }
+}
+
+/* Очікування відповіді користувача */
+.btn.waiting-response {
+    background: linear-gradient(135deg, #8800ff 0%, #5500ff 100%);
+    animation: waiting-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes waiting-pulse {
+
+    0%,
+    100% {
+        box-shadow: 0 0 10px rgba(136, 0, 255, 0.6);
+    }
+
+    50% {
+        box-shadow: 0 0 25px rgba(136, 0, 255, 1.0);
+    }
+}
+
+/* Continuous listening - циклічне прослуховування після TTS */
+.btn.continuous-listening {
+    background: linear-gradient(135deg, #00ddff 0%, #0088ff 100%);
+    animation: continuous-listening-pulse 1s ease-in-out infinite;
+}
+
+@keyframes continuous-listening-pulse {
+
+    0%,
+    100% {
+        box-shadow: 0 0 12px rgba(0, 136, 255, 0.7);
+        transform: scale(1.02);
+    }
+
+    50% {
+        box-shadow: 0 0 28px rgba(0, 221, 255, 1.0);
+        transform: scale(1.05);
+    }
+}
+
+/* Conversation mode status overlay */
+.conversation-mode-status {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: linear-gradient(135deg, rgba(0, 255, 127, 0.95) 0%, rgba(0, 170, 85, 0.95) 100%);
+    padding: 15px 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 255, 127, 0.4);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: all 0.3s ease;
+    opacity: 0;
+    transform: translateX(100px);
+}
+
+.conversation-mode-status.visible {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.conversation-mode-status.hidden {
+    opacity: 0;
+    transform: translateX(100px);
+    pointer-events: none;
+}
+
+.conversation-mode-status .status-content {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.conversation-mode-status .status-icon {
+    font-size: 24px;
+    animation: status-icon-pulse 2s ease-in-out infinite;
+}
+
+@keyframes status-icon-pulse {
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.2);
+    }
+}
+
+.conversation-mode-status .status-text {
+    font-size: 16px;
+    font-weight: bold;
+    color: #fff;
+}
+
+.conversation-mode-status .status-hint {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+/* Mode notification toast */
+.mode-notification {
+    position: fixed;
+    bottom: 80px;
+    right: 20px;
+    background: rgba(0, 0, 0, 0.9);
+    color: #fff;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    z-index: 1001;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.3s ease;
+}
+
+.mode-notification.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.mode-notification.quick-send {
+    border-left: 4px solid #0088ff;
+}
+
+.mode-notification.conversation {
+    border-left: 4px solid #00ff7f;
+}
+
+/* === КОМПОНОВКА ОСНОВНЫХ ЭЛЕМЕНТОВ === */
+.main-content {
+    position: relative;
+    min-height: 100vh;
+    --chat-gap: 20px;
+}
+
+/* 3D Model Background - Atlas Living Helmet */
+.model-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 10;
+    /* ✅ 3D модель - середній шар (над логами, під чатом) */
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+}
+
+model-viewer {
+    width: 100%;
+    height: 100%;
+    opacity: 0.75;
+    filter: drop-shadow(0 0 60px rgba(0, 255, 127, 0.5)) brightness(1.1);
+    --poster-color: transparent;
+    z-index: 10;
+    /* ✅ 3D модель - середній шар */
+    transition: all 0.3s ease;
+    pointer-events: none;
+    display: block !important;
+    visibility: visible !important;
+}
+
+/* Стани моделі */
+model-viewer.speaking {
+    filter: drop-shadow(0 0 80px rgba(0, 255, 127, 1.0)) brightness(1.3);
+    animation: pulse-glow 2s ease-in-out infinite;
+    opacity: 0.9;
+}
+
+model-viewer.listening {
+    filter: drop-shadow(0 0 70px rgba(0, 136, 255, 0.8)) brightness(1.2);
+    opacity: 0.85;
+}
+
+model-viewer.thinking {
+    filter: drop-shadow(0 0 75px rgba(255, 136, 0, 0.9)) brightness(1.25);
+    animation: thinking-pulse 1.5s ease-in-out infinite;
+    opacity: 0.85;
+}
+
+model-viewer.focused {
+    filter: drop-shadow(0 0 65px rgba(136, 0, 255, 0.8)) brightness(1.2);
+    opacity: 0.85;
+}
+
+/* Анімації */
+@keyframes pulse-glow {
+
+    0%,
+    100% {
+        filter: drop-shadow(0 0 60px rgba(0, 255, 127, 0.5)) brightness(1.2);
+    }
+
+    50% {
+        filter: drop-shadow(0 0 100px rgba(0, 255, 127, 1.0)) brightness(1.4);
+    }
+}
+
+@keyframes thinking-pulse {
+
+    0%,
+    100% {
+        filter: drop-shadow(0 0 65px rgba(255, 136, 0, 0.7)) brightness(1.2);
+    }
+
+    50% {
+        filter: drop-shadow(0 0 90px rgba(255, 136, 0, 1.0)) brightness(1.35);
+    }
+}
+
+/* Приховуємо всі UI елементи model-viewer */
+model-viewer::part(default-progress-bar) {
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+}
+
+model-viewer::part(default-progress-mask) {
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+}
+
+/* Приховуємо progress bar через CSS змінні */
+model-viewer {
+    --progress-bar-height: 0 !important;
+    --progress-bar-color: transparent !important;
+    --progress-mask-color: transparent !important;
+}
+
+/* Приховуємо AR та інші кнопки */
+model-viewer > button,
+model-viewer button {
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+
+model-viewer .icon,
+model-viewer svg {
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+}
+
+/* Приховуємо всі overlay елементи */
+model-viewer #default-progress-bar,
+model-viewer #default-ar-button,
+model-viewer .ar-button,
+model-viewer [slot="progress-bar"] {
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+}
+
+/* Desktop logs panel */
+.logs-panel.desktop {
+    position: fixed;
+    z-index: 1;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    width: 100vw;
+    height: 100vh;
+    background: transparent;
+    /* ✅ Логи - найнижчий шар (під шоломом) */
+    pointer-events: none;
+    overflow: hidden;
+}
+
+#logs-container-desktop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 18px 20px 18px 18px;
+    filter: sepia(100%) saturate(200%) hue-rotate(90deg) brightness(0.9) contrast(1.2);
+    pointer-events: auto;
+}
+
+/* Забезпечуємо правильний розмір для AnimatedLoggingSystem */
+#logs-container-desktop .animated-logs-container {
+    height: 100% !important;
+    min-height: 100%;
+    max-height: 100%;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+/* Гарантуємо що logs-content займає доступний простір і скролиться */
+#logs-container-desktop .logs-content {
+    flex: 1 1 auto !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    min-height: 0 !important;
+}
+
+/* Фіксуємо розмір шрифту - не дозволяємо зменшення */
+#logs-container-desktop .log-entry,
+#logs-container-desktop .log-message,
+#logs-container-desktop .log-level,
+#logs-container-desktop .log-timestamp,
+#logs-container-desktop .log-source {
+    font-size: 11px !important;
+    line-height: 1.3 !important;
+}
+
+.logs-container::-webkit-scrollbar {
+    width: 0;
+}
+
+.log-line {
+    color: #4a9c5a;
+    margin: 0;
+    padding: 2px 0 1px 0;
+    word-wrap: break-word;
+    font-size: 11px;
+    line-height: 1.28;
+    font-family: 'Courier New', monospace;
+    font-weight: normal;
+    white-space: pre-wrap;
+    letter-spacing: 0.3px;
+}
+
+.log-line.error {
+    color: #d16969;
+}
+
+.log-line.warning {
+    color: #d19a66;
+}
+
+.log-item .level {
+    background: rgba(0, 255, 127, 0.2);
+    color: #00ff7f;
+    margin-right: 5px;
+    font-weight: bold;
+}
+
+.log-item .message {
+    color: #4a9c5a;
+}
+
+/* === МИНИМАЛЬНАЯ ПАНЕЛЬ ЧАТА === */
+.minimal-chat-panel {
+    position: absolute;
+    top: 72px;
+    right: 24px;
+    width: 620px;
+    bottom: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    z-index: 20;
+    /* ✅ Чат - перший шар (найвищий) */
+    pointer-events: auto;
+    background: none;
+}
+
+.chat-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(0, 255, 127, 0.25);
+    border-radius: 8px;
+    -webkit-backdrop-filter: blur(5px);
+    backdrop-filter: blur(5px);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+    overflow: hidden;
+}
+
+.chat-container {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.chat-container::-webkit-scrollbar {
+    width: 6px;
+    background: transparent;
+    padding: 0;
+}
+
+.chat-container::-webkit-scrollbar-track {
+    background: rgba(0, 255, 127, 0.05);
+    border: none;
+}
+
+.chat-container::-webkit-scrollbar-thumb {
+    background: rgba(0, 255, 127, 0.3);
+    border-radius: 3px;
+}
+
+.chat-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 255, 127, 0.45);
+}
+
+.chat-container.drag-over {
+    border: 2px dashed var(--primary-green);
+    background: rgba(0, 255, 127, 0.1);
+}
+
+/* Поле ввода сообщений */
+
+.input-container {
+    padding: 12px 14px 14px;
+    border-top: 1px solid rgba(0, 255, 127, 0.18);
+    background: rgba(0, 0, 0, 0.18);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
+}
+
+.input-container input {
+    width: 100%;
+    background: rgba(0, 20, 10, 0.6);
+    border: none;
+    border-radius: 4px;
+    color: #00ff7f;
+    padding: 9px 12px;
+    font-size: 11px;
+    font-family: 'Courier New', monospace;
+    transition: all 0.3s ease;
+}
+
+.input-container input:focus {
+    outline: none;
+    background: rgba(0, 20, 10, 0.78);
+    box-shadow: 0 0 6px rgba(0, 255, 127, 0.3);
+}
+
+.button-row {
+    display: flex;
+    gap: 6px;
+    justify-content: space-between;
+}
+
+/* === СТИЛИ СООБЩЕНИЙ === */
+.chat-entry {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 6px 8px;
+    border-left: 3px solid transparent;
+    background: rgba(0, 25, 15, 0.32);
+    border-radius: 4px;
+    transition: background 0.25s ease;
+}
+
+.chat-entry:hover {
+    background: rgba(0, 45, 30, 0.5);
+}
+
+.chat-entry .chat-timestamp {
+    font-size: 9px;
+    color: rgba(0, 255, 127, 0.55);
+    min-width: 60px;
+    white-space: nowrap;
+}
+
+.chat-entry .chat-agent {
+    font-size: 10px;
+    font-weight: bold;
+    text-transform: uppercase;
+    color: rgba(0, 255, 127, 0.75);
+    min-width: 72px;
+    display: inline-flex;
+    justify-content: flex-start;
+}
+
+.chat-entry .chat-message {
+    flex: 1;
+    color: #9cffc7;
+    line-height: 1.35;
+}
+
+.chat-entry.agent-user {
+    border-left-color: #00ff7f;
+}
+
+.chat-entry.agent-atlas {
+    border-left-color: #4a9c5a;
+}
+
+.chat-entry.agent-tetyana {
+    border-left-color: #1f9cff;
+}
+
+.chat-entry.agent-grisha {
+    border-left-color: #ffaa33;
+}
+
+.chat-entry.agent-system {
+    border-left-color: #d1a643;
+}
+
+.chat-entry.agent-error {
+    border-left-color: #d16969;
+}
+
+.chat-entry.agent-user .chat-agent {
+    color: #00ff7f;
+}
+
+.chat-entry.agent-atlas .chat-agent {
+    color: #4a9c5a;
+}
+
+.chat-entry.agent-tetyana .chat-agent {
+    color: #1f9cff;
+}
+
+.chat-entry.agent-grisha .chat-agent {
+    color: #ffaa33;
+}
+
+.chat-entry.agent-system .chat-agent {
+    color: #d1a643;
+}
+
+.chat-entry.agent-error .chat-agent {
+    color: #ff6b6b;
+}
+
+/* === ВКЛАДКИ === */
+.chat-tabs {
+    display: none;
+    gap: 6px;
+    padding: 6px 4px 4px;
+}
+
+.tab {
+    flex: 1;
+    background: rgba(0, 20, 10, 0.6);
+    color: #00ff7f;
+    border: 1px solid rgba(0, 255, 127, 0.3);
+    border-radius: 4px;
+    padding: 6px 8px;
+    cursor: pointer;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+}
+
+.tab.active {
+    background: rgba(0, 255, 127, 0.2);
+    border-color: #00ff7f;
+}
+
+.view {
+    flex: 1;
+    display: none;
+    flex-direction: column;
+    background: rgba(64, 64, 64, 0.3);
+    border-color: rgba(128, 128, 128, 0.3);
+    color: #666666;
+    cursor: not-allowed;
+}
+
+.view.active {
+    display: flex;
+}
+
+/* === ИНДИКАТОРЫ СТАТУСА === */
+.status-dots {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    position: fixed;
+    top: 10px;
+    right: 120px;
+    z-index: 1100;
+}
+
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #444;
+    box-shadow: 0 0 6px rgba(0, 255, 65, 0.3);
+    border: 1px solid rgba(0, 255, 65, 0.2);
+    position: relative;
+    cursor: pointer;
+}
+
+.status-dot.online {
+    background: #00d94a;
+    box-shadow: 0 0 8px rgba(0, 255, 80, 0.8);
+}
+
+.status-dot.offline {
+    background: #d94343;
+    box-shadow: 0 0 8px rgba(255, 64, 64, 0.7);
+}
+
+.status-dot.warning {
+    background: #d1a643;
+    box-shadow: 0 0 8px rgba(255, 208, 0, 0.6);
+}
+
+.status-dot[data-tooltip]:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    top: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    z-index: 1000;
+    background: rgba(0, 0, 0, 0.85);
+    color: #9cffc7;
+    padding: 3px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+}
+
+/* === ИНДИКАТОР АГЕНТА === */
+.agent-indicator {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    background: rgba(0, 0, 0, 0.8);
+    border: 1px solid #00ff41;
+    border-radius: 15px;
+    padding: 5px 15px;
+    z-index: 1000;
+    font-family: 'Courier New', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+#agent-name {
+    color: #00ff00;
+    font-weight: bold;
+    text-shadow: 0 0 5px currentColor;
+}
+
+/* === ТАБЛИЦА РЕЗУЛЬТАТОВ WHISPER === */
+/* === WHISPER OVERLAY === */
+.whisper-overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle at center, rgba(0, 30, 10, 0.65) 0%, rgba(0, 5, 2, 0.85) 100%);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+    z-index: 900;
+}
+
+.whisper-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.whisper-overlay-content {
+    width: min(80vw, 640px);
+    max-height: 70vh;
+    background: rgba(0, 0, 0, 0.9);
+    border: 1px solid rgba(0, 255, 127, 0.35);
+    border-radius: 10px;
+    padding: 18px 20px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    animation: overlay-pop 0.25s ease;
+}
+
+.whisper-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(0, 255, 127, 0.2);
+    padding-bottom: 6px;
+    margin-bottom: 4px;
+}
+
+.whisper-header h3 {
+    color: #00ff7f;
+    font-size: 14px;
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+#clear-whisper-results {
+    font-size: 10px;
+    min-height: 22px;
+    padding: 2px 8px;
+}
+
+.whisper-table-container {
+    max-height: 50vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.whisper-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10px;
+    color: #4a9c5a;
+}
+
+.whisper-table th {
+    background: rgba(0, 20, 10, 0.6);
+    color: #00ff7f;
+    padding: 6px 8px;
+    text-align: left;
+    border: 1px solid rgba(0, 255, 127, 0.2);
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: 9px;
+}
+
+.whisper-table td {
+    padding: 4px 8px;
+    border: 1px solid rgba(0, 255, 127, 0.1);
+    vertical-align: top;
+    word-wrap: break-word;
+    max-width: 200px;
+}
+
+.whisper-table tbody tr:nth-child(even) {
+    background: rgba(0, 20, 10, 0.1);
+}
+
+.whisper-table tbody tr:hover {
+    background: rgba(0, 255, 127, 0.05);
+}
+
+@keyframes overlay-pop {
+    from {
+        transform: translateY(20px) scale(0.98);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+    }
+}
+
+.whisper-mode {
+    font-weight: bold;
+    text-transform: uppercase;
+    font-size: 9px;
+}
+
+.whisper-mode.short {
+    color: #00d94a;
+}
+
+.whisper-mode.long {
+    color: #d1a643;
+}
+
+.whisper-status {
+    font-weight: bold;
+    text-transform: uppercase;
+    font-size: 9px;
+}
+
+.whisper-status.success {
+    color: #00d94a;
+}
+
+.whisper-status.error {
+    color: #d94343;
+}
+
+.whisper-status.processing {
+    color: #d1a643;
+    animation: pulse 1.5s infinite;
+}
+
+.whisper-timestamp {
+    font-size: 9px;
+    color: #666;
+    white-space: nowrap;
+}
+
+.whisper-language {
+    font-size: 9px;
+    text-transform: uppercase;
+    color: #9cffc7;
+}
+
+.whisper-text {
+    max-width: 300px;
+    word-wrap: break-word;
+    font-style: italic;
+}
+
+.whisper-text.clickable-text {
+    cursor: pointer;
+    color: #00ff88;
+    transition: color 0.3s ease;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+}
+
+.whisper-text.clickable-text:hover {
+    color: #00ffff;
+    text-decoration-style: solid;
+}
+
+/* === АНИМАЦИИ === */
+@keyframes pulse {
+    0% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.7;
+    }
+
+    100% {
+        opacity: 1;
+    }
+}
+
+@keyframes loading-shine {
+    0% {
+        left: -100%;
+    }
+
+    100% {
+        left: 100%;
+    }
+}
+
+/* === АДАПТИВНОСТЬ === */
+@media (max-width: 1024px) {
+    .logs-panel {
+        width: 25%;
+    }
+}
+
+@media (max-width: 768px) {
+    .main-content {
+        --chat-gap: 20px;
+        --chat-width: 100vw;
+    }
+
+    .minimal-chat-panel {
+        left: 0;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        width: 100vw;
+    }
+
+    .chat-content {
+        width: 100%;
+    }
+
+    .logs-panel.desktop {
+        display: none;
+    }
+
+    .whisper-results-section {
+        left: 10px;
+        right: 10px;
+        width: auto;
+        bottom: 10px;
+    }
+
+    .whisper-table th,
+    .whisper-table td {
+        padding: 3px 4px;
+        font-size: 8px;
+    }
+
+    .agent-indicator {
+        top: 5px;
+        right: 5px;
+        padding: 3px 10px;
+        font-size: 9px;
+    }
+
+    .chat-tabs {
+        display: flex;
+    }
+}
+
+/* === OVERRIDES: Transparent backgrounds for 3D model visibility === */
+.logs-panel.desktop {
+    /* ✅ Прозорий фон - 3D модель видно крізь логи */
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+.input-container {
+    background: rgba(0, 0, 0, 0.25) !important;
+    -webkit-backdrop-filter: blur(3px) !important;
+    backdrop-filter: blur(3px) !important;
+}
+
+.message.user,
+.message.assistant {
+    background: rgba(0, 20, 10, 0.15) !important;
+    border: 1px solid rgba(0, 255, 127, 0.1) !important;
+}
+
+.whisper-results-section {
+    background: rgba(0, 0, 0, 0.55) !important;
+}
+
+/* Keep table headers readable */
+.whisper-table th {
+    background: rgba(0, 0, 0, 0.65) !important;
+}
+
+/* === ADVANCED UI COMPONENTS v2.0 === */
+
+/* Tooltip System */
+.atlas-tooltip {
+    position: absolute;
+    background: rgba(0, 0, 0, 0.9);
+    color: var(--text-secondary);
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-family: 'Courier New', monospace;
+    border: 1px solid var(--border-color);
+    z-index: 10000;
+    pointer-events: none;
+    max-width: 250px;
+    word-wrap: break-word;
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+}
+
+.atlas-tooltip.tooltip-bottom {
+    margin-top: 8px;
+}
+
+.atlas-tooltip::before {
+    content: '';
+    position: absolute;
+    top: -5px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-bottom: 5px solid rgba(0, 0, 0, 0.9);
+}
+
+.atlas-tooltip.tooltip-bottom::before {
+    top: auto;
+    bottom: -5px;
+    border-bottom: none;
+    border-top: 5px solid rgba(0, 0, 0, 0.9);
+}
+
+/* Notification System */
+.notification-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 350px;
+}
+
+.notification {
+    background: linear-gradient(135deg,
+            var(--bg-secondary) 0%,
+            var(--bg-tertiary) 100%);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 12px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 4px 20px var(--shadow-color);
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+}
+
+.notification.notification-info {
+    border-left: 3px solid var(--primary-color);
+}
+
+.notification.notification-success {
+    border-left: 3px solid var(--secondary-color);
+}
+
+.notification.notification-warning {
+    border-left: 3px solid #ffaa00;
+}
+
+.notification.notification-error {
+    border-left: 3px solid #ff4444;
+}
+
+.notification-icon {
+    font-size: 16px;
+    margin-top: 2px;
+}
+
+.notification-content {
+    flex: 1;
+}
+
+.notification-message {
+    color: var(--text-primary);
+    line-height: 1.4;
+}
+
+.notification-close {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 18px;
+    padding: 0;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+}
+
+.notification-close:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+}
+
+/* Modal System */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10000;
+}
+
+.modal.active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    -webkit-backdrop-filter: blur(5px);
+    backdrop-filter: blur(5px);
+    cursor: pointer;
+}
+
+.modal-content {
+    position: relative;
+    background: linear-gradient(135deg,
+            var(--bg-secondary) 0%,
+            var(--bg-primary) 100%);
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    max-width: 90vw;
+    max-height: 90vh;
+    overflow-y: auto;
+    font-family: 'Courier New', monospace;
+    box-shadow: 0 10px 40px var(--shadow-color);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-tertiary);
+}
+
+.modal-title {
+    color: var(--secondary-color);
+    font-size: 16px;
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 24px;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+}
+
+.modal-close:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--primary-color);
+}
+
+.modal-body {
+    padding: 20px;
+    color: var(--text-primary);
+    line-height: 1.6;
+}
+
+.modal-body h3 {
+    color: var(--secondary-color);
+    margin-top: 0;
+}
+
+.modal-body ul {
+    padding-left: 20px;
+}
+
+.modal-body li {
+    margin-bottom: 5px;
+}
+
+.modal-body kbd {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    padding: 2px 6px;
+    font-family: inherit;
+    font-size: 10px;
+}
+
+/* Progress Bars */
+.progress-container {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10000;
+}
+
+.progress-bar {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 16px;
+    min-width: 300px;
+    font-family: 'Courier New', monospace;
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 10px 40px var(--shadow-color);
+}
+
+.progress-label {
+    color: var(--text-primary);
+    margin-bottom: 8px;
+    font-size: 12px;
+}
+
+.progress-track {
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+    height: 8px;
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+
+.progress-fill {
+    background: linear-gradient(90deg,
+            var(--primary-color),
+            var(--secondary-color));
+    height: 100%;
+    transition: width 0.3s ease;
+    border-radius: 4px;
+    position: relative;
+}
+
+.progress-fill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg,
+            transparent,
+            rgba(255, 255, 255, 0.3),
+            transparent);
+    animation: loading-shine 2s infinite;
+}
+
+.progress-percentage {
+    color: var(--secondary-color);
+    font-size: 11px;
+    text-align: center;
+    font-weight: bold;
+}
+
+/* Context Menus */
+.context-menu {
+    position: fixed;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 4px 0;
+    min-width: 150px;
+    z-index: 10000;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 4px 20px var(--shadow-color);
+    display: none;
+}
+
+.context-menu.active {
+    display: block;
+}
+
+.context-menu-item {
+    padding: 8px 12px;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+    font-family: inherit;
+    font-size: inherit;
+}
+
+.context-menu-item:hover {
+    background: var(--bg-tertiary);
+    color: var(--secondary-color);
+}
+
+.context-menu-item:disabled {
+    color: var(--text-secondary);
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.context-menu-separator {
+    height: 1px;
+    background: var(--border-color);
+    margin: 4px 0;
+}
+
+/* Audio Particles for TTS Visualization */
+.audio-particle {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 1000;
+}
+
+@keyframes particleFloat {
+    0% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+
+    100% {
+        opacity: 0;
+        transform: translateY(-100px) scale(0.2);
+    }
+}
+
+/* Animation Classes */
+.animate-on-load {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.6s ease;
+}
+
+.animate-fade-in {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.animate-pulse {
+    animation: pulse 2s infinite;
+}
+
+.animate-glow {
+    animation: glow 2s ease-in-out infinite;
+}
+
+/* Debug Mode */
+body.debug-mode * {
+    outline: 1px solid rgba(255, 0, 0, 0.3);
+}
+
+body.debug-mode *:hover {
+    outline: 2px solid rgba(255, 0, 0, 0.7);
+}
+
+body.debug-mode::before {
+    content: 'DEBUG MODE';
+    position: fixed;
+    top: 0;
+    left: 0;
+    background: #ff0000;
+    color: #ffffff;
+    padding: 5px 10px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    font-weight: bold;
+    z-index: 10001;
+}
+
+/* Theme-specific overrides */
+body[data-theme="light-tech"] {
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+}
+
+body[data-theme="neo-green"] {
+    background: radial-gradient(circle at center, rgba(0, 25, 0, 1) 0%, rgba(0, 0, 0, 1) 100%);
+}
+
+/* Enhanced 3D Model Container */
+.model-container {
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.model-container::before {
+    content: '';
+    position: absolute;
+    top: -10px;
+    left: -10px;
+    right: -10px;
+    bottom: -10px;
+    background: linear-gradient(45deg,
+            transparent,
+            var(--glow-color),
+            transparent,
+            var(--glow-color),
+            transparent);
+    background-size: 400% 400%;
+    animation: gradientShift 8s ease infinite;
+    border-radius: 20px;
+    filter: blur(20px);
+    opacity: 0.1;
+    z-index: -1;
+}
+
+@keyframes gradientShift {
+
+    0%,
+    100% {
+        background-position: 0% 50%;
+    }
+
+    50% {
+        background-position: 100% 50%;
+    }
+}
+
+/* Responsive adjustments for new components */
+@media (max-width: 768px) {
+    .notification-container {
+        top: 10px;
+        right: 10px;
+        left: 10px;
+        max-width: none;
+    }
+
+    .notification {
+        font-size: 10px;
+        padding: 10px;
+    }
+
+    .modal-content {
+        margin: 20px;
+        max-width: calc(100vw - 40px);
+    }
+
+    .modal-body {
+        padding: 15px;
+    }
+
+    .progress-bar {
+        min-width: 250px;
+        margin: 0 20px;
+    }
+
+    .atlas-tooltip {
+        font-size: 10px;
+        max-width: 200px;
+    }
+}

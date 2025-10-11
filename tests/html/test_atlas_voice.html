@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест голосової системи Atlas</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .test-section {
+            background: #2a2a2a;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 10px;
+            border: 1px solid #444;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .status.success { background: #2d5a2d; color: #90ee90; }
+        .status.error { background: #5a2d2d; color: #ff9090; }
+        .status.info { background: #2d2d5a; color: #90b0ff; }
+        .status.warning { background: #5a5a2d; color: #ffff90; }
+        button {
+            background: #0066cc;
+            color: white;
+            border: none;
+            padding: 15px 25px;
+            margin: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover { background: #0088ff; }
+        button:disabled { background: #666; cursor: not-allowed; }
+        .log {
+            background: #000;
+            color: #0f0;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            margin-top: 10px;
+        }
+        .test-result {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #0066cc;
+        }
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+        input[type="number"] {
+            background: #333;
+            color: #fff;
+            border: 1px solid #555;
+            padding: 8px;
+            border-radius: 3px;
+            width: 80px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎤 Тест голосової системи ATLAS</h1>
+    
+    <div class="test-section">
+        <h2>📊 Статус системи</h2>
+        <div id="systemStatus">Перевіряємо...</div>
+        <button onclick="checkSystemStatus()">Оновити статус</button>
+    </div>
+
+    <div class="test-section">
+        <h2>🔵 Тест синього режиму (виклик Atlas)</h2>
+        <div class="controls">
+            <button id="blueMode" onclick="toggleBlueMode()">Активувати синій режим</button>
+            <span>Утримайте кнопку мікрофону 2 секунди, потім скажіть "Атлас"</span>
+        </div>
+        <div id="blueModeStatus" class="status info">Синій режим неактивний</div>
+        <div class="test-result">
+            <strong>Очікуваний результат:</strong>
+            <ol>
+                <li>Кнопка стає синьою 🔵</li>
+                <li>Скажіть "Атлас" - система відповість</li>
+                <li>Почніть говорити завдання</li>
+                <li>Зупиніться на 3 секунди - система відправить</li>
+            </ol>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🎧 Тест пост-чат прослуховування</h2>
+        <div class="controls">
+            <button onclick="simulateAtlasResponse()">Симулювати відповідь Atlas</button>
+            <label>Тишина (мс): <input type="number" id="silenceTime" value="3000" min="1000" max="8000"></label>
+        </div>
+        <div id="postChatStatus" class="status info">Пост-чат неактивний</div>
+        <div class="test-result">
+            <strong>Очікуваний результат:</strong>
+            <ol>
+                <li>Після TTS Atlas система включає 8-секундне прослуховування</li>
+                <li>Почніть говорити - система виявить мовлення</li>
+                <li>Зупиніться на встановлений час - система відправить</li>
+                <li>Фонові фрази ("Дякую за перегляд") ігноруються</li>
+            </ol>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🚫 Тест фільтрації фонових фраз</h2>
+        <div class="controls">
+            <button onclick="testBackgroundPhrases()">Тестувати фільтрацію</button>
+        </div>
+        <div id="filterResults"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>⚙️ Налаштування VAD</h2>
+        <div class="controls">
+            <label>Поріг тиші (мс): <input type="number" id="vadSilence" value="3000" min="1000" max="8000"></label>
+            <label>Поріг VAD: <input type="number" id="vadThreshold" value="0.003" min="0.001" max="0.01" step="0.001"></label>
+            <label>Впевненість: <input type="number" id="vadConfidence" value="0.25" min="0.1" max="1.0" step="0.05"></label>
+            <button onclick="updateVADSettings()">Оновити налаштування</button>
+        </div>
+        <div id="vadStatus" class="status info">Поточні налаштування завантажуються...</div>
+    </div>
+
+    <div class="test-section">
+        <h2>📝 Логи системи</h2>
+        <div class="controls">
+            <button onclick="clearLogs()">Очистити логи</button>
+            <button onclick="toggleLogLevel()">Переключити рівень логування</button>
+        </div>
+        <div id="logs" class="log">Логи з'являться тут...\n</div>
+    </div>
+
+    <script type="module">
+        let logLevel = 'info'; // info, debug
+        
+        // Функція логування
+        function log(message, level = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logElement = document.getElementById('logs');
+            const colors = {
+                'error': '#ff4444',
+                'warn': '#ffaa44', 
+                'info': '#44ff44',
+                'debug': '#4444ff'
+            };
+            
+            if (level === 'debug' && logLevel !== 'debug') return;
+            
+            const color = colors[level] || '#ffffff';
+            logElement.innerHTML += `<span style="color: ${color}">[${timestamp}] [${level.toUpperCase()}] ${message}</span>\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+        
+        // Перевірка статусу системи
+        window.checkSystemStatus = async function() {
+            const statusDiv = document.getElementById('systemStatus');
+            statusDiv.innerHTML = 'Перевіряємо...';
+            
+            try {
+                // Перевіряємо доступність основних сервісів
+                const services = [
+                    { name: 'Frontend', url: 'http://localhost:5001/health', port: 5001 },
+                    { name: 'Orchestrator', url: 'http://localhost:5101/health', port: 5101 },
+                    { name: 'TTS Service', url: 'http://localhost:3001/health', port: 3001 },
+                    { name: 'Whisper Service', url: 'http://localhost:3002/health', port: 3002 }
+                ];
+                
+                let statusHTML = '<h3>Статус сервісів:</h3>';
+                
+                for (const service of services) {
+                    try {
+                        const response = await fetch(service.url);
+                        const status = response.ok ? '✅ Працює' : '⚠️ Помилка';
+                        const color = response.ok ? '#90ee90' : '#ffff90';
+                        statusHTML += `<div style="color: ${color}">${service.name} (${service.port}): ${status}</div>`;
+                    } catch (error) {
+                        statusHTML += `<div style="color: #ff9090">${service.name} (${service.port}): ❌ Недоступний</div>`;
+                    }
+                }
+                
+                // Перевіряємо підтримку Web Speech API
+                const speechSupport = 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window;
+                const color = speechSupport ? '#90ee90' : '#ff9090';
+                const status = speechSupport ? '✅ Підтримується' : '❌ Не підтримується';
+                statusHTML += `<div style="color: ${color}">Web Speech API: ${status}</div>`;
+                
+                // Перевіряємо MediaRecorder
+                const mediaSupport = 'MediaRecorder' in window;
+                const mediaColor = mediaSupport ? '#90ee90' : '#ff9090';
+                const mediaStatus = mediaSupport ? '✅ Підтримується' : '❌ Не підтримується';
+                statusHTML += `<div style="color: ${mediaColor}">MediaRecorder API: ${mediaStatus}</div>`;
+                
+                statusDiv.innerHTML = statusHTML;
+                log('Статус системи оновлено', 'info');
+                
+            } catch (error) {
+                statusDiv.innerHTML = `<div style="color: #ff9090">Помилка перевірки: ${error.message}</div>`;
+                log(`Помилка перевірки статусу: ${error.message}`, 'error');
+            }
+        };
+        
+        // Переключення синього режиму
+        window.toggleBlueMode = function() {
+            const button = document.getElementById('blueMode');
+            const status = document.getElementById('blueModeStatus');
+            
+            // Симулюємо активацію синього режиму
+            if (button.textContent.includes('Активувати')) {
+                button.textContent = 'Деактивувати синій режим';
+                button.style.background = '#0066ff';
+                status.className = 'status success';
+                status.textContent = '🔵 Синій режим активний - скажіть "Атлас"';
+                log('🔵 Синій режим активовано', 'info');
+            } else {
+                button.textContent = 'Активувати синій режим';
+                button.style.background = '#0066cc';
+                status.className = 'status info';
+                status.textContent = 'Синій режим неактивний';
+                log('🔵 Синій режим деактивовано', 'info');
+            }
+        };
+        
+        // Симуляція відповіді Atlas
+        window.simulateAtlasResponse = function() {
+            const status = document.getElementById('postChatStatus');
+            status.className = 'status warning';
+            status.textContent = '🎧 Програється відповідь Atlas...';
+            log('🗣️ Симуляція TTS Atlas', 'info');
+            
+            setTimeout(() => {
+                status.className = 'status success';
+                status.textContent = '🎧 Пост-чат аналіз активний - говоріть протягом 8 секунд';
+                log('🎧 Пост-чат аналіз активовано', 'info');
+                
+                // Симулюємо завершення через 8 секунд
+                setTimeout(() => {
+                    status.className = 'status info';
+                    status.textContent = 'Пост-чат завершено';
+                    log('🎧 Пост-чат аналіз завершено', 'info');
+                }, 8000);
+            }, 3000);
+        };
+        
+        // Тест фільтрації фонових фраз
+        window.testBackgroundPhrases = function() {
+            const testPhrases = [
+                { text: "Дякую за перегляд!", expected: "ignored" },
+                { text: "Субтитрувальниця Оля Шор", expected: "ignored" },
+                { text: "Скажи мені що робити", expected: "accepted" },
+                { text: "Як справи?", expected: "accepted" },
+                { text: "дякую", expected: "ignored" },
+                { text: "Створи новий файл", expected: "accepted" }
+            ];
+            
+            let resultsHTML = '<h3>Результати тестування фільтрації:</h3>';
+            
+            testPhrases.forEach(phrase => {
+                // Симулюємо логіку фільтрації
+                const isBackground = phrase.text.toLowerCase().includes('дякую') || 
+                                   phrase.text.toLowerCase().includes('субтитрувальниця') ||
+                                   phrase.text.length < 10;
+                
+                const result = isBackground ? 'ignored' : 'accepted';
+                const isCorrect = result === phrase.expected;
+                const color = isCorrect ? '#90ee90' : '#ff9090';
+                const icon = result === 'ignored' ? '🚫' : '✅';
+                
+                resultsHTML += `<div style="color: ${color}">${icon} "${phrase.text}" - ${result} ${isCorrect ? '✓' : '✗'}</div>`;
+            });
+            
+            document.getElementById('filterResults').innerHTML = resultsHTML;
+            log('Тест фільтрації фраз завершено', 'info');
+        };
+        
+        // Оновлення налаштувань VAD
+        window.updateVADSettings = function() {
+            const silence = document.getElementById('vadSilence').value;
+            const threshold = document.getElementById('vadThreshold').value;
+            const confidence = document.getElementById('vadConfidence').value;
+            
+            const status = document.getElementById('vadStatus');
+            status.className = 'status success';
+            status.innerHTML = `
+                <strong>Оновлені налаштування:</strong><br>
+                Тишина: ${silence}мс<br>
+                Поріг VAD: ${threshold}<br>
+                Впевненість: ${confidence}
+            `;
+            
+            log(`⚙️ VAD налаштування оновлено: silence=${silence}мс, threshold=${threshold}, confidence=${confidence}`, 'info');
+        };
+        
+        // Очищення логів
+        window.clearLogs = function() {
+            document.getElementById('logs').innerHTML = 'Логи очищено...\n';
+        };
+        
+        // Переключення рівня логування
+        window.toggleLogLevel = function() {
+            logLevel = logLevel === 'info' ? 'debug' : 'info';
+            log(`Рівень логування змінено на: ${logLevel}`, 'info');
+        };
+        
+        // Ініціалізація при завантаженні
+        window.addEventListener('load', () => {
+            checkSystemStatus();
+            
+            // Завантажуємо поточні налаштування
+            document.getElementById('vadSilence').value = 3000;
+            document.getElementById('vadThreshold').value = 0.003;
+            document.getElementById('vadConfidence').value = 0.25;
+            updateVADSettings();
+            
+            log('🎤 Тестова система завантажена', 'info');
+            log('Використовуйте кнопки для тестування різних функцій', 'info');
+        });
+        
+    </script>
+</body>
+</html>

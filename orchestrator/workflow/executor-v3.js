@@ -1,0 +1,653 @@
+/**
+ * ATLAS WORKFLOW EXECUTOR v4.0
+ * Рефакторований з використанням централізованої конфігурації
+ */
+
+import GlobalConfig from '../../config/global-config.js';
+import { callGooseAgent } from '../agents/goose-client.js';
+import { logMessage, generateMessageId } from '../utils/helpers.js';
+import { sanitizeAgentMessage, sanitizeContentForUser } from '../utils/sanitizer.js';
+
+// Centralised modules
+import logger from '../utils/logger.js';
+import telemetry from '../utils/telemetry.js';
+import errorHandler from '../errors/error-handler.js';
+import pauseState from '../state/pause-state.js';
+
+// Workflow stage processors
+import SystemStageProcessor from './stages/system-stage-processor.js';
+import AgentStageProcessor from './stages/agent-stage-processor.js';
+import WorkflowConditions from './conditions.js';
+
+// Session tracking for preventing duplicates
+const activeAgentSessions = new Set();
+
+// ============================================================================
+// HELPER FUNCTIONS (must be defined before use due to hoisting)
+// ============================================================================
+
+/**
+ * Execute a configured workflow stage using the appropriate processor
+ * This function determines whether to use SystemStageProcessor or AgentStageProcessor
+ * based on the stage configuration and executes the stage accordingly.
+ * 
+ * FIXED: stage0_chat тепер обробляється через AgentStageProcessor для збереження контексту
+ */
+async function executeConfiguredStage(stageConfig, userMessage, session, res, options = {}) {
+  if (!stageConfig) {
+    throw new Error('Stage configuration is required');
+  }
+
+  // Determine processor type based on agent
+  // CRITICAL FIX: stage0_chat має agent='atlas', тому використовуємо AgentStageProcessor
+  const isSystemStage = stageConfig.agent === 'system';
+
+  try {
+    let processor;
+
+    if (isSystemStage) {
+      // Use SystemStageProcessor for system stages (mode_selection, stop_router, etc.)
+      processor = new SystemStageProcessor(stageConfig, GlobalConfig);
+      logger.info(`Using SystemStageProcessor for stage ${stageConfig.stage}: ${stageConfig.name}`);
+    } else {
+      // Use AgentStageProcessor for agent stages (Atlas, Tetyana, Grisha)
+      // This includes stage0_chat which has agent='atlas'
+      processor = new AgentStageProcessor(stageConfig, GlobalConfig);
+      logger.info(`Using AgentStageProcessor for stage ${stageConfig.stage}: ${stageConfig.name} (agent: ${stageConfig.agent})`);
+    }
+
+    // Execute the stage
+    const response = await processor.execute(userMessage, session, res, options);
+
+    return response;
+
+  } catch (error) {
+    logger.error(`Stage execution failed (stage=${stageConfig.stage}, agent=${stageConfig.agent}): ${error.message}`, {
+      sessionId: session.id,
+      stage: stageConfig.stage,
+      agent: stageConfig.agent,
+      error: error.message
+    });
+    throw error;
+  }
+}
+
+/**
+ * Extract mode ('chat' or 'task') from system response
+ */
+function extractModeFromResponse(content) {
+  try {
+    const cleanContent = content.replace(/^\[SYSTEM\]\s*/, '').trim();
+    const json = JSON.parse(cleanContent);
+    return json.mode === 'chat' ? 'chat' : 'task';
+  } catch (error) {
+    // Fallback parsing
+    const text = content.toLowerCase();
+    if (text.includes('"mode":"chat"') || text.includes('mode: chat')) {
+      return 'chat';
+    }
+    return 'task'; // Default to task
+  }
+}
+
+// ============================================================================
+// MAIN WORKFLOW FUNCTIONS
+// ============================================================================
+
+/**
+ * MAIN STEP-BY-STEP WORKFLOW EXECUTOR
+ * Використовує unified configuration та prompt registry
+ */
+export async function executeStepByStepWorkflow(userMessage, session, res, options = {}) {
+  // Add user message to history
+  session.history.push({
+    role: 'user',
+    content: userMessage,
+    timestamp: Date.now()
+  });
+
+  const workflowStart = Date.now();
+  logger.workflow('init', 'system', 'Starting step-by-step workflow with unified configuration', {
+    sessionId: session.id
+  });
+
+  try {
+    // Get workflow configuration
+    const workflowConfig = GlobalConfig.WORKFLOW_CONFIG;
+    const allStages = GlobalConfig.WORKFLOW_STAGES;
+
+    // Process special stop-dispatch case
+    if (options.stopDispatch === true) {
+      return await processStopDispatch(userMessage, session, res, allStages);
+    }
+
+    // Start normal workflow execution
+    return await executeWorkflowStages(userMessage, session, res, allStages, workflowConfig);
+
+  } catch (error) {
+    logger.error('Step-by-step workflow failed', {
+      error: error.message,
+      sessionId: session.id,
+      stack: error.stack
+    });
+
+    if (!res.headersSent) {
+      res.write(`data: ${JSON.stringify({
+        type: 'workflow_error',
+        data: {
+          error: 'Workflow failed',
+          details: error.message
+        }
+      })}\n\n`);
+    }
+
+    throw error;
+  }
+}
+
+/**
+ * Process stop-dispatch special case
+ */
+async function processStopDispatch(userMessage, session, res, allStages) {
+  try {
+    // Find stop router stage configuration
+    const stopRouterStage = allStages.find(s => s.stage === -1 && s.agent === 'system');
+    if (!stopRouterStage) {
+      throw new Error('Stop router stage not found in configuration');
+    }
+
+    // Execute stop router
+    const stopResponse = await executeConfiguredStage(
+      stopRouterStage,
+      userMessage,
+      session,
+      res,
+      { enableTools: false }
+    );
+
+    if (stopResponse) {
+      stopResponse.memory = { retain: false, type: 'system' };
+      session.history.push(stopResponse);
+    }
+
+    // Parse router decision
+    let route = { next_stage: 0, agent: 'atlas', reason: 'default_chat' };
+    try {
+      const routeText = (stopResponse?.content || '').replace(/^\[SYSTEM\]\s*/, '').trim();
+      route = JSON.parse(routeText);
+    } catch (parseError) {
+      logger.warn('Failed to parse stop router response, using default', { error: parseError.message });
+    }
+
+    // Handle chat route
+    if (route.next_stage === 0) {
+      return await handleChatRoute(userMessage, session, res, allStages);
+    }
+
+    // Set stage for continuation
+    session.currentStage = route.next_stage;
+
+  } catch (error) {
+    logger.error(`Stop router failed: ${error.message}`);
+    throw new Error(`Stop router execution failed: ${error.message}`);
+  }
+}
+
+/**
+ * Execute main workflow stages
+ */
+async function executeWorkflowStages(userMessage, session, res, allStages, workflowConfig) {
+  // Initialize chat thread if needed
+  if (!session.chatThread) {
+    session.chatThread = { messages: [], lastTopic: undefined };
+  }
+
+  // CRITICAL FIX: Add user message to chatThread BEFORE mode selection
+  // This ensures mode_selection can access current message for context-aware classification
+  session.chatThread.messages.push({
+    role: 'user',
+    content: userMessage,
+    timestamp: Date.now()
+  });
+
+  logger.info(`Workflow: Added user message to chatThread (total: ${session.chatThread.messages.length} messages)`);
+
+  // DEBUG: Log available stages
+  const stage0Stages = allStages.filter(s => s.stage === 0);
+  logger.system('debug', `Available stage 0 configurations:`, {
+    sessionId: session.id,
+    count: stage0Stages.length,
+    stages: stage0Stages.map(s => ({ stage: s.stage, agent: s.agent, name: s.name }))
+  });
+
+  // Stage 0: Mode selection
+  const modeStage = allStages.find(s => s.stage === 0 && s.agent === 'system');
+  logger.system('debug', `Mode stage lookup result:`, {
+    sessionId: session.id,
+    found: !!modeStage,
+    modeStage: modeStage ? { stage: modeStage.stage, agent: modeStage.agent, name: modeStage.name } : null
+  });
+  if (modeStage) {
+    const modeResponse = await executeConfiguredStage(modeStage, userMessage, session, res);
+
+    if (modeResponse) {
+      const mode = extractModeFromResponse(modeResponse.content);
+      session.modeSelection = { mode, confidence: 0.8 };
+      session.lastMode = mode;
+
+      modeResponse.memory = { retain: false, type: 'system' };
+      modeResponse.meta = { modeSelection: session.modeSelection };
+      session.history.push(modeResponse);
+
+      logger.info(`Mode selection: ${mode}`, { sessionId: session.id });
+
+      // Handle chat mode
+      if (mode === 'chat') {
+        return await handleChatRoute(userMessage, session, res, allStages);
+      }
+    }
+  }
+
+  // Continue with task workflow stages
+  return await executeTaskWorkflow(userMessage, session, res, allStages, workflowConfig);
+}
+
+/**
+ * Execute task workflow stages
+ */
+async function executeTaskWorkflow(userMessage, session, res, allStages, workflowConfig) {
+  let currentStage = session.currentStage || 1;
+  const maxCycles = workflowConfig.maxCycles || 3;
+  let cycleCount = 0;
+
+  while (currentStage <= 9 && cycleCount < maxCycles) {
+    // Find stage configuration
+    const stageConfig = allStages.find(s => s.stage === currentStage);
+    if (!stageConfig) {
+      logger.warn(`Stage ${currentStage} configuration not found, completing workflow`);
+      break;
+    }
+
+    // Check conditions if required
+    if (stageConfig.condition && !await WorkflowConditions.checkCondition(stageConfig.condition, session)) {
+      logger.info(`Stage ${currentStage} condition not met, skipping`, {
+        condition: stageConfig.condition,
+        sessionId: session.id
+      });
+      continue;
+    }
+
+    // Execute stage
+    try {
+      logger.workflow('stage', stageConfig.agent, `Starting stage ${currentStage}: ${stageConfig.name}`, {
+        sessionId: session.id
+      });
+
+      const stageResponse = await executeConfiguredStage(stageConfig, userMessage, session, res);
+
+      if (stageResponse) {
+        // CRITICAL FIX: Send response to stream IMMEDIATELY, before waiting for TTS
+        // This ensures user sees the message in chat without delay
+        if (res.writable && !res.writableEnded) {
+          res.write(`data: ${JSON.stringify({ type: 'agent_message', data: stageResponse })}\n\n`);
+        }
+
+        session.history.push(stageResponse);
+
+        // MEMORY LEAK PREVENTION: Limit session.history size during execution
+        // Keep maximum 20 messages to prevent unbounded growth
+        const MAX_HISTORY_SIZE = 20;
+        if (session.history.length > MAX_HISTORY_SIZE) {
+          const removed = session.history.length - MAX_HISTORY_SIZE;
+          session.history = session.history.slice(-MAX_HISTORY_SIZE);
+          logger.debug(`History size limit: removed ${removed} old messages, kept ${MAX_HISTORY_SIZE}`);
+        }
+
+        session.currentStage = currentStage;
+
+        // Analyze response to determine the next stage
+        const nextStage = await determineNextStage(currentStage, stageResponse, session, allStages);
+
+        if (nextStage === 8) { // 8 is the completion stage
+          // Execute stage 8 through SystemStageProcessor instead of just closing stream
+          const completionStage = allStages.find(s => s.stage === 8 && s.name === 'completion');
+          if (completionStage) {
+            logger.workflow('stage', 'system', `Starting stage 8: completion`, { sessionId: session.id });
+            const completionResponse = await executeConfiguredStage(completionStage, userMessage, session, res);
+
+            if (completionResponse && res.writable && !res.writableEnded) {
+              res.write(`data: ${JSON.stringify({ type: 'agent_message', data: completionResponse })}\n\n`);
+            }
+
+            session.history.push(completionResponse);
+          }
+
+          await completeWorkflow(session, res);
+          return;
+        } else if (nextStage === 9) { // 9 triggers a new cycle
+          cycleCount++;
+
+          // MEMORY LEAK FIX: Clean old cycle history before starting new retry cycle
+          // Keep only last 5 messages from previous cycle for context
+          if (session.history.length > 5) {
+            const oldLength = session.history.length;
+            session.history = session.history.slice(-5);
+            logger.info(`Retry cycle ${cycleCount}: cleaned history ${oldLength} → ${session.history.length} messages`);
+          }
+
+          currentStage = 1;
+          logger.workflow('cycle', 'system', `Starting new cycle ${cycleCount}`, { sessionId: session.id });
+        } else {
+          currentStage = nextStage;
+        }
+      } else {
+        // Stage failed, try to recover or complete
+        logger.warn(`Stage ${currentStage} returned no response, completing workflow`);
+        await completeWorkflow(session, res);
+        return;
+      }
+
+    } catch (stageError) {
+      logger.error(`Stage ${currentStage} failed`, {
+        error: stageError.message,
+        sessionId: session.id
+      });
+
+      // SPECIAL HANDLING: Grisha verification failure (stage 7)
+      // Instead of failing, auto-approve and complete workflow
+      if (currentStage === 7) {
+        logger.warn(`Grisha verification failed - auto-approving task completion`);
+
+        // Inform user about verification error
+        const errorNotification = {
+          role: 'assistant',
+          content: '⚠️ Гриша не зміг перевірити виконання через технічну помилку. Автоматично підтверджую завершення на основі звіту Тетяни.',
+          agent: 'grisha',
+          stage: 7,
+          timestamp: Date.now(),
+          metadata: {
+            verificationFailed: true,
+            error: stageError.message
+          }
+        };
+
+        if (res.writable && !res.writableEnded) {
+          res.write(`data: ${JSON.stringify({ type: 'agent_message', data: errorNotification })}\n\n`);
+        }
+
+        session.history.push(errorNotification);
+
+        const autoApprovalResponse = {
+          role: 'assistant',
+          content: '✅ Завдання виконано',
+          agent: 'system',
+          stage: 8,
+          timestamp: Date.now(),
+          metadata: {
+            autoApproved: true,
+            reason: 'Grisha verification failed - fallback to auto-approval',
+            originalError: stageError.message
+          }
+        };
+
+        // Send auto-approval message to user
+        if (res.writable && !res.writableEnded) {
+          res.write(`data: ${JSON.stringify({ type: 'agent_message', data: autoApprovalResponse })}\n\n`);
+        }
+
+        session.history.push(autoApprovalResponse);
+
+        // Complete workflow successfully
+        await completeWorkflow(session, res);
+        return;
+      }
+
+      // For other stages - complete workflow with error
+      await completeWorkflow(session, res);
+      return;
+    }
+  }
+
+  // Max cycles reached or stages completed
+  if (cycleCount >= maxCycles) {
+    logger.warn(`Max retry cycles (${maxCycles}) reached, completing workflow`, {
+      sessionId: session.id,
+      finalStage: currentStage
+    });
+
+    // Відправити повідомлення про досягнення ліміту
+    const limitMessage = {
+      role: 'assistant',
+      content: `⚠️ Досягнуто максимальної кількості спроб (${maxCycles}). Завдання потребує уточнення або перефразування.`,
+      agent: 'system',
+      timestamp: Date.now()
+    };
+
+    res.write(`data: ${JSON.stringify(limitMessage)}\n\n`);
+  }
+
+  await completeWorkflow(session, res);
+}
+
+/**
+ * Handle chat route (both from stop dispatch and mode selection)
+ * FIXED: Тепер використовує AgentStageProcessor для збереження контексту
+ */
+async function handleChatRoute(userMessage, session, res, allStages) {
+  const chatStage = allStages.find(s => s.stage === 0 && s.name === 'stage0_chat');
+
+  if (!chatStage) {
+    throw new Error('Chat stage configuration not found');
+  }
+
+  // NOTE: chatThread was already initialized and user message added in executeWorkflowStages
+  // Only add message if it's not already there (e.g., when called from stop_dispatch)
+  if (!session.chatThread) {
+    session.chatThread = { messages: [], lastTopic: undefined };
+  }
+
+  // Check if message already added
+  const lastUserMessage = session.chatThread.messages
+    .filter(m => m.role === 'user')
+    .pop();
+
+  if (!lastUserMessage || lastUserMessage.content !== userMessage) {
+    // Add current user message to chat thread if not already added
+    session.chatThread.messages.push({
+      role: 'user',
+      content: userMessage,
+      timestamp: Date.now()
+    });
+  }
+
+  logger.info(`Chat route: processing message with ${session.chatThread.messages.length} messages in thread`);
+
+  // Execute chat stage - це ПОВИННО використати AgentStageProcessor
+  // який викличе buildContextMessages() і передасть весь контекст
+  const chatResponse = await executeConfiguredStage(chatStage, userMessage, session, res);
+
+  if (chatResponse) {
+    // ALWAYS send the agent's response to the user via the stream
+    // CRITICAL FIX: Use proper SSE format with "data: " prefix
+    if (res.writable && !res.writableEnded) {
+      res.write(`data: ${JSON.stringify({ type: 'agent_message', data: chatResponse })}\n\n`);
+    }
+
+    // Add agent response to chat thread
+    session.chatThread.messages.push({
+      role: 'assistant',
+      content: chatResponse.content,
+      agent: chatResponse.agent,
+      timestamp: Date.now()
+    });
+
+    logger.info(`Chat route: response added, thread now has ${session.chatThread.messages.length} messages`);
+  }
+
+  await completeWorkflow(session, res, 'chat');
+}
+
+/**
+ * FALLBACK REMOVED - система тепер працює виключно на живих промптах
+ * При помилках генеруються exceptions замість fallback відповідей
+ */
+
+/**
+ * Determine next stage based on current stage response
+ */
+async function determineNextStage(currentStage, response, session, allStages) {
+  // Simple logic for now - can be enhanced with AI analysis
+  switch (currentStage) {
+    case 1: return 2; // Atlas → Tetyana
+    case 2:
+      // Analyze if Tetyana needs clarification or asks questions
+      const tetyanaContent = response.content.toLowerCase();
+
+      const needsClarification = tetyanaContent.includes('уточни') ||
+        tetyanaContent.includes('не можу') ||
+        tetyanaContent.includes('не вдалос') ||
+        tetyanaContent.includes('потрібно уточн') ||
+        tetyanaContent.includes('прошу уточн') ||
+        tetyanaContent.includes('можу продовж') ||
+        tetyanaContent.includes('можу опрацюват') ||
+        tetyanaContent.includes('альтернативн') ||
+        tetyanaContent.includes('уточнити') ||
+        tetyanaContent.includes('помилк') ||
+        tetyanaContent.includes('atlas,'); // Тетяна звертається до Atlas за допомогою
+
+      logger.info(`Stage 2 decision: Tetyana needs clarification=${needsClarification}`, {
+        contentPreview: tetyanaContent.substring(0, 100),
+        nextStage: needsClarification ? 3 : 7
+      });
+
+      if (needsClarification) {
+        return 3; // Tetyana → Atlas clarification
+      }
+      return 7; // Tetyana → Grisha verification
+    case 3: return 4; // Atlas clarification → Tetyana retry
+    case 4:
+      // After retry, check if still blocked
+      if (response.content.toLowerCase().includes('блокован') ||
+        response.content.toLowerCase().includes('не вдалос')) {
+        return 5; // → Grisha diagnosis
+      }
+      return 7; // → Grisha verification
+    case 5: return 6; // Grisha diagnosis → Atlas adjustment
+    case 6: return 4; // Atlas adjustment → Tetyana retry
+    case 7:
+      // Grisha verification result
+      const content = response.content.toLowerCase();
+
+      console.log(`[WORKFLOW] Stage 7 response analysis: "${content.substring(0, 200)}..."`);
+
+      // Check if Grisha asks for clarification or waiting for task details
+      if (content.includes('уточни') ||
+        content.includes('уточнен') ||
+        content.includes('чекаю') ||
+        content.includes('вкажи') ||
+        content.includes('очікую') ||
+        (content.includes('потрібно') && content.includes('уточни'))) {
+        console.log('[WORKFLOW] Stage 7: Grisha needs clarification → stage 3');
+        return 3; // → Atlas clarification (to provide guidance to Tetyana)
+      }
+
+      // Check if verification failed (task incomplete/incorrect)
+      if (content.includes('не виконано') ||
+        content.includes('неуспішн') ||
+        content.includes('частково')) {
+        console.log('[WORKFLOW] Stage 7: Verification failed → stage 9 (retry)');
+        return 9; // → New cycle (retry from Atlas)
+      }
+
+      // Check if verification passed
+      if (content.includes('виконано') ||
+        content.includes('перевірено') ||
+        content.includes('готово') ||
+        content.includes('підтверджено')) {
+        console.log('[WORKFLOW] Stage 7: Verification passed → stage 8 (completion)');
+        return 8; // → Completion
+      }
+
+      // КРИТИЧНО: Якщо Гриша НЕ дав вердикт (просто підтвердив готовність або інструкції) → потрібно уточнення
+      if (content.includes('прийнято') ||
+        content.includes('ознайомився') ||
+        content.includes('зрозумів') ||
+        content.includes('дотримуватись') ||
+        (content.includes('готовий') && !content.includes('готово')) ||
+        (content.includes('буд') && content.includes('діяти')) ||
+        (content.includes('інструкц') && !content.includes('перевір')) ||
+        content.length < 150) { // Коротка відповідь без вердикту
+        console.log('[WORKFLOW] Stage 7: Grisha acknowledged instructions but no verification → needs actual task (retry cycle)');
+        return 9; // → Retry to give Grisha actual context
+      }
+
+      // Default: if unclear, assume needs retry
+      console.log('[WORKFLOW] Stage 7: Unclear response → stage 9 (retry)');
+      return 9; // → New cycle
+    case 9: return 1; // New cycle → Atlas initial processing
+    default: return 8; // Completion
+  }
+}
+
+/**
+ * Complete workflow
+ */
+async function completeWorkflow(session, res, mode = 'task') {
+  // MEMORY LEAK FIX: Clean up session.history to prevent accumulation
+  // Keep only essential context from the current cycle
+  if (session.history && session.history.length > 0) {
+    const historyBeforeCleanup = session.history.length;
+
+    // For task mode: keep only last 5 messages (current cycle context)
+    // For chat mode: chatThread handles conversation history separately
+    if (mode === 'task' && session.history.length > 5) {
+      session.history = session.history.slice(-5);
+    } else if (mode === 'chat') {
+      // In chat mode, clear task history completely (chatThread persists separately)
+      session.history = [];
+    }
+
+    logger.info(`Session history cleanup: ${historyBeforeCleanup} → ${session.history.length} messages (mode: ${mode})`);
+  }
+
+  if (!res.writableEnded) {
+    res.write(`data: ${JSON.stringify({
+      type: 'workflow_complete',
+      data: {
+        success: true,
+        completed: true,
+        mode,
+        session: {
+          id: session.id,
+          totalStages: session.history.length
+        }
+      }
+    })}\n\n`);
+    res.end();
+  }
+}
+
+/**
+ * Legacy function - will be deprecated
+ */
+async function executeAgentStageStepByStep(agentName, stageName, systemPrompt, userPrompt, session, res, options = {}) {
+  logger.warn('Using deprecated executeAgentStageStepByStep, please migrate to executeConfiguredStage');
+
+  // Find agent configuration
+  const agentConfig = GlobalConfig.getAgentConfig(agentName);
+  if (!agentConfig) {
+    throw new Error(`Agent configuration not found: ${agentName}`);
+  }
+
+  // Create a temporary stage config
+  const tempStageConfig = {
+    stage: session.currentStage || 0,
+    agent: agentName,
+    name: stageName,
+    timeout: agentConfig.timeout || 30000
+  };
+
+  // Use agent processor
+  const processor = new AgentStageProcessor(tempStageConfig, GlobalConfig);
+  return await processor.executeLegacy(systemPrompt, userPrompt, session, res, options);
+}

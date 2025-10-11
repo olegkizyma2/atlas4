@@ -1,0 +1,248 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+.venv/
+env/
+ENV/
+venv3.*/
+**/.venv/
+**/venv/
+
+# Node.js
+node_modules/
+frontend_new/orchestrator/node_modules/
+fallback_llm/node_modules/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnp.*
+.pnp.js
+
+# Build outputs
+dist/
+build/
+target/
+*.pdb
+*.user
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# IDE/editor
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+.project
+.pydevproject
+.settings/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Data / models / audio
+*.pth
+*.npz
+*.ark
+model.pth
+feats_stats.npz
+spk_xvector.ark
+*.wav
+*.flac
+
+# goose-specific caches and build artifacts
+goose/goose/mcp-hermit/cache/
+goose/goose/mcp-hermit/cache/**
+goose/goose/mcp-hermit/bin/
+goose/target/
+goose/goose/.venv/
+
+# Ukrainian TTS artifacts
+ukrainian-tts*/venv*
+ukrainian-tts*/model*
+ukrainian-tts*/feats_stats.npz
+ukrainian-tts*/spk_xvector.ark
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+.*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Package files
+package-lock.json
+yarn.lock
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Local development
+.local/
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.egg
+.env
+.venv
+env/
+venv/
+*.log
+*.pid
+logs/
+ENV/
+env.bak/
+venv.bak/
+.python-version
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Context limits with secrets
+context_limits.env
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn-integrity
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.next
+.nuxt
+.cache
+dist/
+coverage/
+
+# IDE
+.idea/
+.vscode/
+!.vscode/extensions.json
+!.vscode/*.example
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Large model files and data
+model.pth
+*.npz
+*.ark
+*.glb
+
+# TTS virtual environment and audio files
+mcp_tts_ukrainian/tts_venv/
+mcp_tts_ukrainian/data/
+mcp_tts_ukrainian/*.wav
+mcp_tts_ukrainian/test_audio.wav
+mcp_tts_ukrainian/demo_*.wav
+
+# Local secrets should never be committed
+/goose/goose/secrets.yaml
+/goose/goose/githubcopilot/info.json
+
+# Playwright files
+.playwright-mcp
+*.wav# Large binaries and media
+ukrainian-tts/**/model/**
+ukrainian-tts/**/vocab/**
+ukrainian-tts/**/models/**
+ukrainian-tts/**/weights/**
+ukrainian-tts/**/cache/**
+ukrainian-tts/**/data/**
+ukrainian-tts/venv*
+ukrainian-tts/**/venv*
+ukrainian-tts/**/model*
+ukrainian-tts/vocoder/ukwiktionary-pages-articles.xml*
+
+# Goose platform binaries and packaged tools
+goose/bin/
+goose/ui/desktop/src/platform/
+goose/ui/desktop/src/platform/**
+
+goose/documentation/static/
+goose/documentation/blog/
+
+eggs/
+
+# Large model files
+models/whisper/*.bin
+*.pth
+model.pth
+model_mps.pth
+
+# Large log files
+logs/*.log
+combined.log
+
+# media
+*.mp4
+*.mov
+*.jpg
+*.png
+*.exe
+*.dll
+*.pkg
+
+
+# Embedded git repositories
+third_party/whisper.cpp.upstream/
+unused_files/goose/mcp/temp_servers/
+unused_files/goose_mcp_servers/mcp/temp_servers/

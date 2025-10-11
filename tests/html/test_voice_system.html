@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест голосової системи ATLAS</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .test-section {
+            background: #2a2a2a;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 10px;
+            border: 1px solid #444;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .status.success { background: #2d5a2d; color: #90ee90; }
+        .status.error { background: #5a2d2d; color: #ff9090; }
+        .status.info { background: #2d2d5a; color: #90b0ff; }
+        button {
+            background: #0066cc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover { background: #0088ff; }
+        button:disabled { background: #666; cursor: not-allowed; }
+        #micButton {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            font-size: 30px;
+            margin: 20px auto;
+            display: block;
+        }
+        .log {
+            background: #000;
+            color: #0f0;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎤 Тест голосової системи ATLAS</h1>
+    
+    <div class="test-section">
+        <h2>1. Тест виклику Atlas за ключовим словом</h2>
+        <div id="keywordStatus" class="status info">Не протестовано</div>
+        <button id="micButton" onclick="toggleBlueMode()">🎤</button>
+        <p><strong>Інструкції:</strong></p>
+        <ol>
+            <li>Утримайте кнопку мікрофону 2 секунди для активації синього режиму</li>
+            <li>Скажіть "Атлас" коли кнопка стане синьою</li>
+            <li>Система має відповісти та почати запис</li>
+        </ol>
+    </div>
+
+    <div class="test-section">
+        <h2>2. Тест пост-чат прослуховування</h2>
+        <div id="postChatStatus" class="status info">Не протестовано</div>
+        <button onclick="simulateAtlasResponse()">Симулювати відповідь Atlas</button>
+        <p><strong>Інструкції:</strong></p>
+        <ol>
+            <li>Натисніть кнопку "Симулювати відповідь Atlas"</li>
+            <li>Після завершення TTS почніть говорити протягом 8 секунд</li>
+            <li>Зупиніться на 2 секунди - система має автоматично відправити повідомлення</li>
+        </ol>
+    </div>
+
+    <div class="test-section">
+        <h2>3. Налаштування</h2>
+        <div>
+            <label>Тишина для завершення (мс): <input type="number" id="silenceMs" value="3000" min="1000" max="8000"></label><br><br>
+            <label>Вікно прослуховування (мс): <input type="number" id="windowMs" value="8000" min="3000" max="15000"></label><br><br>
+            <label>Поріг VAD: <input type="number" id="vadThreshold" value="0.005" min="0.001" max="0.05" step="0.001"></label><br><br>
+            <label>Максимальна тривалість запису (мс): <input type="number" id="maxRecordMs" value="15000" min="5000" max="30000"></label><br><br>
+            <button onclick="updateConfig()">Оновити налаштування</button>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>4. Логи системи</h2>
+        <button onclick="clearLogs()">Очистити логи</button>
+        <div id="logs" class="log">Логи з'являться тут...\n</div>
+    </div>
+
+    <script type="module">
+        import { VOICE_CONFIG } from './web/static/js/voice-control/config.js';
+        
+        let micManager = null;
+        let ttsManager = null;
+        
+        // Ініціалізація
+        async function initVoiceSystem() {
+            try {
+                // Імпортуємо необхідні модулі
+                const { MicrophoneButtonManager } = await import('./web/static/js/voice-control/microphone-manager.js');
+                const { TTSManager } = await import('./web/static/js/modules/tts-manager.js');
+                
+                // Створюємо mock chat manager
+                const mockChatManager = {
+                    sendMessage: (text) => {
+                        log(`📤 Відправлено повідомлення: "${text}"`, 'success');
+                        updatePostChatStatus('success', `Повідомлення відправлено: "${text}"`);
+                    },
+                    ttsManager: null
+                };
+                
+                // Ініціалізуємо TTS
+                ttsManager = new TTSManager();
+                mockChatManager.ttsManager = ttsManager;
+                
+                // Ініціалізуємо мікрофон менеджер
+                micManager = new MicrophoneButtonManager(mockChatManager);
+                
+                // Встановлюємо зв'язок
+                ttsManager.setMicrophoneManager(micManager);
+                
+                // Ініціалізуємо
+                await micManager.initialize();
+                
+                log('✅ Голосова система ініціалізована', 'success');
+                
+            } catch (error) {
+                log(`❌ Помилка ініціалізації: ${error.message}`, 'error');
+            }
+        }
+        
+        // Логування
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logElement = document.getElementById('logs');
+            const colorMap = {
+                'success': '#90ee90',
+                'error': '#ff9090', 
+                'info': '#90b0ff'
+            };
+            
+            logElement.innerHTML += `<span style="color: ${colorMap[type] || '#fff'}">[${timestamp}] ${message}</span>\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+        
+        // Оновлення статусу ключового слова
+        function updateKeywordStatus(type, message) {
+            const element = document.getElementById('keywordStatus');
+            element.className = `status ${type}`;
+            element.textContent = message;
+        }
+        
+        // Оновлення статусу пост-чату
+        function updatePostChatStatus(type, message) {
+            const element = document.getElementById('postChatStatus');
+            element.className = `status ${type}`;
+            element.textContent = message;
+        }
+        
+        // Переключення синього режиму
+        window.toggleBlueMode = async function() {
+            if (!micManager) {
+                log('❌ Система не ініціалізована', 'error');
+                return;
+            }
+            
+            try {
+                if (micManager.isKeywordModeActive()) {
+                    await micManager.deactivateBlueMode();
+                    updateKeywordStatus('info', 'Синій режим вимкнено');
+                    log('🔵 Синій режим вимкнено', 'info');
+                } else {
+                    await micManager.activateBlueMode();
+                    updateKeywordStatus('success', 'Синій режим активний - скажіть "Атлас"');
+                    log('🔵 Синій режим активовано - скажіть "Атлас"', 'success');
+                }
+            } catch (error) {
+                log(`❌ Помилка переключення режиму: ${error.message}`, 'error');
+                updateKeywordStatus('error', `Помилка: ${error.message}`);
+            }
+        };
+        
+        // Симуляція відповіді Atlas
+        window.simulateAtlasResponse = async function() {
+            if (!ttsManager) {
+                log('❌ TTS система не ініціалізована', 'error');
+                return;
+            }
+            
+            try {
+                updatePostChatStatus('info', 'Програється відповідь Atlas...');
+                log('🗣️ Програється відповідь Atlas', 'info');
+                
+                // Симулюємо відповідь Atlas
+                await ttsManager.speak('Добре, я зрозумів ваше завдання. Зараз виконаю.', 'atlas');
+                
+                log('✅ Відповідь Atlas завершена, очікується пост-чат аналіз', 'success');
+                updatePostChatStatus('success', 'Пост-чат аналіз активний - говоріть протягом 8 секунд');
+                
+            } catch (error) {
+                log(`❌ Помилка TTS: ${error.message}`, 'error');
+                updatePostChatStatus('error', `Помилка TTS: ${error.message}`);
+            }
+        };
+        
+        // Оновлення конфігурації
+        window.updateConfig = function() {
+            const silenceMs = parseInt(document.getElementById('silenceMs').value);
+            const windowMs = parseInt(document.getElementById('windowMs').value);
+            const vadThreshold = parseFloat(document.getElementById('vadThreshold').value);
+            const maxRecordMs = parseInt(document.getElementById('maxRecordMs').value);
+            
+            VOICE_CONFIG.POST_CHAT.minSilenceMs = silenceMs;
+            VOICE_CONFIG.POST_CHAT.windowMs = windowMs;
+            VOICE_CONFIG.POST_CHAT.vadThreshold = vadThreshold;
+            VOICE_CONFIG.RECORDING_WINDOWS.keywordMaxMs = maxRecordMs;
+            VOICE_CONFIG.RECORDING_WINDOWS.shortClickMaxMs = maxRecordMs;
+            VOICE_CONFIG.RECORDING_WINDOWS.silenceThresholdMs = silenceMs;
+            
+            log(`⚙️ Налаштування оновлено: тишина=${silenceMs}мс, вікно=${windowMs}мс, VAD=${vadThreshold}, макс.запис=${maxRecordMs}мс`, 'info');
+        };
+        
+        // Очищення логів
+        window.clearLogs = function() {
+            document.getElementById('logs').innerHTML = 'Логи очищено...\n';
+        };
+        
+        // Ініціалізація при завантаженні
+        window.addEventListener('load', initVoiceSystem);
+        
+        // Слухачі подій для відстеження роботи системи
+        window.addEventListener('atlas-tts-started', (e) => {
+            log(`🔊 TTS розпочато для ${e.detail.agent}`, 'info');
+        });
+        
+        window.addEventListener('atlas-tts-completed', (e) => {
+            log(`🔇 TTS завершено для ${e.detail.agent}`, 'info');
+        });
+    </script>
+</body>
+</html>

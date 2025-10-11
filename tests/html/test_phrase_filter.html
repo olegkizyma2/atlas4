@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест фільтрації фонових фраз</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .test-section {
+            background: #2a2a2a;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 10px;
+            border: 1px solid #444;
+        }
+        .phrase-test {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            font-family: monospace;
+        }
+        .phrase-test.background {
+            background: #5a2d2d;
+            color: #ff9090;
+        }
+        .phrase-test.command {
+            background: #2d5a2d;
+            color: #90ee90;
+        }
+        .phrase-test.uncertain {
+            background: #5a5a2d;
+            color: #ffff90;
+        }
+        .phrase-input {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            background: #333;
+            color: #fff;
+            border: 1px solid #555;
+            border-radius: 5px;
+        }
+        button {
+            background: #0066cc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover { background: #0088ff; }
+        .result {
+            font-weight: bold;
+            padding: 5px 10px;
+            border-radius: 3px;
+        }
+        .ignored { background: #5a2d2d; color: #ff9090; }
+        .accepted { background: #2d5a2d; color: #90ee90; }
+        .uncertain { background: #5a5a2d; color: #ffff90; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Тест фільтрації фонових фраз ATLAS</h1>
+    
+    <div class="test-section">
+        <h2>1. Тест власної фрази</h2>
+        <input type="text" id="customPhrase" class="phrase-input" placeholder="Введіть фразу для тестування...">
+        <input type="number" id="confidence" class="phrase-input" placeholder="Впевненість (0.0-1.0)" value="1.0" min="0" max="1" step="0.1">
+        <button onclick="testCustomPhrase()">Перевірити фразу</button>
+        <div id="customResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>2. Автоматичні тести</h2>
+        <button onclick="runAllTests()">Запустити всі тести</button>
+        <div id="testResults"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. Результати з логів</h2>
+        <p>Фрази з ваших логів:</p>
+        <div id="logPhrases"></div>
+    </div>
+
+    <script type="module">
+        import { isBackgroundPhrase, isUserCommand } from './web/static/js/voice-control/config.js';
+        
+        // Тестові фрази з логів користувача
+        const logPhrases = [
+            { text: "Дякую за перегляд!", expected: "background" },
+            { text: "Субтитрувальниця Оля Шор Дякую!", expected: "background" },
+            { text: "Дякую.", expected: "background" },
+            { text: "Будь ласка!", expected: "background" },
+            { text: "Скажи мені, а як ти себе почуваєш? Ще добре?", expected: "command" },
+            { text: "я хочу запитати чи ти говорить Я хочу запитати", expected: "command" },
+            { text: "Ти чого не забув? Чоп, парней.", expected: "command" },
+            { text: "Добре, це чудово.", expected: "uncertain" },
+            { text: "Скажи мені, з чого я почав до тебе писати?", expected: "command" },
+            { text: "Це не Оля, це Мія, яка співає", expected: "command" },
+            { text: "Ну, а фані спирає, не?", expected: "command" },
+            { text: "Співаємо я новазі.", expected: "uncertain" },
+            { text: "Скажи мені, а що ти маєш робити?", expected: "command" }
+        ];
+        
+        // Додаткові тестові фрази
+        const additionalTests = [
+            { text: "дякую за увагу", expected: "background" },
+            { text: "підписуйтесь на канал", expected: "background" },
+            { text: "ставте лайки", expected: "background" },
+            { text: "так", expected: "background" },
+            { text: "ні", expected: "background" },
+            { text: "добре", expected: "background" },
+            { text: "окей", expected: "background" },
+            { text: "Що ти можеш робити?", expected: "command" },
+            { text: "Як справи?", expected: "command" },
+            { text: "Створи новий файл", expected: "command" },
+            { text: "Допоможи мені з кодом", expected: "command" },
+            { text: "Поясни що таке JavaScript", expected: "command" },
+            { text: "хм", expected: "background" },
+            { text: "ага", expected: "background" },
+            { text: "угу", expected: "background" }
+        ];
+        
+        window.testCustomPhrase = function() {
+            const phrase = document.getElementById('customPhrase').value;
+            const confidence = parseFloat(document.getElementById('confidence').value) || 1.0;
+            
+            if (!phrase.trim()) {
+                alert('Введіть фразу для тестування');
+                return;
+            }
+            
+            const isBackground = isBackgroundPhrase(phrase);
+            const isCommand = isUserCommand(phrase, confidence);
+            
+            let result, className;
+            if (isBackground) {
+                result = "🚫 ІГНОРУЄТЬСЯ (фонова фраза)";
+                className = "ignored";
+            } else if (isCommand) {
+                result = "✅ ПРИЙМАЄТЬСЯ (команда користувача)";
+                className = "accepted";
+            } else {
+                result = "🤔 ІГНОРУЄТЬСЯ (низька впевненість)";
+                className = "uncertain";
+            }
+            
+            document.getElementById('customResult').innerHTML = 
+                `<div class="result ${className}">${result}</div>
+                 <p>Фраза: "${phrase}"</p>
+                 <p>Впевненість: ${confidence}</p>
+                 <p>Фонова: ${isBackground ? 'Так' : 'Ні'}</p>
+                 <p>Команда: ${isCommand ? 'Так' : 'Ні'}</p>`;
+        };
+        
+        window.runAllTests = function() {
+            const allTests = [...logPhrases, ...additionalTests];
+            let results = '<h3>Результати тестування:</h3>';
+            let correct = 0;
+            let total = allTests.length;
+            
+            allTests.forEach((test, index) => {
+                const isBackground = isBackgroundPhrase(test.text);
+                const isCommand = isUserCommand(test.text, 1.0);
+                
+                let actual;
+                if (isBackground) {
+                    actual = "background";
+                } else if (isCommand) {
+                    actual = "command";
+                } else {
+                    actual = "uncertain";
+                }
+                
+                const isCorrect = actual === test.expected;
+                if (isCorrect) correct++;
+                
+                const className = isCorrect ? 'accepted' : 'ignored';
+                results += `
+                    <div class="phrase-test ${className}">
+                        <span>"${test.text}"</span>
+                        <span>Очікувано: ${test.expected} | Отримано: ${actual}</span>
+                    </div>
+                `;
+            });
+            
+            results = `<div class="result ${correct === total ? 'accepted' : 'uncertain'}">
+                         Правильно: ${correct}/${total} (${Math.round(correct/total*100)}%)
+                       </div>` + results;
+            
+            document.getElementById('testResults').innerHTML = results;
+        };
+        
+        // Показуємо фрази з логів
+        function displayLogPhrases() {
+            let html = '';
+            logPhrases.forEach(phrase => {
+                const isBackground = isBackgroundPhrase(phrase.text);
+                const isCommand = isUserCommand(phrase.text, 1.0);
+                
+                let className, status;
+                if (isBackground) {
+                    className = 'background';
+                    status = '🚫 Фонова';
+                } else if (isCommand) {
+                    className = 'command';
+                    status = '✅ Команда';
+                } else {
+                    className = 'uncertain';
+                    status = '🤔 Невизначена';
+                }
+                
+                html += `
+                    <div class="phrase-test ${className}">
+                        <span>"${phrase.text}"</span>
+                        <span>${status}</span>
+                    </div>
+                `;
+            });
+            
+            document.getElementById('logPhrases').innerHTML = html;
+        }
+        
+        // Ініціалізація
+        window.addEventListener('load', () => {
+            displayLogPhrases();
+            console.log('🔍 Тест фільтрації фраз завантажено');
+        });
+        
+        // Глобальні функції для доступу з консолі
+        window.isBackgroundPhrase = isBackgroundPhrase;
+        window.isUserCommand = isUserCommand;
+        
+    </script>
+</body>
+</html>

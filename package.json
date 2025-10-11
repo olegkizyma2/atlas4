@@ -1,0 +1,26 @@
+{
+  "name": "atlas4",
+  "private": true,
+  "type": "module",
+  "description": "Root package for ATLAS project to declare ESM module type",
+  "license": "UNLICENSED",
+  "scripts": {
+    "test": "cd config && npm test",
+    "test:config": "cd config && npm test",
+    "test:all": "npm run test:config",
+    "start": "./restart_system.sh start",
+    "stop": "./restart_system.sh stop",
+    "restart": "./restart_system.sh restart",
+    "status": "./restart_system.sh status",
+    "logs": "./restart_system.sh logs",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "lint:watch": "eslint . --watch"
+  },
+  "dependencies": {
+    "axios": "^1.12.2"
+  },
+  "devDependencies": {
+    "eslint": "^9.37.0"
+  }
+}
