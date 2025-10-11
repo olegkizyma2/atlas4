@@ -2,8 +2,32 @@
  * @fileoverview Менеджер режимів спілкування з користувачем
  *
  * Два режими роботи:
- * 1. Quick-send: одне натискання -> запис -> відправка в чат
- * 2. Conversation: утримання 2 сек -> живе спілкування STT→TTS→STT
+ * 1. Quick-send: одне натискання -> запис -> VAD детектує кінець -> відправка в Whisper -> чат
+ * 2. Conversation: утримання 2 сек -> Atlas відповідає (ротація фраз) -> живе спілкування STT→TTS→STT
+ *
+ * WORKFLOW Quick-send (Mode 1):
+ * - User: Клік на кнопку
+ * - System: Запис аудіо (VAD моніторить рівень)
+ * - VAD: Визначає кінець фрази (1.5 сек тиші)
+ * - System: Автостоп → Whisper транскрипція → відправка в чат
+ * - Atlas: Відповідь → TTS → повернення до idle
+ * 
+ * WORKFLOW Conversation (Mode 2):
+ * - User: Утримання кнопки 2 секунди
+ * - System: Активація conversation mode
+ * - System: Прослуховування ключового слова "Атлас" (через Whisper)
+ * - User: Говорить "Атлас"
+ * - System: Відповідь з ротацією ("слухаю", "в увазі", etc.) → TTS
+ * - System: Після TTS → початок запису користувача
+ * - User: Говорить запит
+ * - VAD: Визначає кінець фрази → автостоп
+ * - System: Whisper транскрипція → фільтрація → чат
+ * - Atlas: Відповідь → TTS
+ * - System: Після TTS → автоматичний continuous listening (БЕЗ "Атлас"!)
+ * - User: Може одразу говорити NEXT запит
+ * - VAD: Визначає кінець фрази → автостоп → Whisper → чат → LOOP
+ * - Exit: 5 сек тиші → повернення до прослуховування "Атлас"
+ * - Exit: Task mode → повне завершення conversation loop
  *
  * @version 4.0.0 - Refactored with modular architecture
  * @date 2025-10-11
