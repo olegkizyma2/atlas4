@@ -37,8 +37,8 @@ PORT = int(os.environ.get('WHISPER_PORT', 3002))
 WHISPER_CPP_BIN = os.environ.get('WHISPER_CPP_BIN', '')
 WHISPER_CPP_MODEL = os.environ.get('WHISPER_CPP_MODEL', '')
 WHISPER_CPP_LANG_DEFAULT = os.environ.get('WHISPER_CPP_LANG', 'uk')
-WHISPER_CPP_THREADS = int(os.environ.get('WHISPER_CPP_THREADS', '4'))
-WHISPER_CPP_NGL = int(os.environ.get('WHISPER_CPP_NGL', '20'))  # кол-во слоев на GPU (Metal)
+WHISPER_CPP_THREADS = int(os.environ.get('WHISPER_CPP_THREADS', '6'))  # Збільшено до 6 для M1 Max
+WHISPER_CPP_NGL = int(os.environ.get('WHISPER_CPP_NGL', '30'))  # Збільшено до 30 шарів на GPU для кращого використання Metal
 WHISPER_CPP_MAXLEN = int(os.environ.get('WHISPER_CPP_MAXLEN', '0'))  # 0 = без ограничения
 
 # Покращені параметри для Large-v3 моделі
@@ -50,7 +50,7 @@ WHISPER_CPP_LENGTH_PENALTY = float(os.environ.get('WHISPER_CPP_LENGTH_PENALTY', 
 WHISPER_CPP_COMPRESSION_RATIO_THRESHOLD = float(os.environ.get('WHISPER_CPP_COMPRESSION_RATIO_THRESHOLD', '2.4'))
 WHISPER_CPP_NO_SPEECH_THRESHOLD = float(os.environ.get('WHISPER_CPP_NO_SPEECH_THRESHOLD', '0.6'))
 WHISPER_CPP_CONDITION_ON_PREVIOUS_TEXT = os.environ.get('WHISPER_CPP_CONDITION_ON_PREVIOUS_TEXT', 'true').lower() == 'true'
-WHISPER_CPP_INITIAL_PROMPT = os.environ.get('WHISPER_CPP_INITIAL_PROMPT', 'Це українська мова з правильною орфографією, граматикою та пунктуацією.')
+WHISPER_CPP_INITIAL_PROMPT = os.environ.get('WHISPER_CPP_INITIAL_PROMPT', 'Це українська мова з правильною орфографією, граматикою та пунктуацією. Олег Миколайович розмовляє з Атласом.')
 
 # Словник корекції для активаційних слів (аналогічно faster-whisper)
 ATLAS_ACTIVATION_WORDS = {
