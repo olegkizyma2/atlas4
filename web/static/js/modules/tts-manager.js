@@ -281,6 +281,9 @@ export class TTSManager {
     // Ensure autoplay unlocking is armed
     this._attachAutoplayUnlockHandlers();
 
+    // Отримуємо опції поточного TTS (mode, isActivationResponse)
+    const ttsOptions = this._currentTTSOptions || {};
+
     return new Promise((resolve, reject) => {
       this.logger.info(`Creating audio URL for ${agent}, blob size: ${audioBlob?.size || 'unknown'}`);
 
@@ -297,7 +300,7 @@ export class TTSManager {
         URL.revokeObjectURL(audioUrl);
         this.currentAudio = null;
         this.ttsActive = false;
-        this.logger.info(`Audio playback completed for ${agent}`);
+        this.logger.info(`Audio playback completed for ${agent}`, ttsOptions);
 
         // Повідомляємо мікрофон-менеджер про завершення TTS
         if (this.microphoneManager && this.microphoneManager.onTTSEnded) {
@@ -307,13 +310,23 @@ export class TTSManager {
         // Запускаємо пост-чат аналіз якщо це було в режимі чату
         this.triggerPostChatAnalysis(agent);
 
-        // Emit DOM events about TTS completion
+        // Emit DOM events about TTS completion (CRITICAL: включаємо isActivationResponse!)
         try {
-          window.dispatchEvent(new CustomEvent('atlas-tts-completed', { detail: { agent } }));
-          window.dispatchEvent(new CustomEvent('atlas-tts-end', { detail: { agent } }));
+          window.dispatchEvent(new CustomEvent('atlas-tts-completed', { 
+            detail: { agent, ...ttsOptions } 
+          }));
+          window.dispatchEvent(new CustomEvent('atlas-tts-end', { 
+            detail: { agent, ...ttsOptions } 
+          }));
         } catch {
           // Ignore dispatch errors
         }
+
+        // Emit через event handler (tts-end) для chat manager
+        this._emit('tts-end', { agent, voice: agent, ...ttsOptions });
+
+        // Очищаємо опції після використання
+        this._currentTTSOptions = null;
 
         resolve();
       };
@@ -452,6 +465,12 @@ export class TTSManager {
       this.logger.debug('TTS disabled, skipping speech');
       return;
     }
+
+    // Зберігаємо isActivationResponse для передачі при завершенні
+    const { isActivationResponse = false, mode = 'chat' } = options;
+    
+    // Зберігаємо в instance для доступу в playAudio
+    this._currentTTSOptions = { isActivationResponse, mode, agent };
 
     // Визначаємо voice: якщо agent є голосом, використовуємо його, інакше отримуємо з конфігурації
     let voice;

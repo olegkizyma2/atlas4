@@ -2,8 +2,32 @@
  * @fileoverview Менеджер режимів спілкування з користувачем
  *
  * Два режими роботи:
- * 1. Quick-send: одне натискання -> запис -> відправка в чат
- * 2. Conversation: утримання 2 сек -> живе спілкування STT→TTS→STT
+ * 1. Quick-send: одне натискання -> запис -> VAD детектує кінець -> відправка в Whisper -> чат
+ * 2. Conversation: утримання 2 сек -> Atlas відповідає (ротація фраз) -> живе спілкування STT→TTS→STT
+ *
+ * WORKFLOW Quick-send (Mode 1):
+ * - User: Клік на кнопку
+ * - System: Запис аудіо (VAD моніторить рівень)
+ * - VAD: Визначає кінець фрази (1.5 сек тиші)
+ * - System: Автостоп → Whisper транскрипція → відправка в чат
+ * - Atlas: Відповідь → TTS → повернення до idle
+ * 
+ * WORKFLOW Conversation (Mode 2):
+ * - User: Утримання кнопки 2 секунди
+ * - System: Активація conversation mode
+ * - System: Прослуховування ключового слова "Атлас" (через Whisper)
+ * - User: Говорить "Атлас"
+ * - System: Відповідь з ротацією ("слухаю", "в увазі", etc.) → TTS
+ * - System: Після TTS → початок запису користувача
+ * - User: Говорить запит
+ * - VAD: Визначає кінець фрази → автостоп
+ * - System: Whisper транскрипція → фільтрація → чат
+ * - Atlas: Відповідь → TTS
+ * - System: Після TTS → автоматичний continuous listening (БЕЗ "Атлас"!)
+ * - User: Може одразу говорити NEXT запит
+ * - VAD: Визначає кінець фрази → автостоп → Whisper → чат → LOOP
+ * - Exit: 5 сек тиші → повернення до прослуховування "Атлас"
+ * - Exit: Task mode → повне завершення conversation loop
  *
  * @version 4.0.0 - Refactored with modular architecture
  * @date 2025-10-11
@@ -449,45 +473,45 @@ export class ConversationModeManager {
   async onKeywordActivation(activationResponse = null) {
     this.logger.info(`🎯 Keyword activation triggered, response: "${activationResponse}"`);
 
-    // Якщо є відповідь від keyword detector - озвучуємо її
-    if (activationResponse) {
-      this.ui?.showStatus(activationResponse);
-
-      // Озвучення відповіді через TTS
-      try {
-        await this.playActivationResponse(activationResponse);
-      } catch (error) {
-        this.logger.error('Failed to play activation response', null, error);
-      }
-    } else {
-      this.ui?.showStatus('Слухаю вас...');
+    // Завжди використовуємо відповідь від keyword detector
+    // Якщо немає - це помилка (keyword detector має генерувати)
+    if (!activationResponse) {
+      this.logger.warn('⚠️ No activation response provided by keyword detector - using fallback');
+      activationResponse = 'слухаю';
     }
 
-    // Емісія події для відправки в stage 0
+    // Показуємо статус
+    this.ui?.showStatus(activationResponse, 'activation');
+
+    // КРИТИЧНО: Озвучуємо відповідь ПЕРЕД початком запису
+    this.logger.info(`🔊 Playing activation response: "${activationResponse}"`);
+    
+    try {
+      // Емітуємо подію для TTS (isActivationResponse=true означає що після цього треба запис)
+      this.eventManager.emit('TTS_SPEAK_REQUEST', {
+        text: activationResponse,
+        agent: 'atlas',
+        mode: 'conversation',
+        priority: 'high',
+        isActivationResponse: true // Позначаємо як activation response
+      });
+
+      // Після TTS завершення (через TTS_COMPLETED event) автоматично запуститься запис
+      // Це обробляється в handleTTSCompleted()
+      
+    } catch (error) {
+      this.logger.error('Failed to play activation response', null, error);
+      
+      // Fallback: якщо TTS failed - одразу запускаємо запис
+      this.startConversationRecording();
+    }
+
+    // Емісія події для відправки в stage 0 (опціонально)
     this.eventManager.emit('CONVERSATION_KEYWORD_ACTIVATE', {
       keyword: this.config.keywordForActivation,
+      response: activationResponse,
       mode: 'conversation',
       stage: 0
-    });
-
-    // Початок запису голосового повідомлення
-    this.startConversationRecording();
-  }
-
-  /**
-   * Озвучення відповіді на активацію через TTS
-   * @param {string} response - Текст відповіді
-   */
-  async playActivationResponse(response) {
-    this.logger.info(`🔊 Playing activation response: "${response}"`);
-
-    // Емісія події для TTS
-    this.eventManager.emit('TTS_SPEAK_REQUEST', {
-      text: response,
-      agent: 'atlas',
-      mode: 'conversation',
-      priority: 'high',
-      isActivationResponse: true
     });
   }
 
@@ -627,17 +651,19 @@ export class ConversationModeManager {
 
   /**
      * Обробка завершення TTS (Атлас закінчив говорити)
-     * ОНОВЛЕНО (11.10.2025 - 16:00): Автоматичний цикл ТІЛЬКИ для chat mode
+     * ОНОВЛЕНО (11.10.2025 - 20:30): Підтримка activation responses + continuous loop
      */
   handleTTSCompleted(event) {
     const mode = event?.mode || 'chat';
     const isInConversation = event?.isInConversation || false;
+    const isActivationResponse = event?.isActivationResponse || false;
 
     console.log('[CONVERSATION] 🔊 TTS_COMPLETED event received!', {
       isInConversation,
       conversationActive: this.state.isConversationActive(),
       currentMode: this.state.getCurrentMode(),
       eventMode: mode,
+      isActivationResponse,
       event
     });
 
@@ -647,13 +673,29 @@ export class ConversationModeManager {
       return;
     }
 
+    // СПЕЦІАЛЬНА ОБРОБКА: Activation response (після "Атлас")
+    // Після озвучення відповіді ("слухаю", "в увазі" тощо) - запускаємо запис
+    if (isActivationResponse) {
+      this.logger.info('🎙️ Activation response completed - starting conversation recording');
+      this.ui?.showIdleMode();
+      
+      // Невелика пауза для природності (300ms)
+      setTimeout(() => {
+        if (this.state.isInConversation()) {
+          this.startConversationRecording();
+        }
+      }, 300);
+      
+      return; // Не запускаємо continuous listening після activation response
+    }
+
     // Ігноруємо якщо це task mode - conversation loop тільки для chat!
     if (mode === 'task') {
-      this.logger.info('� Task mode detected - NOT starting conversation loop');
+      this.logger.info('📋 Task mode detected - NOT starting conversation loop');
       return;
     }
 
-    this.logger.info('�🔊 Atlas finished speaking (chat mode) - starting continuous listening');
+    this.logger.info('🔊 Atlas finished speaking (chat mode) - starting continuous listening');
 
     // Видалення індікатора через UI controller
     this.ui?.showIdleMode();
@@ -670,6 +712,7 @@ export class ConversationModeManager {
     this.state.setWaitingForUserResponse(true);
     this.ui?.showStatus('Слухаю... (говоріть або мовчіть 5 сек для виходу)');
     this.ui?.showWaitingForResponse();
+    this.ui?.updateButtonIcon('🟠'); // Помаранчевий - continuous listening
 
     this.logger.info('🔄 Starting continuous listening (no keyword needed)');
 
