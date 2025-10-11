@@ -194,6 +194,55 @@ body {
     }
 }
 
+/* === MODE INDICATOR STYLES === */
+/* Візуальна індикація поточного режиму кнопки мікрофона */
+
+/* Idle mode - standby state */
+.btn.mode-idle {
+    background: var(--dark-green);
+    border: 1px solid rgba(0, 255, 127, 0.3);
+}
+
+.btn.mode-idle:hover {
+    box-shadow: 0 0 10px rgba(0, 255, 127, 0.4);
+}
+
+/* Quick-send mode - синій pulse */
+.btn.mode-quick-send {
+    background: linear-gradient(135deg, #00d4ff 0%, #0088ff 100%);
+    border: 2px solid #00d4ff;
+    animation: mode-quick-send-pulse 1s ease-in-out infinite;
+}
+
+@keyframes mode-quick-send-pulse {
+    0%, 100% {
+        box-shadow: 0 0 15px rgba(0, 212, 255, 0.6);
+        transform: scale(1);
+    }
+    50% {
+        box-shadow: 0 0 30px rgba(0, 212, 255, 1.0);
+        transform: scale(1.03);
+    }
+}
+
+/* Conversation mode - зелений pulse */
+.btn.mode-conversation {
+    background: linear-gradient(135deg, #00ff7f 0%, #00aa55 100%);
+    border: 2px solid #00ff7f;
+    animation: mode-conversation-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes mode-conversation-pulse {
+    0%, 100% {
+        box-shadow: 0 0 20px rgba(0, 255, 127, 0.7);
+        transform: scale(1);
+    }
+    50% {
+        box-shadow: 0 0 40px rgba(0, 255, 127, 1.0);
+        transform: scale(1.05);
+    }
+}
+
 /* Conversation mode status overlay */
 .conversation-mode-status {
     position: fixed;

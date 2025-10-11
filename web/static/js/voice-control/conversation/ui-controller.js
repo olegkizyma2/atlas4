@@ -93,6 +93,9 @@ export class ConversationUIController {
 
     // Очистити всі класи режимів
     this.clearModeClasses();
+    
+    // Додати клас режиму idle
+    this.micButton?.classList.add(UIClasses.MODE_IDLE);
 
     // Сховати статус
     this.hideStatus();
@@ -107,9 +110,10 @@ export class ConversationUIController {
     this.currentUIMode = ConversationModes.QUICK_SEND;
 
     this.clearModeClasses();
+    this.micButton?.classList.add(UIClasses.MODE_QUICK_SEND);
     this.micButton?.classList.add(UIClasses.RECORDING);
 
-    this.showStatus(StatusMessages.QUICK_SEND_RECORDING, 'recording');
+    this.showStatus(StatusMessages.QUICK_SEND_RECORDING, 'quick-send');
 
     logger.debug('🎨 UI updated: QUICK_SEND mode');
   }
@@ -121,6 +125,7 @@ export class ConversationUIController {
     this.currentUIMode = ConversationModes.CONVERSATION;
 
     this.clearModeClasses();
+    this.micButton?.classList.add(UIClasses.MODE_CONVERSATION);
     this.micButton?.classList.add(UIClasses.CONVERSATION);
 
     this.showStatus(StatusMessages.CONVERSATION_ACTIVE, 'conversation');

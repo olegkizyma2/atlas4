@@ -449,15 +449,17 @@ class AtlasApp {
       });
 
       this.managers.chat.on('tts-stop', (data) => {
-        // CRITICAL: Передаємо mode та isInConversation для conversation loop
+        // CRITICAL: Передаємо mode, isInConversation та isActivationResponse для conversation loop
         // FIXED (11.10.2025 - 16:50): Правильний шлях до conversation manager
         const conversationManager = this.managers.conversationMode;
         const isInConversation = conversationManager?.isConversationActive?.() || false;
         const mode = data?.mode || 'chat';
+        const isActivationResponse = data?.isActivationResponse || false;
 
         console.log('[APP] 🔊 Emitting TTS_COMPLETED (Events.TTS_COMPLETED):', {
           mode,
           isInConversation,
+          isActivationResponse,
           agent: data?.agent || 'atlas',
           data,
           eventName: VoiceEvents.TTS_COMPLETED,
@@ -470,6 +472,7 @@ class AtlasApp {
           timestamp: Date.now(),
           mode: mode,
           isInConversation: isInConversation,
+          isActivationResponse: isActivationResponse,
           agent: data?.agent || 'atlas'
         });
       });
