@@ -712,6 +712,7 @@ export class ConversationModeManager {
     this.state.setWaitingForUserResponse(true);
     this.ui?.showStatus('Слухаю... (говоріть або мовчіть 5 сек для виходу)');
     this.ui?.showWaitingForResponse();
+    this.ui?.updateButtonIcon('🟠'); // Помаранчевий - continuous listening
 
     this.logger.info('🔄 Starting continuous listening (no keyword needed)');
 

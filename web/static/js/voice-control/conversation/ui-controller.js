@@ -96,6 +96,9 @@ export class ConversationUIController {
     
     // Додати клас режиму idle
     this.micButton?.classList.add(UIClasses.MODE_IDLE);
+    
+    // Оновити іконку кнопки
+    this.updateButtonIcon('🔵'); // Синій кружок - ready
 
     // Сховати статус
     this.hideStatus();
@@ -113,6 +116,9 @@ export class ConversationUIController {
     this.micButton?.classList.add(UIClasses.MODE_QUICK_SEND);
     this.micButton?.classList.add(UIClasses.RECORDING);
 
+    // Оновити іконку - запис
+    this.updateButtonIcon('🔴'); // Червоний - recording
+
     this.showStatus(StatusMessages.QUICK_SEND_RECORDING, 'quick-send');
 
     logger.debug('🎨 UI updated: QUICK_SEND mode');
@@ -127,6 +133,9 @@ export class ConversationUIController {
     this.clearModeClasses();
     this.micButton?.classList.add(UIClasses.MODE_CONVERSATION);
     this.micButton?.classList.add(UIClasses.CONVERSATION);
+
+    // Оновити іконку - conversation
+    this.updateButtonIcon('🟢'); // Зелений - conversation active
 
     this.showStatus(StatusMessages.CONVERSATION_ACTIVE, 'conversation');
 
@@ -154,6 +163,7 @@ export class ConversationUIController {
      */
   showRecording() {
     this.micButton?.classList.add(UIClasses.RECORDING);
+    this.updateButtonIcon('🔴'); // Червоний - recording
     this.addPulseAnimation();
   }
 
@@ -162,6 +172,9 @@ export class ConversationUIController {
      */
   hideRecording() {
     this.micButton?.classList.remove(UIClasses.RECORDING);
+    // Повертаємо іконку залежно від поточного режиму
+    const icon = this.currentUIMode === ConversationModes.CONVERSATION ? '🟢' : '🔵';
+    this.updateButtonIcon(icon);
     this.removePulseAnimation();
   }
 
@@ -348,6 +361,7 @@ export class ConversationUIController {
   showConversationActivated() {
     this.showConversationMode();
     this.flashButton('success');
+    this.updateButtonIcon('🟢'); // Зелений - conversation
     this.showStatus(StatusMessages.CONVERSATION_ACTIVE, 'conversation');
   }
 
@@ -356,6 +370,7 @@ export class ConversationUIController {
      */
   showConversationListening() {
     this.showRecording();
+    this.updateButtonIcon('🔴'); // Червоний - recording
     this.showStatus(StatusMessages.CONVERSATION_LISTENING, 'recording');
   }
 
@@ -364,6 +379,7 @@ export class ConversationUIController {
      */
   showConversationWaitingForKeyword() {
     this.hideRecording();
+    this.updateButtonIcon('🟡'); // Жовтий - waiting for keyword
     this.showListeningForKeyword();
   }
 
@@ -408,6 +424,20 @@ export class ConversationUIController {
   updateMicButton(newButton) {
     this.micButton = newButton;
     logger.debug('🔄 Microphone button updated');
+  }
+
+  /**
+     * Оновити іконку кнопки мікрофона
+     * @param {string} icon - Emoji іконка
+     */
+  updateButtonIcon(icon) {
+    if (!this.micButton) return;
+    
+    const textElement = this.micButton.querySelector('.btn-text');
+    if (textElement) {
+      textElement.textContent = icon;
+      logger.debug(`🎨 Button icon updated: ${icon}`);
+    }
   }
 
   // ==================== CLEANUP ====================

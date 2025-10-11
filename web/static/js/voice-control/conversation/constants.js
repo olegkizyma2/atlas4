@@ -96,6 +96,7 @@ export const StatusMessages = {
     UNCLEAR_PHRASE: 'Не зрозумів, скажіть "Атлас" для продовження...',
     CONVERSATION_ACTIVE: 'Режим розмови активний',
     CONVERSATION_HINT: 'Говоріть після сигналу...',
+    CONVERSATION_LISTENING: 'Слухаю вас...',
     QUICK_SEND_RECORDING: 'Записую... (відпустіть для завершення)',
     QUICK_SEND_ACTIVE: 'Режим швидкого запису',
     TIMEOUT: 'Час очікування вичерпано',
