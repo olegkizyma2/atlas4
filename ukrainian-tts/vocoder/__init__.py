@@ -2,4 +2,6 @@
 # This package provides a simple interface to load a pretrained HiFi-GAN or ParallelWaveGAN
 # and convert mel-spectrograms to waveform. It is an optional dependency.
 
+from . import infer
+
 __all__ = ["infer"]

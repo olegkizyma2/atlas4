@@ -17,7 +17,11 @@
         "**/__pycache__",
         "**/third_party",
         "**/.venv",
-        "**/node_modules"
+        "**/venv",
+        "**/venv3.11",
+        "**/node_modules",
+        "web/venv/**",
+        "ukrainian-tts/venv3.11/**"
     ],
     "reportMissingImports": "warning",
     "reportMissingTypeStubs": false

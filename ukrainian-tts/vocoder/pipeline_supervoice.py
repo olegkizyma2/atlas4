@@ -23,6 +23,7 @@ python ukrainian-tts/vocoder/pipeline_supervoice.py --wav example.wav --checkpoi
 
 import argparse
 import importlib
+import importlib.util  # Explicit import to satisfy Pylance
 import os
 import sys
 import tempfile
