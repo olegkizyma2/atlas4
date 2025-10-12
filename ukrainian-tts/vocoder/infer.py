@@ -22,6 +22,7 @@ import numpy as np
 import importlib
 import importlib.util
 import soundfile as sf
+from typing import Any, Optional
 
 # Compatibility shim: some versions of scipy expose the kaiser window at
 # scipy.signal.older locations; parallel_wavegan imports `from scipy.signal import kaiser`
@@ -32,7 +33,7 @@ try:
     if not hasattr(_scipy_signal, 'kaiser'):
         try:
             import scipy.signal.windows as _scipy_windows
-            _scipy_signal.kaiser = _scipy_windows.kaiser
+            setattr(_scipy_signal, 'kaiser', _scipy_windows.kaiser)
         except Exception:
             # leave it; import error will surface later with clearer message
             pass
@@ -41,12 +42,8 @@ except Exception:
     pass
 
 
-def _try_import_hifigan():
-    try:
-        from hifigan import utils as hifi_utils  # type: ignore
-        return True
-    except Exception:
-        return False
+def _try_import_hifigan() -> bool:
+    return importlib.util.find_spec("hifigan") is not None
 
 
 def _try_import_pwgan():
@@ -57,12 +54,25 @@ def infer_hifigan(mel, checkpoint, out_path, sr=22050):
     # Minimal example using the hifigan repo API
     try:
         import torch
-        from hifigan import Generator  # expects the repo API
-    except Exception as e:
+        hifigan_models = importlib.import_module("hifigan")
+    except ModuleNotFoundError as exc:
         raise RuntimeError("HiFi-GAN not available. Install with: pip install git+https://github.com/jik876/hifi-gan.git")
+    except Exception as exc:
+        raise RuntimeError("Failed to import HiFi-GAN modules") from exc
+
+    generator_cls: Optional[Any] = getattr(hifigan_models, "Generator", None)
+    if generator_cls is None:
+        try:
+            hifigan_models = importlib.import_module("hifigan.models")
+            generator_cls = getattr(hifigan_models, "Generator")
+        except Exception as exc:
+            raise RuntimeError("HiFi-GAN Generator class not found. Ensure the repository installation is complete.") from exc
+
+    if generator_cls is None:
+        raise RuntimeError("HiFi-GAN Generator class still missing after import attempts.")
 
     device = torch.device('cpu')
-    model = Generator()  # default config; replace with loading config if needed
+    model = generator_cls()  # type: ignore[call-arg]
     state = torch.load(checkpoint, map_location=device)
     model.load_state_dict(state['generator'])
     model.to(device).eval()
@@ -75,7 +85,7 @@ def infer_hifigan(mel, checkpoint, out_path, sr=22050):
 
 def infer_pwgan(mel, checkpoint, out_path, sr=22050):
     try:
-        pw = importlib.import_module("parallel_wavegan")
+        importlib.import_module("parallel_wavegan")
         torch = importlib.import_module("torch")
     except ModuleNotFoundError as exc:
         raise RuntimeError(

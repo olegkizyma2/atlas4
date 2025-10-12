@@ -29,6 +29,7 @@ import sys
 import tempfile
 import numpy as np
 import soundfile as sf
+from typing import Any, cast
 
 
 def find_tts_package():
@@ -76,17 +77,19 @@ def synthesize_text_to_wav(TTSClass, text, voice, stress, device, out_wav):
         tts = TTSClass(device=device)
     except TypeError:
         try:
-            tts = TTSClass(None, device)
+            tts = TTSClass(device)
         except Exception:
             # Last resort: call without args
             tts = TTSClass()
+
+    tts_any = cast(Any, tts)
     # tts.tts may accept a file path or a file-like object. Try file path
     # first for simplicity; if the implementation expects a file-like object
     # (raises an AttributeError on the string, e.g. 'str' object has no
     # attribute 'seek'), retry using an in-memory BytesIO and persist the
     # resulting bytes to `out_wav`.
     try:
-        res, ok = tts.tts(text, voice, stress, out_wav)
+        res, ok = tts_any.tts(text, voice, stress, out_wav)
     except Exception as e:
         msg = str(e) if e is not None else ''
         # Heuristic: if the error mentions 'seek' or the exception is
@@ -94,7 +97,7 @@ def synthesize_text_to_wav(TTSClass, text, voice, stress, device, out_wav):
         if isinstance(e, AttributeError) or 'seek' in msg or 'file-like' in msg:
             import io
             buf = io.BytesIO()
-            res, ok = tts.tts(text, voice, stress, buf)
+            res, ok = tts_any.tts(text, voice, stress, buf)
             if not ok:
                 raise RuntimeError(f"TTS synthesis failed: {res}")
             # write buffer to disk
@@ -116,7 +119,7 @@ def wav_to_mel(wav_path, sr=22050, n_fft=1024, hop_length=256, n_mels=80):
     if y.ndim > 1:
         y = y.mean(axis=1)
     if orig_sr != sr:
-        y = librosa.resample(y, orig_sr, sr)
+        y = librosa.resample(y, orig_sr=orig_sr, target_sr=sr)
     # librosa power mel (use keyword arg for y for compatibility with newer librosa)
     mel = librosa.feature.melspectrogram(y=y, sr=sr, n_fft=n_fft, hop_length=hop_length, n_mels=n_mels, power=1.0)
     # convert to log scale (what most vocoders expect)
