@@ -15,6 +15,13 @@
 	— голосова взаємодія v4.0
 - [CONTEXT_FIX_SUMMARY.md](CONTEXT_FIX_SUMMARY.md) — виправлення контексту (10.10.2025)
 
+### 📂 Організована документація
+
+- **[fixes/](fixes/)** — усі виправлення помилок з детальними звітами
+- **[pull-requests/](pull-requests/)** — PR summaries та deployment guides
+- **[refactoring/](refactoring/)** — Phase 2 refactoring documentation
+- **[archive/](archive/)** — історичні документи та проміжні звіти
+
 ---
 
 ## 🧠 Context & Memory System
@@ -109,5 +116,27 @@ Whisper keyword detection:
 
 ---
 
-Останнє оновлення: 11 жовтня 2025  
+Останнє оновлення: 12 жовтня 2025  
 Версія: ATLAS v4.0
+
+---
+
+## 📁 Структура директорій
+
+```
+docs/
+├── README.md (цей файл)
+├── fixes/ — виправлення помилок (15+ документів)
+│   ├── README.md
+│   ├── CONVERSATION_*.md — conversation mode fixes
+│   ├── QUICK_SEND_*.md — quick-send fixes
+│   └── PENDING_CONTINUOUS_*.md — pending continuous fix
+├── pull-requests/ — PR documentation
+│   ├── README.md
+│   ├── PR_3_SUMMARY.md
+│   └── PR_4_PENDING_CONTINUOUS_SUMMARY.md
+├── refactoring/ — Phase 2 refactoring docs
+└── archive/ — історичні документи
+```
+
+Для деталей дивіться README у кожній підпапці.
