@@ -9,8 +9,8 @@ export class SimpleVAD {
   constructor(config = {}) {
     this.config = {
       silenceThreshold: config.silenceThreshold || 0.01, // Поріг тиші (RMS)
-      silenceDuration: config.silenceDuration || 1200, // 1.2 сек (було 1.5) - швидша детекція кінця фрази
-      minSpeechDuration: config.minSpeechDuration || 250, // 250мс (було 300мс) - швидша валідація
+      silenceDuration: config.silenceDuration || 1200, // 1.2 сек мовчання = кінець фрази (-20% від 1.5s, PR #3)
+      minSpeechDuration: config.minSpeechDuration || 250, // Мінімум 250мс для валідної мови (-17% від 300ms, PR #3)
       noiseSuppression: config.noiseSuppression ?? true, // Придушення шуму
       adaptiveThreshold: config.adaptiveThreshold ?? true, // Адаптивний поріг (NEW)
       ...config
@@ -69,17 +69,17 @@ export class SimpleVAD {
       }
 
       const rms = this.calculateRMS();
-      
+
       // Update adaptive threshold (NEW 2025-10-11)
       if (this.config.adaptiveThreshold) {
         this.updateAdaptiveThreshold(rms);
       }
-      
+
       // Use adaptive or fixed threshold
-      const threshold = this.config.adaptiveThreshold 
-        ? this.getAdaptiveThreshold() 
+      const threshold = this.config.adaptiveThreshold
+        ? this.getAdaptiveThreshold()
         : this.config.silenceThreshold;
-      
+
       const isSpeech = rms > threshold;
 
       this.lastLevel = rms;
@@ -107,11 +107,11 @@ export class SimpleVAD {
     // Track noise levels when not speaking
     if (!this.isSpeaking) {
       this.noiseHistory.push(rms);
-      
+
       if (this.noiseHistory.length > this.maxNoiseHistory) {
         this.noiseHistory.shift();
       }
-      
+
       // Calculate baseline noise as median of history
       if (this.noiseHistory.length >= 10) {
         const sorted = [...this.noiseHistory].sort((a, b) => a - b);
@@ -127,7 +127,7 @@ export class SimpleVAD {
     if (this.baselineNoiseLevel === 0) {
       return this.config.silenceThreshold;
     }
-    
+
     // Threshold is 2.5x the baseline noise
     return Math.max(this.config.silenceThreshold, this.baselineNoiseLevel * 2.5);
   }
