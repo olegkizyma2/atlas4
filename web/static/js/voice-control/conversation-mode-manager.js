@@ -406,6 +406,10 @@ export class ConversationModeManager {
     this.clearConversationTimer();
     this.clearResponseWaitTimer();
 
+    // ✅ CRITICAL FIX (12.10.2025 - 16:15): Зупинка keyword detection при виході
+    // Без цього жовта кнопка продовжує мигати після кліку!
+    this.stopListeningForKeyword();
+
     // 🆕 UI updates
     this.ui?.showConversationEnded('completed');
 
@@ -450,6 +454,30 @@ export class ConversationModeManager {
     } catch (error) {
       console.error('[CONVERSATION] ❌ Failed to emit START_KEYWORD_DETECTION:', error);
       this.logger.error('Failed to emit START_KEYWORD_DETECTION', null, error);
+    }
+  }
+
+  /**
+   * Зупинка прослуховування ключового слова
+   * ✅ FIX (12.10.2025 - 16:15): Додано для коректного виходу з conversation mode
+   */
+  stopListeningForKeyword() {
+    this.logger.debug('🛑 Stopping keyword detection');
+
+    // Емісія події STOP_KEYWORD_DETECTION
+    if (!this.eventManager) {
+      this.logger.warn('EventManager not available for STOP_KEYWORD_DETECTION');
+      return;
+    }
+
+    try {
+      this.eventManager.emit(ConversationEvents.STOP_KEYWORD_DETECTION, {
+        reason: 'conversation_deactivated',
+        timestamp: Date.now()
+      });
+      this.logger.info('✅ STOP_KEYWORD_DETECTION event emitted');
+    } catch (error) {
+      this.logger.error('Failed to emit STOP_KEYWORD_DETECTION', null, error);
     }
   }
 
