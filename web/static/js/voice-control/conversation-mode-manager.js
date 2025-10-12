@@ -505,14 +505,20 @@ export class ConversationModeManager {
     this.logger.info(`🔊 Playing activation response: "${activationResponse}"`);
 
     try {
+      // FIXED (12.10.2025): Використовуємо window.eventManager для TTS (глобальний, НЕ локальний!)
+      // TTS Manager підписаний на window.eventManager, НЕ на this.eventManager
+      const globalEventManager = window.eventManager || this.eventManager;
+      
       // Емітуємо подію для TTS (isActivationResponse=true означає що після цього треба запис)
-      this.eventManager.emit('TTS_SPEAK_REQUEST', {
+      globalEventManager.emit('TTS_SPEAK_REQUEST', {
         text: activationResponse,
         agent: 'atlas',
         mode: 'conversation',
         priority: 'high',
         isActivationResponse: true // Позначаємо як activation response
       });
+
+      this.logger.info(`✅ TTS_SPEAK_REQUEST emitted via ${globalEventManager === window.eventManager ? 'window' : 'local'}.eventManager`);
 
       // Після TTS завершення (через TTS_COMPLETED event) автоматично запуститься запис
       // Це обробляється в handleTTSCompleted()

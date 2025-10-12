@@ -1,6 +1,6 @@
 # ATLAS v4.0 - Adaptive Task and Learning Assistant System
 
-**LAST UPDATED:** 12 жовтня 2025 - День ~13:30 (Quick-Send Filter Fix)
+**LAST UPDATED:** 12 жовтня 2025 - День ~16:45 (Conversation Mode Keyword Activation TTS Fix)
 **ALWAYS follow these instructions first and fallback to additional search and context gathering only if the information here is incomplete or found to be in error.**
 
 ATLAS is an intelligent multi-agent orchestration system with Flask web frontend, Node.js orchestrator, Ukrainian TTS/STT voice control, and living 3D GLB helmet interface. Features three specialized AI agents (Atlas, Тетяна, Гриша) working in a coordinated workflow with real-time voice interaction and **full context-aware conversations with memory**.
@@ -67,6 +67,19 @@ ATLAS is an intelligent multi-agent orchestration system with Flask web frontend
 - **Виправлено:** filters.js (2 умови - ФІЛЬТР 2 і ФІЛЬТР 3)
 - **Критично:** User-initiated дії НЕ мають фільтруватись як automatic listening
 - **Детально:** `docs/QUICK_SEND_FILTER_FIX_2025-10-12.md`
+
+### ✅ Conversation Mode Keyword Activation TTS Fix (FIXED 12.10.2025 - день ~16:45)
+- **Проблема:** Після виклику "Атлас", відповідь "так творець, ви мене звали" НЕ озвучувалась через TTS
+- **Симптом:** Keyword detection спрацьовує → response згенерована → НЕ додається в чат → НЕ озвучується → замість [ATLAS] message з'являється [USER] message
+- **Корінь:** ConversationModeManager емітував `TTS_SPEAK_REQUEST` через `this.eventManager` (локальний), але TTS Manager підписаний на `window.eventManager` (глобальний) → event mismatch
+- **Рішення #1:** Змінено emission на `window.eventManager || this.eventManager` fallback
+- **Рішення #2:** Додано logging для діагностики використання eventManager
+- **Рішення #3:** Додано priority: 'high' для activation responses
+- **Результат:** TTS activation response озвучується ПЕРЕД початком запису, правильний workflow
+- **Виправлено:** conversation-mode-manager.js (метод onKeywordActivation, lines 502-530)
+- **Workflow тепер:** "Атлас" → TTS response → response в чаті → запис починається → команда → Atlas відповідає
+- **Критично:** ЗАВЖДИ використовуйте `window.eventManager` для app-level events (TTS, Chat), НЕ `this.eventManager`
+- **Детально:** `docs/CONVERSATION_MODE_KEYWORD_FIX_2025-10-12.md`
 
 ### ✅ EventManager Window Export Fix (FIXED 12.10.2025 - день ~15:00)
 - **Проблема:** TTS Manager НЕ міг підписатись на події - "EventManager not available after retry, TTS events disabled"
