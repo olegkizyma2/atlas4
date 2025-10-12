@@ -461,6 +461,12 @@ export class WhisperKeywordDetection extends BaseService {
             console.log('[WHISPER_KEYWORD] 🗣️ Generated response:', response);
 
             // Емісія події виявлення
+            console.log('[WHISPER_KEYWORD] 📡 Emitting KEYWORD_DETECTED event...', {
+                eventType: Events.KEYWORD_DETECTED,
+                hasEventManager: !!this.eventManager,
+                eventManager: this.eventManager
+            });
+            
             this.emit(Events.KEYWORD_DETECTED, {
                 transcript: text,
                 confidence: 0.95, // Whisper має високу точність
@@ -470,6 +476,8 @@ export class WhisperKeywordDetection extends BaseService {
                 source: 'whisper',
                 keywords: this.keywords
             });
+
+            console.log('[WHISPER_KEYWORD] ✅ KEYWORD_DETECTED event emitted');
 
             // Зупинка listening після виявлення
             this.stopListening();
