@@ -1,6 +1,6 @@
 # ATLAS v4.0 - Adaptive Task and Learning Assistant System
 
-**LAST UPDATED:** 11 жовтня 2025 - Вечір ~17:25 (TTS_COMPLETED Event Fix)
+**LAST UPDATED:** 12 жовтня 2025 - Ранок ~06:00 (Keyword Activation Response Fix)
 **ALWAYS follow these instructions first and fallback to additional search and context gathering only if the information here is incomplete or found to be in error.**
 
 ATLAS is an intelligent multi-agent orchestration system with Flask web frontend, Node.js orchestrator, Ukrainian TTS/STT voice control, and living 3D GLB helmet interface. Features three specialized AI agents (Atlas, Тетяна, Гриша) working in a coordinated workflow with real-time voice interaction and **full context-aware conversations with memory**.
@@ -55,6 +55,16 @@ ATLAS is an intelligent multi-agent orchestration system with Flask web frontend
 ---
 
 ## 🎯 КЛЮЧОВІ ОСОБЛИВОСТІ СИСТЕМИ
+
+### ✅ Keyword Activation Response Fix (FIXED 12.10.2025 - ранок ~06:00)
+- **Проблема:** Коли спрацьовував keyword "Атлас", відповідь "що бажаєте?" генерувалась, але НЕ відправлялась в чат і НЕ озвучувалась
+- **Симптом:** Keyword detection працював, response згенерована, але користувач НЕ бачив/чув відповіді, і запис НЕ починався
+- **Корінь:** `onKeywordActivation()` тільки емітував `TTS_SPEAK_REQUEST`, але НЕ додавав повідомлення в чат через `chatManager.addMessage()`
+- **Рішення:** Додано `chatManager.addMessage(activationResponse, 'atlas', {skipTTS: true})` ПЕРЕД `TTS_SPEAK_REQUEST`
+- **Workflow тепер:** "Атлас" → response в чат → TTS озвучує → запис починається → команда → Atlas відповідає
+- **Виправлено:** conversation-mode-manager.js (метод onKeywordActivation, lines ~477-520)
+- **Критично:** Activation response - частина розмови, ЗАВЖДИ додавати в чат + озвучувати через TTS
+- **Детально:** `docs/KEYWORD_ACTIVATION_RESPONSE_FIX_2025-10-12.md`
 
 ### ✅ TTS_COMPLETED Event Name Fix (FIXED 11.10.2025 - вечір ~17:25)
 - **Проблема:** Conversation loop НЕ продовжувався після TTS - event name mismatch

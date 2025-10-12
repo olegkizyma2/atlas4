@@ -484,6 +484,19 @@ export class ConversationModeManager {
     // Показуємо статус
     this.ui?.showStatus(activationResponse, 'activation');
 
+    // КРИТИЧНО: Додаємо відповідь в чат ПЕРЕД TTS
+    this.logger.info(`💬 Adding activation response to chat: "${activationResponse}"`);
+    try {
+      // Додаємо повідомлення Atlas в чат
+      if (window.atlasApp?.chatManager) {
+        window.atlasApp.chatManager.addMessage(activationResponse, 'atlas', {
+          skipTTS: true // НЕ запускати TTS через chatManager (буде окремо)
+        });
+      }
+    } catch (error) {
+      this.logger.error('Failed to add activation response to chat', null, error);
+    }
+
     // КРИТИЧНО: Озвучуємо відповідь ПЕРЕД початком запису
     this.logger.info(`🔊 Playing activation response: "${activationResponse}"`);
 
