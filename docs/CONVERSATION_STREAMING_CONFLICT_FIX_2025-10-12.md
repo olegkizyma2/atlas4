@@ -134,6 +134,11 @@ constructor(config) {
 
 ```javascript
 handleTTSCompleted(event) {
+  // FIXED (12.10.2025 - 17:15): Правильна обробка payload structure
+  const payload = event?.payload || event; // EventManager може передавати різні structures
+  const mode = payload?.mode || 'chat';
+  const isInConversation = payload?.isInConversation || false;
+  
   // ... activation response handling ...
   
   // FIXED (12.10.2025): Відправка pending message якщо є
@@ -154,6 +159,23 @@ handleTTSCompleted(event) {
   this.startContinuousListening();
 }
 ```
+
+### 4. Payload Structure Support (CRITICAL FIX 12.10.2025 - 17:15)
+**Проблема:** EventManager може емітувати події у різних форматах:
+- Direct payload: `{mode: 'chat', isInConversation: true, ...}`
+- Wrapped payload: `{type: 'event', payload: {mode: 'chat', ...}, timestamp: ...}`
+
+**Рішення:** Універсальна розпаковка payload:
+```javascript
+// BEFORE (WRONG - працює тільки з direct payload):
+const mode = event?.mode || 'chat';
+
+// AFTER (CORRECT - працює з обома форматами):
+const payload = event?.payload || event;
+const mode = payload?.mode || 'chat';
+```
+
+**Результат:** `handleTTSCompleted` тепер працює незалежно від event structure.
 
 ### 4. Dependency Injection
 Передача chatManager через config:
@@ -242,7 +264,19 @@ this.managers.conversationMode = new ConversationModeManager({
     longPressDuration: 2000,
 ```
 
-**Total Changes:** ~30 LOC across 2 files
+### 3. `/web/static/js/voice-control/conversation/event-handlers.js`
+**Lines 300-310:** Enhanced logging для діагностики payload
+```diff
+  handleTTSCompleted(payload) {
+    logger.info('✅ TTS playback completed', {
+      mode: this.stateManager?.getCurrentMode() || 'unknown',
+      isInConversation: this.stateManager?.isInConversation() || false,
++     payloadKeys: payload ? Object.keys(payload) : [],
++     payload
+    });
+```
+
+**Total Changes:** ~40 LOC across 3 files
 
 ---
 
