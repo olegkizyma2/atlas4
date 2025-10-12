@@ -795,8 +795,11 @@ export class ConversationModeManager {
      */
   onUserSilenceTimeout() {
     this.state.setWaitingForUserResponse(false);
-    this.ui?.showIdleMode();
-
+    
+    // ✅ CRITICAL FIX (12.10.2025): Показати ЖОВТУ кнопку (waiting for keyword), НЕ idle!
+    this.ui?.showConversationWaitingForKeyword(); // Жовта кнопка + breathing animation
+    
+    // ✅ Залишаємось в conversation mode, просто чекаємо "Атлас"
     this.logger.info('🔄 Returning to keyword detection mode after silence');
 
     // Повернення до прослуховування ключового слова

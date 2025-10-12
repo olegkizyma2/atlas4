@@ -325,7 +325,18 @@ export class WhisperKeywordDetection extends BaseService {
             const formData = new FormData();
             formData.append('audio', wavBlob, 'audio.wav');
             formData.append('language', 'uk');
-            formData.append('temperature', '0.2');
+            formData.append('temperature', '0.0'); // ✅ 0.0 для максимальної точності keyword detection (було 0.2)
+            
+            // ✅ OPTIMIZED для Mac Studio M1 MAX (12.10.2025)
+            formData.append('beam_size', '5'); // Beam search для точності (metal GPU прискорює)
+            formData.append('best_of', '5');   // Кращий з 5 варіантів
+            formData.append('patience', '1.0'); // Терпіння для довших фраз
+            formData.append('compression_ratio_threshold', '2.4'); // Фільтр повторів
+            formData.append('no_speech_threshold', '0.4'); // Нижчий поріг для тихих голосів
+            formData.append('condition_on_previous_text', 'false'); // Без контексту для keyword
+            
+            // ✅ Whisper initial prompt - підказка для точного розпізнавання "Атлас"
+            formData.append('initial_prompt', 'Атлас, Atlas, слухай, олег миколайович');
 
             const response = await fetch(`${this.whisperUrl}/transcribe`, {
                 method: 'POST',
@@ -358,15 +369,14 @@ export class WhisperKeywordDetection extends BaseService {
                  * Конвертація webm → wav
                  */
     async convertToWav(webmBlob) {
-        // Для Whisper потрібен WAV формат
-        // Використовуємо той самий метод що і в WhisperService
+        // ✅ OPTIMIZED (12.10.2025): 48kHz для максимальної якості Whisper Large-v3
         const arrayBuffer = await webmBlob.arrayBuffer();
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 48000 }); // ✅ 48kHz (було 16kHz)
         const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
         // Отримання PCM даних
         const pcmData = audioBuffer.getChannelData(0);
-        const wavBuffer = this.encodeWAV(pcmData, 16000);
+        const wavBuffer = this.encodeWAV(pcmData, 48000); // ✅ 48kHz (було 16kHz)
 
         return new Blob([wavBuffer], { type: 'audio/wav' });
     }

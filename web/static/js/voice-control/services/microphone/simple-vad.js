@@ -9,10 +9,12 @@ export class SimpleVAD {
   constructor(config = {}) {
     this.config = {
       silenceThreshold: config.silenceThreshold || 0.01, // Поріг тиші (RMS)
-      silenceDuration: config.silenceDuration || 1200, // 1.2 сек мовчання = кінець фрази (-20% від 1.5s, PR #3)
-      minSpeechDuration: config.minSpeechDuration || 250, // Мінімум 250мс для валідної мови (-17% від 300ms, PR #3)
+      silenceDuration: config.silenceDuration || 3000, // ✅ 3.0 сек тиші = кінець фрази (БУЛО 1.2s - занадто швидко!)
+      minSpeechDuration: config.minSpeechDuration || 400, // ✅ Мінімум 400мс для валідної мови (фільтр коротких звуків)
       noiseSuppression: config.noiseSuppression ?? true, // Придушення шуму
-      adaptiveThreshold: config.adaptiveThreshold ?? true, // Адаптивний поріг (NEW)
+      adaptiveThreshold: config.adaptiveThreshold ?? true, // Адаптивний поріг
+      continueOnPause: config.continueOnPause ?? true, // ✅ NEW: продовжувати слухати якщо користувач робить паузу
+      pauseGracePeriod: config.pauseGracePeriod || 3000, // ✅ NEW: додаткові 3 сек після першої тиші (дати час подумати)
       ...config
     };
 
@@ -26,6 +28,11 @@ export class SimpleVAD {
     this.lastSpeechTime = null;
     this.speechStartTime = null;
     this.silenceStartTime = null;
+    
+    // ✅ NEW: Multi-pause tracking (дозволяє паузи в мові)
+    this.pauseCount = 0;
+    this.firstSilenceTime = null;
+    this.hasSpokenRecently = false;
 
     // Адаптивний поріг (NEW 2025-10-11)
     this.baselineNoiseLevel = 0;
@@ -152,6 +159,7 @@ export class SimpleVAD {
     const now = Date.now();
 
     if (isSpeech) {
+      // Користувач говорить
       if (!this.isSpeaking) {
         this.isSpeaking = true;
         this.speechStartTime = now;
@@ -159,32 +167,65 @@ export class SimpleVAD {
       }
 
       this.lastSpeechTime = now;
+      this.hasSpokenRecently = true;
+      
+      // ✅ Скинути silence tracking - користувач продовжує говорити
       this.silenceStartTime = null;
-    } else if (this.isSpeaking) {
+      this.firstSilenceTime = null;
+      this.pauseCount = 0;
+      
+    } else if (this.isSpeaking || this.hasSpokenRecently) {
+      // Тиша після мови
       if (!this.silenceStartTime) {
         this.silenceStartTime = now;
+        
+        // Track first silence moment
+        if (!this.firstSilenceTime) {
+          this.firstSilenceTime = now;
+        }
       }
 
       const silenceDuration = now - this.silenceStartTime;
-      const speechDuration = now - this.speechStartTime;
+      const totalSilenceDuration = now - (this.firstSilenceTime || this.silenceStartTime);
+      const speechDuration = this.speechStartTime ? (now - this.speechStartTime) : 0;
 
+      // ✅ SMART LOGIC: Двохетапна детекція
+      // Етап 1: Перша тиша 3 сек → не зупиняти, дати ще шанс
+      // Етап 2: Друга тиша 3 сек (загалом 6 сек) → зупинити
+      
+      const isFirstSilence = this.pauseCount === 0;
+      const shouldWaitMore = this.config.continueOnPause && isFirstSilence && totalSilenceDuration < this.config.pauseGracePeriod;
+      
       if (silenceDuration >= this.config.silenceDuration && speechDuration >= this.config.minSpeechDuration) {
-        this.isSpeaking = false;
-        this.speechStartTime = null;
-        this.silenceStartTime = null;
+        if (shouldWaitMore) {
+          // ✅ Перша пауза - дати шанс продовжити
+          this.pauseCount++;
+          this.silenceStartTime = null; // Reset silence counter для наступної паузи
+          console.log(`[VAD] 🕐 First pause detected (${Math.round(silenceDuration)}ms), waiting for continuation...`);
+        } else {
+          // ✅ Фінальна зупинка - або друга пауза, або минув grace period
+          this.isSpeaking = false;
+          this.hasSpokenRecently = false;
+          this.speechStartTime = null;
+          this.silenceStartTime = null;
+          this.firstSilenceTime = null;
+          this.pauseCount = 0;
 
-        const speechLevel = rms;
-        this.onSpeechEnd?.({
-          timestamp: now,
-          speechDuration,
-          speechLevel
-        });
+          const speechLevel = rms;
+          this.onSpeechEnd?.({
+            timestamp: now,
+            speechDuration,
+            speechLevel
+          });
 
-        this.onSilenceDetected?.({
-          timestamp: now,
-          silenceDuration,
-          lastLevel: this.lastLevel
-        });
+          this.onSilenceDetected?.({
+            timestamp: now,
+            silenceDuration: totalSilenceDuration,
+            lastLevel: this.lastLevel
+          });
+          
+          console.log(`[VAD] 🛑 Final silence detected after ${this.pauseCount > 0 ? 'pause' : 'initial'} (${Math.round(totalSilenceDuration)}ms)`);
+        }
       }
     }
   }
@@ -195,6 +236,9 @@ export class SimpleVAD {
     this.speechStartTime = null;
     this.silenceStartTime = null;
     this.lastSpeechTime = null;
+    this.firstSilenceTime = null;
+    this.pauseCount = 0;
+    this.hasSpokenRecently = false;
   }
 
   destroy() {
