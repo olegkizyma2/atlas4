@@ -40,6 +40,12 @@ import { AtlasTTSVisualization } from './components/tts/atlas-tts-visualization.
 import { AtlasGLBLivingSystem } from './components/model3d/atlas-glb-living-system.js';
 import { AtlasLivingBehaviorEnhanced } from './components/model3d/atlas-living-behavior-enhanced.js';
 
+// ✅ КРИТИЧНО: Експортуємо eventManager в window для доступу з TTS та інших модулів
+// Це потрібно зробити ОДРАЗУ після імпорту, до будь-якої ініціалізації
+if (typeof window !== 'undefined') {
+  window.eventManager = eventManager;
+}
+
 class AtlasApp {
   constructor() {
     this.logger = new logger.constructor('APP');
