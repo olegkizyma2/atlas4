@@ -514,16 +514,14 @@ PY
             export WHISPER_CPP_THREADS=${WHISPER_CPP_THREADS:-6}
             export WHISPER_CPP_NGL=${WHISPER_CPP_NGL:-20}
             
-            # Покращені параметри для Large-v3 моделі
+            # FIXED 13.10.2025 v3 - Тільки параметри що підтримує whisper-cli
+            # whisper-cli підтримує: -tp (temperature), -bo (best_of), -bs (beam_size), -nth (no_speech_threshold), --prompt
+            # НЕ підтримує: patience, length_penalty, compression_ratio_threshold, condition_on_previous_text
             export WHISPER_CPP_TEMPERATURE=${WHISPER_CPP_TEMPERATURE:-0.0}
             export WHISPER_CPP_BEST_OF=${WHISPER_CPP_BEST_OF:-5}
             export WHISPER_CPP_BEAM_SIZE=${WHISPER_CPP_BEAM_SIZE:-5}
-            export WHISPER_CPP_PATIENCE=${WHISPER_CPP_PATIENCE:-1.0}
-            export WHISPER_CPP_LENGTH_PENALTY=${WHISPER_CPP_LENGTH_PENALTY:-1.0}
-            export WHISPER_CPP_COMPRESSION_RATIO_THRESHOLD=${WHISPER_CPP_COMPRESSION_RATIO_THRESHOLD:-2.4}
             export WHISPER_CPP_NO_SPEECH_THRESHOLD=${WHISPER_CPP_NO_SPEECH_THRESHOLD:-0.6}
-            export WHISPER_CPP_CONDITION_ON_PREVIOUS_TEXT=${WHISPER_CPP_CONDITION_ON_PREVIOUS_TEXT:-true}
-            export WHISPER_CPP_INITIAL_PROMPT="${WHISPER_CPP_INITIAL_PROMPT:-Це українська мова з правильною орфографією, граматикою та пунктуацією.}"
+            export WHISPER_CPP_INITIAL_PROMPT="${WHISPER_CPP_INITIAL_PROMPT:-Це українська мова з правильною орфографією, граматикою та пунктуацією. Олег Миколайович розмовляє з Атласом.}"
             python3 services/whisper/whispercpp_service.py > "$LOGS_DIR/whisper.log" 2>&1 &
             echo $! > "$LOGS_DIR/whisper.pid"
         else
