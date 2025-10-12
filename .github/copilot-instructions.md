@@ -56,6 +56,16 @@ ATLAS is an intelligent multi-agent orchestration system with Flask web frontend
 
 ## 🎯 КЛЮЧОВІ ОСОБЛИВОСТІ СИСТЕМИ
 
+### ✅ EventManager Window Export Fix (FIXED 12.10.2025 - день ~15:00)
+- **Проблема:** TTS Manager НЕ міг підписатись на події - "EventManager not available after retry, TTS events disabled"
+- **Симптом:** Activation responses НЕ озвучувались, TTS_SPEAK_REQUEST події НЕ обробляються
+- **Корінь:** EventManager імпортований як ES6 module але НЕ експортований в `window.eventManager`
+- **Рішення:** Додано `window.eventManager = eventManager` одразу після imports в app-refactored.js
+- **Результат:** TTS підписується на події успішно, activation responses озвучуються
+- **Виправлено:** app-refactored.js (експорт в window після import, перед будь-якою ініціалізацією)
+- **Критично:** EventManager ЗАВЖДИ має бути доступний через window для пізньої підписки модулів
+- **Детально:** `docs/EVENTMANAGER_WINDOW_EXPORT_FIX_2025-10-12.md`
+
 ### ✅ Whisper Quality Improvements (COMPLETED 12.10.2025 - день ~14:10)
 - **Проблема:** Conversation mode мав 16kHz запис (низька якість) vs Quick-send 48kHz (висока якість)
 - **Симптом #1:** Погане розпізнавання "Атлас" в conversation mode (~70% точність)
