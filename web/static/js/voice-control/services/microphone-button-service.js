@@ -53,7 +53,8 @@ export class MicrophoneButtonService extends BaseService {
     this.config = {
       maxRecordingDuration: config.maxRecordingDuration || 60000, // 60 секунд
       minRecordingDuration: config.minRecordingDuration || 500,   // 0.5 секунди
-      silenceTimeout: config.silenceTimeout || 6000,             // 6 секунд (збільшено)
+      silenceTimeout: config.silenceTimeout || 10000,            // 10 секунд (FIXED 12.10.2025 - збільшено з 6)
+      conversationSilenceTimeout: config.conversationSilenceTimeout || 15000, // 15 сек для conversation (після activation)
       enableVoiceActivation: config.enableVoiceActivation !== false,
       enableKeyboardShortcuts: config.enableKeyboardShortcuts !== false,
       debounceInterval: config.debounceInterval || 200,          // 200мс
@@ -1074,6 +1075,7 @@ export class MicrophoneButtonService extends BaseService {
 
   /**
      * Налаштування таймерів запису
+     * FIXED (12.10.2025 - 15:00): Різні timeouts для conversation mode
      */
   setupRecordingTimers() {
     // Максимальна тривалість запису
@@ -1084,10 +1086,19 @@ export class MicrophoneButtonService extends BaseService {
 
     // Таймер тиші (якщо підтримується)
     if (this.config.silenceTimeout > 0) {
+      // Використовуємо довший timeout для conversation mode
+      // Після activation TTS користувачу потрібен час подумати
+      const isConversationMode = this.currentSession?.trigger === 'voice_activation';
+      const timeout = isConversationMode 
+        ? this.config.conversationSilenceTimeout 
+        : this.config.silenceTimeout;
+      
+      this.logger.debug(`Setting silence timeout: ${timeout}ms (conversation: ${isConversationMode})`);
+      
       this.silenceTimer = setTimeout(() => {
         this.logger.info('Silence timeout reached');
         this.stopRecording('silence');
-      }, this.config.silenceTimeout);
+      }, timeout);
     }
   }
 
