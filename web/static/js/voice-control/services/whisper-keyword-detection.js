@@ -26,9 +26,9 @@ export class WhisperKeywordDetection extends BaseService {
         this.whisperUrl = config.whisperUrl || API_ENDPOINTS.whisper;
         this.keywords = config.keywords || ['атлас', 'atlas'];
 
-        // Параметри continuous listening
-        this.chunkDuration = config.chunkDuration || 2500; // 2.5 сек на chunk
-        this.pauseBetweenChunks = config.pauseBetweenChunks || 200; // 200ms пауза
+        // Параметри continuous listening (OPTIMIZED 2025-10-11)
+        this.chunkDuration = config.chunkDuration || 2000; // 2.0 сек (було 2.5) - швидша реакція
+        this.pauseBetweenChunks = config.pauseBetweenChunks || 100; // 100ms (було 200ms) - менша затримка
 
         // Фільтр повторюваних фраз (фонові відео)
         this.recentTranscripts = []; // Останні 5 транскрипцій
@@ -41,7 +41,17 @@ export class WhisperKeywordDetection extends BaseService {
             'кінець',
             'the end',
             'ending',
-            'credits'
+            'credits',
+            // Додаткові фонові фрази (2025-10-11)
+            'оля шор',
+            'субтитрувальниця',
+            'до зустрічі',
+            'до побачення',
+            'будь ласка',
+            'дякую!',
+            'дякую за увагу',
+            'коментуйте',
+            'підписуйтесь'
         ];
 
         // Стан

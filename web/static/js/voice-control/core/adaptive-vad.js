@@ -2,10 +2,16 @@
  * @fileoverview Adaptive Voice Activity Detection з ML можливостями
  * Реалізує адаптивні алгоритми VAD з environmental adaptation та user personalization
  * Patterns: Strategy + Adapter + Observer + ML Pipeline + Feature Engineering
+ * 
+ * Enhanced with Speaker Recognition (2025-10-11):
+ * - Voice timbre analysis for user vs background speaker detection
+ * - Pitch pattern matching for speaker identification
+ * - Integration with SpeakerRecognitionSystem
  */
 
 import { VoiceLogger } from '../utils/voice-logger.js';
 import { Events } from '../events/event-manager.js';
+import { speakerRecognition } from './speaker-profile.js';
 
 /**
  * @typedef {Object} AudioFeatures
@@ -477,6 +483,7 @@ export class AdaptiveVAD {
 
   /**
      * Основна функція детекції голосової активності
+     * Enhanced with speaker recognition (2025-10-11)
      */
   detectVoiceActivity(audioBuffer, audioContext = null) {
     try {
@@ -496,13 +503,42 @@ export class AdaptiveVAD {
         user: this.userBasedVAD(features)
       };
 
+      // Speaker recognition check (enhanced)
+      let speakerResult = null;
+      let isUserSpeaking = true;
+      
+      if (this.config.enableSpeakerRecognition !== false && typeof speakerRecognition !== 'undefined') {
+        speakerResult = speakerRecognition.identifySpeaker(features);
+        isUserSpeaking = speakerResult.matchesUser;
+        
+        // Log speaker detection
+        if (speakerResult.confidence > 0.5) {
+          this.logger.info(`🎤 Speaker: ${speakerResult.speakerId} (${(speakerResult.confidence * 100).toFixed(1)}%)`, {
+            isUser: speakerResult.isUser,
+            matchesUser: speakerResult.matchesUser
+          });
+        }
+      }
+
       // Ensemble підхід
-      const confidence = this.calculateEnsembleConfidence(results);
-      const isActive = confidence > this.config.confidenceThreshold;
+      let confidence = this.calculateEnsembleConfidence(results);
+      let isActive = confidence > this.config.confidenceThreshold;
+
+      // Filter out background speakers
+      if (isActive && !isUserSpeaking && this.config.filterBackgroundSpeakers !== false) {
+        this.logger.warn('🚫 Voice detected but not from user - filtering background speaker');
+        isActive = false;
+        confidence *= 0.5; // Reduce confidence for background speaker
+      }
 
       // Оновлення профілю користувача
-      if (isActive) {
+      if (isActive && isUserSpeaking) {
         this.userProfile.updateVoiceCharacteristics(features, true);
+        
+        // Learn user voice for speaker recognition
+        if (typeof speakerRecognition !== 'undefined' && this.config.enableSpeakerRecognition !== false) {
+          speakerRecognition.learnUserVoice(features);
+        }
       }
 
       // Збереження історії
@@ -514,13 +550,16 @@ export class AdaptiveVAD {
         method: 'adaptive_ensemble',
         features,
         breakdown: results,
+        speakerResult,
+        isUserSpeaking,
         adaptation: this.getAdaptationMetrics(),
-        reasoning: this.generateReasoning(results, confidence, isActive)
+        reasoning: this.generateReasoning(results, confidence, isActive, speakerResult)
       };
 
       this.logger.debug('VAD result', {
         isActive,
         confidence: Math.round(confidence * 100) / 100,
+        isUserSpeaking,
         breakdown: Object.fromEntries(
           Object.entries(results).map(([k, v]) => [k, Math.round(v * 100) / 100])
         )
@@ -654,13 +693,14 @@ export class AdaptiveVAD {
 
   /**
      * Генерація пояснення рішення
+     * Enhanced with speaker recognition (2025-10-11)
      * @private
      */
-  generateReasoning(results, confidence, isActive) {
+  generateReasoning(results, confidence, isActive, speakerResult = null) {
     const dominantMethod = Object.entries(results)
       .sort(([,a], [,b]) => b - a)[0];
 
-    return {
+    const reasoning = {
       decision: isActive ? 'voice_detected' : 'no_voice',
       confidence: confidence,
       dominantMethod: dominantMethod[0],
@@ -672,6 +712,18 @@ export class AdaptiveVAD {
         user: results.user > 0.5 ? 'positive' : 'negative'
       }
     };
+
+    // Add speaker recognition reasoning
+    if (speakerResult) {
+      reasoning.speaker = {
+        identified: speakerResult.speakerId,
+        confidence: speakerResult.confidence,
+        isUser: speakerResult.isUser,
+        matchesUser: speakerResult.matchesUser
+      };
+    }
+
+    return reasoning;
   }
 
   /**

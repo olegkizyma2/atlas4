@@ -78,8 +78,11 @@ export const VOICE_CONFIG = {
         "model": "whisper-1",
         "language": "uk",
         "response_format": "json",
-        "temperature": 0.2,
-        "apiUrl": "https://api.openai.com/v1/audio/transcriptions"
+        "temperature": 0.0,              // ENHANCED: 0.0 for maximum accuracy (було 0.2)
+        "apiUrl": "https://api.openai.com/v1/audio/transcriptions",
+        "timeout": 15000,                // ENHANCED: 15 sec (було 30 sec implicit)
+        "retryAttempts": 3,
+        "retryDelay": 300                // ENHANCED: 300ms швидкі retry
     },
     "backgroundFilter": {
         "enabled": true,
@@ -248,15 +251,21 @@ export const AUDIO_CONFIG = {
             "echoCancellation": true,
             "noiseSuppression": true,
             "autoGainControl": true,
-            "sampleRate": 16000,
-            "channelCount": 1
+            "sampleRate": 48000,         // ENHANCED: 48kHz for better quality
+            "channelCount": 1,
+            "sampleSize": 16,            // NEW: 16-bit samples
+            "latency": 0.01              // NEW: 10ms low latency
         }
     },
     "recording": {
-        "maxDuration": 30000,
-        "silenceTimeout": 2000,
-        "volumeThreshold": 0.01
-    }
+        "maxDuration": 60000,            // ENHANCED: 60 sec (було 30 sec)
+        "silenceTimeout": 1200,          // ENHANCED: 1.2 sec (було 2 sec) - швидша детекція
+        "volumeThreshold": 0.01,
+        "timeslice": 100,                // NEW: 100ms chunks - швидша передача
+        "minDuration": 100               // NEW: 100ms мінімум
+    },
+    "mimeType": "audio/webm;codecs=opus",  // NEW: Opus codec
+    "audioBitsPerSecond": 128000           // NEW: 128 kbps якісне кодування
 };
 
 // Utility функції
