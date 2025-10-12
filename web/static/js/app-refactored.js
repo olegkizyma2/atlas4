@@ -153,12 +153,12 @@ class AtlasApp {
       });
       // Зберігаємо також під старим іменем для сумісності
       this.managers.livingBehavior = this.managers.glbLivingSystem;
-      
+
       // 3.1. Додаємо покращену поведінку (v5.0)
       this.logger.info('🎭 Initializing Enhanced Living Behavior v5.0...');
       this.managers.enhancedBehavior = new AtlasLivingBehaviorEnhanced(this.managers.glbLivingSystem);
       this.logger.info('✨ Enhanced Living Behavior v5.0 активовано!');
-      
+
       this.logger.info('✨ Atlas GLB Living System v4.0 initialized successfully');
     } else {
       this.logger.warn('Model viewer not found, GLB Living System disabled');
