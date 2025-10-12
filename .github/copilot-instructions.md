@@ -1,6 +1,6 @@
 # ATLAS v4.0 - Adaptive Task and Learning Assistant System
 
-**LAST UPDATED:** 12 жовтня 2025 - День ~14:10 (Whisper Quality Improvements)
+**LAST UPDATED:** 12 жовтня 2025 - День ~13:30 (Quick-Send Filter Fix)
 **ALWAYS follow these instructions first and fallback to additional search and context gathering only if the information here is incomplete or found to be in error.**
 
 ATLAS is an intelligent multi-agent orchestration system with Flask web frontend, Node.js orchestrator, Ukrainian TTS/STT voice control, and living 3D GLB helmet interface. Features three specialized AI agents (Atlas, Тетяна, Гриша) working in a coordinated workflow with real-time voice interaction and **full context-aware conversations with memory**.
@@ -55,6 +55,18 @@ ATLAS is an intelligent multi-agent orchestration system with Flask web frontend
 ---
 
 ## 🎯 КЛЮЧОВІ ОСОБЛИВОСТІ СИСТЕМИ
+
+### ✅ Quick-Send Filter Fix (FIXED 12.10.2025 - день ~13:30)
+- **Проблема:** Валідні фрази користувача блокувались як "фонові" у Quick-send режимі
+- **Симптом:** Користувач говорить "Дякую за перегляд!" → транскрипція успішна → фільтр блокує як YouTube ending
+- **Корінь:** Фільтр фонових фраз працював для ОБОХ режимів (Quick-send + Conversation), хоча потрібен тільки для Conversation
+- **Логіка помилки:** Quick-send = user-initiated (свідоме натискання) → фільтр НЕ потрібен. Conversation = automatic listening → фільтр КРИТИЧНИЙ
+- **Рішення #1:** Додано `isConversationMode &&` перед `isBackgroundPhrase(text)` - фільтр тільки для Conversation
+- **Рішення #2:** Додано `isConversationMode &&` перед `shouldReturnToKeywordMode()` - фільтр тільки для Conversation
+- **Результат:** Quick-send НЕ фільтрується (окрім empty text), Conversation фільтрує як раніше
+- **Виправлено:** filters.js (2 умови - ФІЛЬТР 2 і ФІЛЬТР 3)
+- **Критично:** User-initiated дії НЕ мають фільтруватись як automatic listening
+- **Детально:** `docs/QUICK_SEND_FILTER_FIX_2025-10-12.md`
 
 ### ✅ EventManager Window Export Fix (FIXED 12.10.2025 - день ~15:00)
 - **Проблема:** TTS Manager НЕ міг підписатись на події - "EventManager not available after retry, TTS events disabled"
