@@ -22,10 +22,10 @@ export class MediaManager {
     this.audioLevel = 0;
     this.speechActive = false;
 
-    // Конфігурація MediaRecorder
+    // Конфігурація MediaRecorder - ОПТИМІЗОВАНО (PR #3)
     this.recordingConfig = {
       mimeType: 'audio/webm;codecs=opus',
-      audioBitsPerSecond: 64000
+      audioBitsPerSecond: 128000  // 128 kbps high-quality encoding (+100% від 64kbps)
     };
 
     // Fallback mime types
@@ -61,14 +61,16 @@ export class MediaManager {
       this.audioLevel = 0;
       this.speechActive = false;
 
-      // Отримання доступу до мікрофону
+      // Отримання доступу до мікрофону - ОПТИМІЗОВАНО для якості (PR #3)
       this.audioStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
-          sampleRate: 44100,
-          channelCount: 1
+          sampleRate: 48000,        // 48 kHz high-quality sampling (+8% від 44.1kHz)
+          sampleSize: 16,            // 16-bit samples
+          channelCount: 1,
+          latency: 0.01              // 10ms low-latency mode
         }
       });
 
@@ -93,11 +95,12 @@ export class MediaManager {
       this.isActive = true;
 
       // НОВИНКА (11.10.2025 - 17:20): Ініціалізація VAD для автоматичного визначення кінця
+      // ОПТИМІЗОВАНО (12.10.2025 - PR #3): Зменшено latency для швидшої реакції
       if (this.vadEnabled) {
         this.vad = new SimpleVAD({
           silenceThreshold: 0.01,
-          silenceDuration: 1500,        // 1.5 сек тиші = кінець фрази
-          minSpeechDuration: 300,       // Мінімум 300мс для валідної мови
+          silenceDuration: 1200,        // 1.2 сек тиші = кінець фрази (-20%)
+          minSpeechDuration: 250,       // Мінімум 250мс для валідної мови (-17%)
           onSpeechStart: (data) => {
             this.speechActive = true;
             this.logger?.debug('VAD: Speech started', data);
