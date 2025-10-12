@@ -149,6 +149,9 @@ export class ConversationModeManager {
     // Підписуємося на всі події
     this.eventHandlers.subscribeToEvents();
 
+    // КРИТИЧНО: Підписуємося на системні події (KEYWORD_DETECTED, TTS_COMPLETED, тощо)
+    this.subscribeToSystemEvents();
+
     // Налаштування button listeners
     this.setupEventListeners();
 
@@ -199,6 +202,7 @@ export class ConversationModeManager {
 
     // Виявлення ключового слова
     this.eventManager.on(Events.KEYWORD_DETECTED, (event) => {
+      console.log('[CONVERSATION] 🔔 KEYWORD_DETECTED event received in ConversationModeManager!', { event, payload: event.payload });
       this.handleKeywordDetected(event.payload);
     });
 
