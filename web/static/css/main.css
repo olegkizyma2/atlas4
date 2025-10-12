@@ -243,6 +243,40 @@ body {
     }
 }
 
+/* Keyword waiting mode - жовтий pulse + breathing (ІДЕНТИЧНИЙ початковому) */
+.btn.keyword-waiting {
+    background: linear-gradient(135deg, #ffaa00 0%, #ff8800 100%);
+    border: 2px solid #ffaa00;
+    animation: keyword-waiting-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes keyword-waiting-pulse {
+    0%, 100% {
+        box-shadow: 0 0 15px rgba(255, 170, 0, 0.6);
+        transform: scale(1);
+    }
+    50% {
+        box-shadow: 0 0 35px rgba(255, 170, 0, 1.0);
+        transform: scale(1.05);
+    }
+}
+
+/* Breathing animation для keyword-waiting */
+.btn.keyword-waiting.breathing {
+    animation: 
+        keyword-waiting-pulse 1.2s ease-in-out infinite,
+        breathing-animation 3s ease-in-out infinite;
+}
+
+@keyframes breathing-animation {
+    0%, 100% { 
+        opacity: 0.9; 
+    }
+    50% { 
+        opacity: 1.0; 
+    }
+}
+
 /* Conversation mode status overlay */
 .conversation-mode-status {
     position: fixed;
