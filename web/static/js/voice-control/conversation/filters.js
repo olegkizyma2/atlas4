@@ -68,22 +68,22 @@ export function filterTranscription(text, options = {}) {
 
     // ═══════════════════════════════════════════════════════════════
     // ФІЛЬТР 2: Фонові фрази (YouTube endings, credits)
+    // ⚠️ ТІЛЬКИ для Conversation Mode! Quick-send - user initiated!
     // ═══════════════════════════════════════════════════════════════
-    if (isBackgroundPhrase(text)) {
+    if (isConversationMode && isBackgroundPhrase(text)) {
         logger.warn(`🎬 Background phrase filtered: "${text}"`);
         return {
             blocked: true,
             reason: BlockReason.BACKGROUND_PHRASE,
-            action: isConversationMode
-                ? FilterAction.RETURN_TO_KEYWORD
-                : FilterAction.CONTINUE_LISTENING
+            action: FilterAction.RETURN_TO_KEYWORD
         };
     }
 
     // ═══════════════════════════════════════════════════════════════
     // ФІЛЬТР 3: Невиразні фрази ("хм", "е", тощо)
+    // ⚠️ ТІЛЬКИ для Conversation Mode! Quick-send - user initiated!
     // ═══════════════════════════════════════════════════════════════
-    if (shouldReturnToKeywordMode(text, confidence)) {
+    if (isConversationMode && shouldReturnToKeywordMode(text, confidence)) {
         logger.warn(`❓ Unclear phrase filtered: "${text}" (confidence: ${confidence})`);
         return {
             blocked: true,
