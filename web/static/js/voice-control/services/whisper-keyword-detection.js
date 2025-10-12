@@ -9,7 +9,7 @@
 import { BaseService } from '../core/base-service.js';
 import { API_ENDPOINTS } from '../core/config.js';
 import { Events } from '../events/event-manager.js';
-import { containsActivationKeyword } from '../utils/voice-utils.js';
+import { containsActivationKeyword, correctAtlasWord } from '../utils/voice-utils.js';
 
 /**
  * Сервіс детекції ключових слів через Whisper
@@ -64,8 +64,8 @@ export class WhisperKeywordDetection extends BaseService {
     }
 
     /**
-               * Ініціалізація
-               */
+                 * Ініціалізація
+                 */
     async onInitialize() {
         try {
             // Підписка на події conversation mode
@@ -80,8 +80,8 @@ export class WhisperKeywordDetection extends BaseService {
     }
 
     /**
-               * Підписка на події
-               */
+                 * Підписка на події
+                 */
     subscribeToEvents() {
         if (!this.eventManager) {
             this.logger.error('EventManager not available');
@@ -118,8 +118,8 @@ export class WhisperKeywordDetection extends BaseService {
     }
 
     /**
-               * Початок continuous listening
-               */
+                 * Початок continuous listening
+                 */
     async startListening() {
         if (this.isListening) {
             console.log('[WHISPER_KEYWORD] Already listening');
@@ -159,13 +159,15 @@ export class WhisperKeywordDetection extends BaseService {
             console.log('[WHISPER_KEYWORD] 🎤 Selected microphone:', realMic?.label || 'default');
 
             // Get microphone access with explicit device selection
+            // ОПТИМІЗОВАНО (12.10.2025): Збільшено sample rate з 16kHz до 48kHz для кращої якості розпізнавання "Атлас"
             const constraints = {
                 audio: {
-                    channelCount: 1,
-                    sampleRate: 16000,
                     echoCancellation: true,
                     noiseSuppression: true,
-                    autoGainControl: true
+                    autoGainControl: true,
+                    sampleRate: 48000,        // ✅ 48 kHz high-quality (+200% від 16kHz)
+                    sampleSize: 16,            // 16-bit samples
+                    channelCount: 1            // Mono
                 }
             };
 
@@ -195,8 +197,8 @@ export class WhisperKeywordDetection extends BaseService {
     }
 
     /**
-               * Зупинка listening
-               */
+                 * Зупинка listening
+                 */
     async stopListening() {
         this.isListening = false;
 
@@ -233,8 +235,8 @@ export class WhisperKeywordDetection extends BaseService {
     }
 
     /**
-               * Цикл розпізнавання: запис → транскрипція → перевірка → repeat
-               */
+                 * Цикл розпізнавання: запис → транскрипція → перевірка → repeat
+                 */
     startRecognitionLoop() {
         if (!this.isListening) return;
 
@@ -266,8 +268,8 @@ export class WhisperKeywordDetection extends BaseService {
     }
 
     /**
-               * Запис одного аудіо чанку
-               */
+                 * Запис одного аудіо чанку
+                 */
     async recordChunk() {
         return new Promise((resolve, reject) => {
             if (!this.audioStream) {
@@ -312,8 +314,8 @@ export class WhisperKeywordDetection extends BaseService {
     }
 
     /**
-               * Транскрипція аудіо чанку через Whisper
-               */
+                 * Транскрипція аудіо чанку через Whisper
+                 */
     async transcribeChunk(audioBlob) {
         try {
             // Конвертація в WAV для Whisper
@@ -335,7 +337,12 @@ export class WhisperKeywordDetection extends BaseService {
             }
 
             const result = await response.json();
-            const text = result.text?.trim() || '';
+            let text = result.text?.trim() || '';
+
+            // ✅ FRONTEND КОРЕКЦІЯ (12.10.2025): Виправлення варіацій "Атлас"
+            if (text) {
+                text = correctAtlasWord(text);
+            }
 
             this.logger.debug(`Whisper chunk: "${text}"`);
             console.log(`[WHISPER_KEYWORD] 📝 Transcribed: "${text}"`);
@@ -348,8 +355,8 @@ export class WhisperKeywordDetection extends BaseService {
     }
 
     /**
-               * Конвертація webm → wav
-               */
+                 * Конвертація webm → wav
+                 */
     async convertToWav(webmBlob) {
         // Для Whisper потрібен WAV формат
         // Використовуємо той самий метод що і в WhisperService
@@ -365,8 +372,8 @@ export class WhisperKeywordDetection extends BaseService {
     }
 
     /**
-               * Кодування PCM → WAV
-               */
+                 * Кодування PCM → WAV
+                 */
     encodeWAV(samples, sampleRate) {
         const buffer = new ArrayBuffer(44 + samples.length * 2);
         const view = new DataView(buffer);
@@ -398,8 +405,8 @@ export class WhisperKeywordDetection extends BaseService {
     }
 
     /**
-               * Запис string в DataView
-               */
+                 * Запис string в DataView
+                 */
     writeString(view, offset, string) {
         for (let i = 0; i < string.length; i++) {
             view.setUint8(offset + i, string.charCodeAt(i));
@@ -407,8 +414,8 @@ export class WhisperKeywordDetection extends BaseService {
     }
 
     /**
-               * Перевірка тексту на ключове слово
-               */
+                 * Перевірка тексту на ключове слово
+                 */
     checkForKeyword(text) {
         if (!text) {
             console.log('[WHISPER_KEYWORD] ⚠️ Empty text, skipping keyword check');
@@ -466,7 +473,7 @@ export class WhisperKeywordDetection extends BaseService {
                 hasEventManager: !!this.eventManager,
                 eventManager: this.eventManager
             });
-            
+
             this.emit(Events.KEYWORD_DETECTED, {
                 transcript: text,
                 confidence: 0.95, // Whisper має високу точність
@@ -487,10 +494,10 @@ export class WhisperKeywordDetection extends BaseService {
     }
 
     /**
-     * Отримання відповіді на активацію з ротацією (БЕЗ повторів)
-     * Використовує круговий буфер для гарантії різноманітності
-     * @returns {string} - Наступна відповідь з ротації
-     */
+       * Отримання відповіді на активацію з ротацією (БЕЗ повторів)
+       * Використовує круговий буфер для гарантії різноманітності
+       * @returns {string} - Наступна відповідь з ротації
+       */
     getRandomActivationResponse() {
         // Ініціалізація ротаційного буфера при першому виклику
         if (!this._responseRotation) {
@@ -537,7 +544,7 @@ export class WhisperKeywordDetection extends BaseService {
 
         // Видаляємо з пулу (не повториться до refresh)
         rotation.currentPool.splice(randomIndex, 1);
-        
+
         // Зберігаємо як останню використану
         rotation.lastUsed = selectedResponse;
         rotation.usedInSession.add(selectedResponse);
@@ -548,8 +555,8 @@ export class WhisperKeywordDetection extends BaseService {
     }
 
     /**
-               * Знищення сервісу
-               */
+                 * Знищення сервісу
+                 */
     async onDestroy() {
         await this.stopListening();
     }
