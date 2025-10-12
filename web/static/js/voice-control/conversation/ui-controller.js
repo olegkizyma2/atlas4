@@ -35,8 +35,11 @@ export class ConversationUIController {
 
     // Animation timeouts
     this.animationTimeouts = [];
+    
+    // Logger instance
+    this.logger = logger;
 
-    logger.info('🔧 ConversationUIController initialized', {
+    this.logger.info('🔧 ConversationUIController initialized', {
       hasMicButton: !!this.micButton,
       hasStatusElement: !!this.statusElement,
       autoCreate: this.autoCreateStatus
