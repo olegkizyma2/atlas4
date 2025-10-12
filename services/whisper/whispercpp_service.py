@@ -41,15 +41,13 @@ WHISPER_CPP_THREADS = int(os.environ.get('WHISPER_CPP_THREADS', '6'))  # Збі�
 WHISPER_CPP_NGL = int(os.environ.get('WHISPER_CPP_NGL', '30'))  # Збільшено до 30 шарів на GPU для кращого використання Metal
 WHISPER_CPP_MAXLEN = int(os.environ.get('WHISPER_CPP_MAXLEN', '0'))  # 0 = без ограничения
 
-# Покращені параметри для Large-v3 моделі
+# Покращені параметри для Large-v3 моделі (ТІЛЬКИ що підтримує whisper-cli)
+# whisper-cli підтримує: -tp (temperature), -bo (best_of), -bs (beam_size), -nth (no_speech_threshold), --prompt
+# НЕ підтримує: patience, length_penalty, compression_ratio_threshold, condition_on_previous_text
 WHISPER_CPP_TEMPERATURE = float(os.environ.get('WHISPER_CPP_TEMPERATURE', '0.0'))  # 0.0 для точності
 WHISPER_CPP_BEST_OF = int(os.environ.get('WHISPER_CPP_BEST_OF', '5'))  # кількість кандидатів
 WHISPER_CPP_BEAM_SIZE = int(os.environ.get('WHISPER_CPP_BEAM_SIZE', '5'))  # розмір пучка
-WHISPER_CPP_PATIENCE = float(os.environ.get('WHISPER_CPP_PATIENCE', '1.0'))  # терпіння для beam search
-WHISPER_CPP_LENGTH_PENALTY = float(os.environ.get('WHISPER_CPP_LENGTH_PENALTY', '1.0'))  # штраф за довжину
-WHISPER_CPP_COMPRESSION_RATIO_THRESHOLD = float(os.environ.get('WHISPER_CPP_COMPRESSION_RATIO_THRESHOLD', '2.4'))
 WHISPER_CPP_NO_SPEECH_THRESHOLD = float(os.environ.get('WHISPER_CPP_NO_SPEECH_THRESHOLD', '0.6'))
-WHISPER_CPP_CONDITION_ON_PREVIOUS_TEXT = os.environ.get('WHISPER_CPP_CONDITION_ON_PREVIOUS_TEXT', 'true').lower() == 'true'
 WHISPER_CPP_INITIAL_PROMPT = os.environ.get('WHISPER_CPP_INITIAL_PROMPT', 'Це українська мова з правильною орфографією, граматикою та пунктуацією. Олег Миколайович розмовляє з Атласом.')
 
 # Словник корекції для активаційних слів (аналогічно faster-whisper)
@@ -160,6 +158,12 @@ def _run_whisper_cpp(wav_path: str, language: str):
             '-oj',  # вывод JSON
             '-of', base,
         ]
+        
+        # FIXED 13.10.2025 v4 - Вимикаємо Core ML для whisper-cli (використовуємо Metal замість)
+        # Core ML модель може бути пошкоджена → крашиться при завантаженні
+        # Metal стабільніший і швидший на Apple Silicon
+        if is_whisper_cli:
+            cmd.append('--no-gpu')  # Вимкнути Core ML, використати Metal
         
         # Для старого бінаря додаємо -f, для whisper-cli - файл в кінці
         if not is_whisper_cli:

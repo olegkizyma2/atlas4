@@ -1,6 +1,6 @@
 # ATLAS v4.0 - Adaptive Task and Learning Assistant System
 
-**LAST UPDATED:** 13 жовтня 2025 - Ніч ~01:50 (Whisper CLI Invalid Parameters Fix)
+**LAST UPDATED:** 13 жовтня 2025 - Ніч ~02:06 (Whisper Core ML → Metal Fix v4)
 
 ---
 
@@ -348,19 +348,27 @@ ATLAS is an intelligent multi-agent orchestration system with Flask web frontend
   - ✅ whisper-cli виконує транскрипцію (НЕ показує help)
   - ✅ JSON генерується успішно
   - ✅ Текст з'являється в чаті після розпізнавання
-  - ✅ Metal GPU працює автоматично (без спеціальних флагів)
+  - ✅ Metal GPU працює через `--no-gpu` прапорець (вимикає Core ML)
 - **Критично:** 
-  - whisper-cli підтримує: `-tp`, `-bo`, `-bs`, `-nth`, `--prompt`
+  - whisper-cli підтримує: `-tp`, `-bo`, `-bs`, `-nth`, `--prompt`, `--no-gpu`
   - whisper-cli НЕ підтримує: `--patience`, `--length-penalty`, `--no-coreml`, `--compression-ratio-threshold`, `--no-condition-on-previous-text`
-  - Metal GPU працює автоматично на Mac M1/M2, НЕ потрібен `-ngl` (тільки для старого 'main' binary)
+  - ЗАВЖДИ додавайте `--no-gpu` для whisper-cli (вимикає Core ML, вмикає Metal)
+  - Core ML може крашитись при завантаженні `.mlmodelc` моделі
+  - Metal працює стабільніше та швидше на Apple Silicon
   - Файл в кінці команди БЕЗ `-f` прапорця для whisper-cli
-- **Детально:** `docs/WHISPER_CLI_PARAMS_FIX_2025-10-13.md`
+- **Детально:** `docs/WHISPER_COREML_NOGPU_FIX_2025-10-13.md`
 
-### ✅ Whisper Core ML Crash Fix (FIXED 13.10.2025 - ніч ~01:10) - DEPRECATED
+### ✅ Whisper CLI Invalid Parameters Fix (DEPRECATED 13.10.2025 - ніч ~01:50)
+- **NOTE:** Цей fix був частковим - виправив параметри, але НЕ виправив Core ML crash
+- **Замінено на:** Whisper Core ML → Metal Fix v4 (вище)
+- **Проблема:** Невалідні параметри в командному рядку whisper-cli
+- **Детально:** `docs/WHISPER_CLI_PARAMS_FIX_2025-10-13.md` (історичний)
+
+### ✅ Whisper Core ML Crash Fix (DEPRECATED 13.10.2025 - ніч ~01:10)
 - **NOTE:** Цей fix був невірним - `--no-coreml` НЕ існує в whisper-cli
-- **Замінено на:** Whisper CLI Invalid Parameters Fix (вище)
+- **Замінено на:** Whisper Core ML → Metal Fix v4 (вище)
 - **Проблема була реальна:** whisper-cli НЕ запускався, показував help
-- **Справжня причина:** Невалідні параметри в команді, НЕ Core ML
+- **Справжня причина:** Спочатку невалідні параметри, потім Core ML crash
 - **Детально:** `docs/WHISPER_COREML_FIX_2025-10-13.md` (застарілий)
 
 ### ✅ TTS UI Indicator Fix (FIXED 13.10.2025 - ніч ~00:06)
