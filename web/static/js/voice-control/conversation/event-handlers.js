@@ -300,12 +300,16 @@ export class ConversationEventHandlers {
   handleTTSCompleted(payload) {
     logger.info('✅ TTS playback completed', {
       mode: this.stateManager?.getCurrentMode() || 'unknown',
-      isInConversation: this.stateManager?.isInConversation() || false
+      isInConversation: this.stateManager?.isInConversation() || false,
+      payloadKeys: payload ? Object.keys(payload) : [],
+      payload
     });
 
     try {
+      // FIXED (12.10.2025 - 17:15): Передаємо весь payload в callback
       this.callbacks.onTTSComplete(payload);
     } catch (error) {
+      logger.error('Error in TTS complete callback:', error);
       this.callbacks.onError(error);
     }
   }
