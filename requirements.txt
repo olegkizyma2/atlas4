@@ -33,10 +33,10 @@ scipy==1.11.3
 librosa==0.10.1
 num2words==0.5.13
 ukrainian-word-stress==1.1.1
-parallel-wavegan==0.6.1
 TTS==0.22.0
 
 # Optional extras (залиште закоментованими, якщо не потрібні)
+# parallel-wavegan==0.6.1
 # espnet>=202301
 # espnet-model-zoo>=0.1.7
 # git+https://github.com/jik876/hifi-gan.git
