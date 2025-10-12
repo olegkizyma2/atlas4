@@ -5,7 +5,16 @@ WebSocket сервіс для відновлення системи на пор�
 """
 
 import asyncio
-import websockets
+from typing import Set, Any
+try:
+    import websockets
+    from websockets.server import serve
+    from websockets.exceptions import ConnectionClosed
+except ImportError:
+    # Fallback для type checking
+    websockets = None  # type: ignore
+    serve = None  # type: ignore
+    ConnectionClosed = Exception  # type: ignore
 import json
 import logging
 from datetime import datetime
@@ -62,7 +71,7 @@ class RecoveryBridge:
         try:
             async for message in websocket:
                 await self.handle_message(websocket, message)
-        except websockets.exceptions.ConnectionClosed:
+        except ConnectionClosed:
             logger.info("Client connection closed")
         except Exception as e:
             logger.error(f"WebSocket error: {e}")
@@ -81,7 +90,11 @@ class RecoveryBridge:
         """Запуск WebSocket сервера"""
         logger.info(f"Starting Recovery Bridge on port {self.port}")
         
-        server = await websockets.serve(
+        if serve is None:
+            logger.error("websockets library not available!")
+            return
+        
+        server = await serve(
             self.handler, 
             "localhost", 
             self.port

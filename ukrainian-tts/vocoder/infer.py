@@ -94,11 +94,18 @@ def infer_pwgan(mel, checkpoint, out_path, sr=22050):
     with open(cfg_path, 'r') as f:
         cfg_dict = yaml.load(f, Loader=yaml.Loader)
 
+    # Type guard: cfg_dict should be a dict, not a list
+    if not isinstance(cfg_dict, dict):
+        raise TypeError(f"Expected config to be a dict, got {type(cfg_dict)}")
+
     # instantiate model class from parallel_wavegan.models
     import parallel_wavegan.models as pw_models
     generator_type = cfg_dict.get('generator_type', 'ParallelWaveGANGenerator')
     model_class = getattr(pw_models, generator_type)
-    generator_params = {k.replace('upsample_kernal_sizes', 'upsample_kernel_sizes'): v for k, v in cfg_dict['generator_params'].items()}
+    generator_params_raw = cfg_dict.get('generator_params', {})
+    if not isinstance(generator_params_raw, dict):
+        raise TypeError(f"Expected generator_params to be a dict, got {type(generator_params_raw)}")
+    generator_params = {k.replace('upsample_kernal_sizes', 'upsample_kernel_sizes'): v for k, v in generator_params_raw.items()}
     import torch as _torch
     model = model_class(**generator_params)
 

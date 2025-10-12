@@ -26,9 +26,9 @@ try:
     logging.getLogger('ukrainian-tts-server').info(f"Module import time - sys.path (first entries): {sys.path[:6]}")
 except Exception:
     logging.getLogger('ukrainian-tts-server').exception("Failed to log import-time Python environment")
-import soundfile as sf
+import soundfile as sf  # type: ignore
 import numpy as np
-import librosa
+import librosa  # type: ignore
 
 # Налаштування логування
 logging.basicConfig(
@@ -74,7 +74,7 @@ class UkrainianTTSServer:
             logger.info(f"Initializing Ukrainian TTS on device: {self.device}")
             # Импортируем реализацию внутри функции, чтобы поймать ModuleNotFoundError
             try:
-                from ukrainian_tts.tts import TTS, Voices, Stress
+                from ukrainian_tts.tts import TTS, Voices, Stress  # type: ignore
             except Exception as e:
                 logger.exception("Failed to import ukrainian_tts.tts")
                 self.tts = None
@@ -121,11 +121,11 @@ class UkrainianTTSServer:
         def get_voices():
             """Список доступних голосів"""
             try:
-                if getattr(self, '_Voices', None) is None:
+                if getattr(self, '_Voices', None) is None or self._Voices is None:
                     return jsonify({'voices': [], 'default': None, 'timestamp': time.time()})
-                voices = [v.value for v in self._Voices]
+                voices_list = [v.value for v in self._Voices] if self._Voices else []
                 return jsonify({
-                    'voices': voices,
+                    'voices': voices_list,
                     'default': 'dmytro',
                     'timestamp': time.time()
                 })
@@ -166,14 +166,20 @@ class UkrainianTTSServer:
                 # Синтезуємо в пам'яті з обробкою помилок
                 buf = io.BytesIO()
                 start_time = time.time()
-                stress_val = None
-                if getattr(self, '_Stress', None) is not None:
-                    stress_val = self._Stress.Dictionary.value
+                stress_val: str = "dictionary"  # Default value
+                accented: str = text  # Initialize with original text - ЗАВЖДИ буде значення
+                
+                if getattr(self, '_Stress', None) is not None and self._Stress is not None:
+                    if hasattr(self._Stress, 'Dictionary'):
+                        stress_val = str(self._Stress.Dictionary.value)
 
                 try:
-                    _, accented = self.tts.tts(text, voice, stress_val, buf)
+                    _, accented_result = self.tts.tts(text, voice, stress_val, buf)
+                    if accented_result:  # Перевіряємо що результат не None
+                        accented = accented_result
                 except Exception as e:
                     logger.error(f"TTS synthesis failed: {e}")
+                    # accented вже має значення text, використовуємо його
                     # Якщо текст занадто складний, спробуємо поступово зменшувати розмір
                     retry_lengths = [800, 500, 300, 150, 80]  # Поступово зменшуємо
                     success = False

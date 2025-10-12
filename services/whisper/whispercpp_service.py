@@ -119,12 +119,14 @@ def _convert_to_wav16k_mono(in_path: str, out_path: str):
     resampler = av.AudioResampler(format='s16', layout='mono', rate=16000)
 
     for frame in input_container.decode(audio_stream):
-        resampled_frames = resampler.resample(frame)
-        if resampled_frames:
-            for resampled_frame in resampled_frames:
-                packets = output_stream.encode(resampled_frame)
-                if packets:
-                    output_container.mux(packets)
+        # Type-safe check: PyAV decode can yield VideoFrame, AudioFrame, or SubtitleSet
+        if isinstance(frame, av.AudioFrame):
+            resampled_frames = resampler.resample(frame)
+            if resampled_frames:
+                for resampled_frame in resampled_frames:
+                    packets = output_stream.encode(resampled_frame)
+                    if packets:
+                        output_container.mux(packets)
 
     # Flush encoder
     packets = output_stream.encode(None)

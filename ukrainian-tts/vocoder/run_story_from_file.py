@@ -18,7 +18,11 @@ def load_pipeline_module():
     repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
     pipeline_path = os.path.join(repo_root, 'ukrainian-tts', 'vocoder', 'pipeline_supervoice.py')
     spec = importlib.util.spec_from_file_location('pipeline_supervoice', pipeline_path)
+    if spec is None:
+        raise ImportError(f"Cannot find pipeline_supervoice at {pipeline_path}")
     mod = importlib.util.module_from_spec(spec)
+    if spec.loader is None:
+        raise ImportError(f"No loader available for {pipeline_path}")
     spec.loader.exec_module(mod)
     return mod
 

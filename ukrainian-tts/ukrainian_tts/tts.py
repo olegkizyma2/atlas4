@@ -1,55 +1,34 @@
 from io import BytesIO
 import requests
 from os.path import exists, join, dirname
-from espnet2.bin.tts_inference import Text2Speech
-import torch
-
-class CustomText2Speech(Text2Speech):
-    def __init__(self, *args, **kwargs):
-        original_device = kwargs.get('device', 'cpu')
-        # Load model on CPU first to avoid potential MPS issues
-        kwargs['device'] = 'cpu'
-        super().__init__(*args, **kwargs)
-
-        # If the target device is MPS, ensure the model is float32
-        if 'mps' in str(original_device):
-            self.model.float()
-
-        # Move the model to the originally requested device
-        if original_device != 'cpu':
-            self.model.to(original_device)
-        
-        # Update the device attribute in the synthesizer
-        self.device = original_device
-
-import torch
-
-class CustomText2Speech(Text2Speech):
-    def __init__(self, *args, **kwargs):
-        original_device = kwargs.get('device', 'cpu')
-        # Load model on CPU first to avoid potential MPS issues
-        kwargs['device'] = 'cpu'
-        super().__init__(*args, **kwargs)
-
-        # If the target device is MPS, ensure the model is float32
-        if 'mps' in str(original_device):
-            self.model.float()
-
-        # Move the model to the originally requested device
-        if original_device != 'cpu':
-            self.model.to(original_device)
-        
-        # Update the device attribute in the synthesizer
-        self.device = original_device
-
+from espnet2.bin.tts_inference import Text2Speech  # type: ignore
+import torch  # type: ignore
 from enum import Enum
 from .formatter import preprocess_text
 from .stress import sentence_to_stress, stress_dict, stress_with_model
-from torch import no_grad
+from torch import no_grad  # type: ignore
 import numpy as np
 import time
-import soundfile as sf
-from kaldiio import load_ark
+import soundfile as sf  # type: ignore
+from kaldiio import load_ark  # type: ignore
+
+class CustomText2Speech(Text2Speech):
+    def __init__(self, *args, **kwargs):
+        original_device = kwargs.get('device', 'cpu')
+        # Load model on CPU first to avoid potential MPS issues
+        kwargs['device'] = 'cpu'
+        super().__init__(*args, **kwargs)
+
+        # If the target device is MPS, ensure the model is float32
+        if 'mps' in str(original_device):
+            self.model.float()
+
+        # Move the model to the originally requested device
+        if original_device != 'cpu':
+            self.model.to(original_device)
+        
+        # Update the device attribute in the synthesizer
+        self.device = original_device
 
 
 class Voices(Enum):
@@ -96,10 +75,9 @@ class TTS:
                 f"Invalid value for stress option selected! Please use one of the following values: {', '.join([option.value for option in Stress])}."
             )
 
-        if stress == Stress.Model.value:
-            stress = True
-        else:
-            stress = False
+        # Визначаємо чи використовувати stress модель
+        use_stress_model: bool = (stress == Stress.Model.value)
+        
         if voice not in [option.value for option in Voices]:
             if voice not in self.xvectors.keys():
                 raise ValueError(
@@ -107,7 +85,7 @@ class TTS:
                 )
 
         text = preprocess_text(text)
-        text = sentence_to_stress(text, stress_with_model if stress else stress_dict)
+        text = sentence_to_stress(text, stress_with_model if use_stress_model else stress_dict)
 
         # synthesis
         with no_grad():
