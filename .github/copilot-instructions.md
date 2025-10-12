@@ -1,6 +1,6 @@
 # ATLAS v4.0 - Adaptive Task and Learning Assistant System
 
-**LAST UPDATED:** 12 жовтня 2025 - День ~14:45 (Conversation Mode Pending Message Clear Fix)
+**LAST UPDATED:** 12 жовтня 2025 - День ~15:00 (Conversation Mode Silence Timeout Fix)
 **ALWAYS follow these instructions first and fallback to additional search and context gathering only if the information here is incomplete or found to be in error.**
 
 ATLAS is an intelligent multi-agent orchestration system with Flask web frontend, Node.js orchestrator, Ukrainian TTS/STT voice control, and living 3D GLB helmet interface. Features three specialized AI agents (Atlas, Тетяна, Гриша) working in a coordinated workflow with real-time voice interaction and **full context-aware conversations with memory**.
@@ -67,6 +67,20 @@ ATLAS is an intelligent multi-agent orchestration system with Flask web frontend
 - **Виправлено:** filters.js (2 умови - ФІЛЬТР 2 і ФІЛЬТР 3)
 - **Критично:** User-initiated дії НЕ мають фільтруватись як automatic listening
 - **Детально:** `docs/QUICK_SEND_FILTER_FIX_2025-10-12.md`
+
+### ✅ Conversation Mode Silence Timeout Fix (FIXED 12.10.2025 - день ~15:00)
+- **Проблема:** VAD silence timeout занадто короткий - користувач НЕ встигав подумати/відповісти після activation TTS
+- **Симптом:** Recording зупинявся через 6 секунд (3 сек TTS + 3 сек думати) → фонові фрази транскрибувались
+- **Корінь:** Однаковий silenceTimeout (6 сек) для ВСІХ режимів - НЕ враховувалось що conversation потребує більше часу
+- **Логіка помилки:** Activation TTS грає 3 сек → запис починається → через 6 сек timeout → користувач тільки почав думати → ПЕРЕДЧАСНО обривається
+- **Рішення #1:** Збільшено базовий silenceTimeout з 6000 до 10000ms (10 сек)
+- **Рішення #2:** Додано conversationSilenceTimeout: 15000ms (15 сек) для conversation mode
+- **Рішення #3:** setupRecordingTimers() тепер перевіряє `currentSession.trigger === 'voice_activation'` → використовує 15 сек для conversation, 10 сек для інших
+- **Результат:** Користувач має 12 секунд подумати після activation TTS (15 - 3), фонові фрази НЕ потрапляють, природна розмова
+- **Виправлено:** microphone-button-service.js (config +2 LOC, setupRecordingTimers +8 LOC)
+- **Workflow тепер:** "Атлас" → activation TTS (3s) → запис (15s timeout) → користувач думає (5-10s) → говорить → transcription
+- **Критично:** Conversation mode ЗАВЖДИ використовує conversationSilenceTimeout (15s), інші режими - silenceTimeout (10s)
+- **Детально:** `docs/CONVERSATION_SILENCE_TIMEOUT_FIX_2025-10-12.md`
 
 ### ✅ Conversation Mode Pending Message Clear Fix (FIXED 12.10.2025 - день ~14:45)
 - **Проблема:** Після TTS continuous listening НЕ запускався - pending message повторно відправлявся в чат замість запуску запису
