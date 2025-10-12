@@ -24,11 +24,28 @@ export class WhisperKeywordDetection extends BaseService {
         });
 
         this.whisperUrl = config.whisperUrl || API_ENDPOINTS.whisper;
-        this.keywords = config.keywords || ['атлас', 'atlas'];
+        
+        // Keywords для розпізнавання (РОЗШИРЕНИЙ СПИСОК для кращої чутливості)
+        this.keywords = config.keywords || [
+            'атлас',
+            'атлаз',
+            'атлус',
+            'атлес',
+            'отлас',
+            'отлаз',
+            'тлас',
+            'atlas',
+            'atla',
+            'atlaz',
+            'атл',
+            'ат лас',
+            'ат лаз',
+            'ас'  // Коротка форма
+        ];
 
-        // Параметри continuous listening (OPTIMIZED 2025-10-11)
-        this.chunkDuration = config.chunkDuration || 2000; // 2.0 сек (було 2.5) - швидша реакція
-        this.pauseBetweenChunks = config.pauseBetweenChunks || 100; // 100ms (було 200ms) - менша затримка
+        // Параметри continuous listening (OPTIMIZED 2025-10-12 - ЧУТЛИВІСТЬ)
+        this.chunkDuration = config.chunkDuration || 3500; // 3.5 сек (+40% для повільної вимови)
+        this.pauseBetweenChunks = config.pauseBetweenChunks || 150; // 150ms (швидший retry)
 
         // Фільтр повторюваних фраз (фонові відео)
         this.recentTranscripts = []; // Останні 5 транскрипцій

@@ -379,8 +379,21 @@ export class ConversationUIController {
      */
   showConversationWaitingForKeyword() {
     this.hideRecording();
+    
+    // Clear all mode classes
+    this.clearModeClasses();
+    
+    // Додати keyword-waiting клас (pulse + breathing - ІДЕНТИЧНИЙ початковому)
+    this.micButton?.classList.add('keyword-waiting');
+    this.micButton?.classList.add('breathing');
+    
+    // Жовта іконка
     this.updateButtonIcon('🟡'); // Жовтий - waiting for keyword
+    
+    // Status message
     this.showListeningForKeyword();
+    
+    this.logger.debug('🎨 UI updated: KEYWORD_WAITING mode (pulse + breathing)');
   }
 
   /**
