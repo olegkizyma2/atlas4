@@ -1,6 +1,6 @@
 # ATLAS v4.0 - Adaptive Task and Learning Assistant System
 
-**LAST UPDATED:** 12 жовтня 2025 - День ~16:45 (Conversation Mode Keyword Activation TTS Fix)
+**LAST UPDATED:** 12 жовтня 2025 - День ~17:00 (Conversation Mode Streaming Conflict Fix)
 **ALWAYS follow these instructions first and fallback to additional search and context gathering only if the information here is incomplete or found to be in error.**
 
 ATLAS is an intelligent multi-agent orchestration system with Flask web frontend, Node.js orchestrator, Ukrainian TTS/STT voice control, and living 3D GLB helmet interface. Features three specialized AI agents (Atlas, Тетяна, Гриша) working in a coordinated workflow with real-time voice interaction and **full context-aware conversations with memory**.
@@ -67,6 +67,19 @@ ATLAS is an intelligent multi-agent orchestration system with Flask web frontend
 - **Виправлено:** filters.js (2 умови - ФІЛЬТР 2 і ФІЛЬТР 3)
 - **Критично:** User-initiated дії НЕ мають фільтруватись як automatic listening
 - **Детально:** `docs/QUICK_SEND_FILTER_FIX_2025-10-12.md`
+
+### ✅ Conversation Mode Streaming Conflict Fix (FIXED 12.10.2025 - день ~17:00)
+- **Проблема:** Conversation mode НЕ перевіряв streaming state - друге повідомлення відкидалось chat manager
+- **Симптом:** "Атлас" → TTS → "Дякую" → Atlas відповідає → "Хочу запитати" → "Message rejected - already streaming"
+- **Корінь:** sendToChat() НЕ перевіряв chatManager.isStreaming перед відправкою → race condition між streaming responses
+- **Рішення #1:** Додано перевірку `chatManager.isStreaming` в sendToChat()
+- **Рішення #2:** Pending message queue - зберігаємо повідомлення якщо chat streaming
+- **Рішення #3:** Відправка pending message після TTS_COMPLETED з паузою 100ms
+- **Результат:** Conversation loop БЕЗ втрати повідомлень, правильна черга requests
+- **Виправлено:** conversation-mode-manager.js (~30 LOC: sendToChat, handleTTSCompleted, constructor), app-refactored.js (chatManager injection)
+- **Workflow тепер:** Повідомлення 1 → streaming → queued → TTS complete → Повідомлення 2 → streaming → repeat
+- **Критично:** ЗАВЖДИ перевіряйте isStreaming перед відправкою в chat manager, використовуйте pending queue для conflict resolution
+- **Детально:** `docs/CONVERSATION_STREAMING_CONFLICT_FIX_2025-10-12.md`
 
 ### ✅ Conversation Mode Keyword Activation TTS Fix (FIXED 12.10.2025 - день ~16:45)
 - **Проблема:** Після виклику "Атлас", відповідь "так творець, ви мене звали" НЕ озвучувалась через TTS

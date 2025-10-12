@@ -242,6 +242,7 @@ class AtlasApp {
 
       this.managers.conversationMode = new ConversationModeManager({
         eventManager: voiceControlEventManager || null,
+        chatManager: this.managers.chat || null, // FIXED (12.10.2025): Передаємо chat manager
         longPressDuration: 2000,
         quickSendMaxDuration: 30000,
         conversationTimeout: 120000,

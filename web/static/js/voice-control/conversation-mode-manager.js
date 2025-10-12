@@ -54,6 +54,9 @@ export class ConversationModeManager {
 
     // EventManager (використовуємо переданий або fallback на глобальний)
     this.eventManager = config.eventManager || eventManager;
+    
+    // Chat Manager reference (для перевірки streaming state)
+    this.chatManager = config.chatManager || null;
 
     // Конфігурація (тепер використовує Timeouts constants)
     this.config = {
@@ -75,6 +78,9 @@ export class ConversationModeManager {
 
     // 🆕 UI Controller - будe створений в initialize()
     this.ui = null;
+    
+    // Pending message (якщо chat streaming)
+    this.pendingMessage = null;
 
     // Таймери (залишаємо для backward compatibility)
     this.longPressTimer = null;
@@ -725,6 +731,20 @@ export class ConversationModeManager {
 
     // Видалення індікатора через UI controller
     this.ui?.showIdleMode();
+    
+    // FIXED (12.10.2025 - 17:00): Відправка pending message якщо є
+    if (this.pendingMessage) {
+      this.logger.info(`📤 Sending pending message: "${this.pendingMessage.text}"`);
+      const { text, metadata } = this.pendingMessage;
+      this.pendingMessage = null; // Очищуємо pending
+      
+      // Невелика пауза перед відправкою (100ms щоб chat manager скинув isStreaming)
+      setTimeout(() => {
+        this.sendToChat(text, metadata);
+      }, 100);
+      
+      return; // НЕ запускаємо continuous listening - чекаємо відповіді на pending message
+    }
 
     // АВТОМАТИЧНИЙ ЦИКЛ (ТІЛЬКИ ДЛЯ CHAT MODE): Запуск continuous listening БЕЗ keyword "Атлас"
     this.startContinuousListening();
@@ -780,9 +800,21 @@ export class ConversationModeManager {
 
   /**
      * Відправка повідомлення в чат
+     * FIXED (12.10.2025 - 17:00): Перевірка streaming state перед відправкою
      */
   sendToChat(text, metadata = {}) {
     this.logger.info(`📨 Sending to chat: "${text}"`);
+
+    // КРИТИЧНО: Перевірка чи попередній stream завершився
+    // Chat Manager відкидає повідомлення якщо isStreaming = true
+    if (this.chatManager && this.chatManager.isStreaming) {
+      this.logger.warn(`⚠️ Cannot send message - chat is still streaming previous response`);
+      this.logger.warn(`⏳ Queueing message: "${text}"`);
+      
+      // Зберігаємо для відправки після завершення TTS
+      this.pendingMessage = { text, metadata };
+      return;
+    }
 
     // Емісія події для відправки в чат
     // FIXED (11.10.2025 - 22:05): використовуємо ConversationEvents константу
