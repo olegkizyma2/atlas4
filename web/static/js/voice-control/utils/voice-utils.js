@@ -30,6 +30,38 @@ export function isBackgroundPhrase(text, config = VOICE_CONFIG.backgroundFilter)
     return true;
   }
 
+  // ✅ ФІКС (12.10.2025 - 16:25): Розширено фільтрацію фонових фраз
+  // Проблема: "Дякую", "Добре", "Так" з YouTube проходили фільтр
+  // Рішення: Додано YouTube endings + короткі фонові фрази
+  
+  // ФІЛЬТР 1: YouTube/video endings та credits
+  const youtubeEndings = [
+    'дякую за перегляд',
+    'дякую за увагу',
+    'підписуйся на канал',
+    'ставте лайк',
+    'субтитрувальниця',
+    'оля шор',
+    'субтитр',
+    'автор проєкту',
+    'кінець',
+    'the end',
+    'ending',
+    'credits',
+    'аплодирують',
+    'до зустрічі',
+    'до побачення',
+    'коментуйте',
+    'підписуйтесь'
+  ];
+
+  for (const ending of youtubeEndings) {
+    if (cleanText.includes(ending)) {
+      logger.debug(`🎬 YouTube ending detected: "${text}" (contains: "${ending}")`);
+      return true;
+    }
+  }
+
   // Перевірка на ігноровані фрази
   for (const ignoredPhrase of config.ignoredPhrases) {
     if (cleanText.includes(ignoredPhrase.toLowerCase())) {
