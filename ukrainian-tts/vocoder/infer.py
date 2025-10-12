@@ -19,6 +19,8 @@ based on availability.
 """
 import argparse
 import numpy as np
+import importlib
+import importlib.util
 import soundfile as sf
 
 # Compatibility shim: some versions of scipy expose the kaiser window at
@@ -48,11 +50,7 @@ def _try_import_hifigan():
 
 
 def _try_import_pwgan():
-    try:
-        import parallel_wavegan as pw  # type: ignore
-        return True
-    except Exception:
-        return False
+    return importlib.util.find_spec("parallel_wavegan") is not None
 
 
 def infer_hifigan(mel, checkpoint, out_path, sr=22050):
@@ -77,10 +75,12 @@ def infer_hifigan(mel, checkpoint, out_path, sr=22050):
 
 def infer_pwgan(mel, checkpoint, out_path, sr=22050):
     try:
-        import parallel_wavegan as pw
-        import torch
-    except Exception:
-        raise RuntimeError("ParallelWaveGAN not available. Install with: pip install parallelwavegan")
+        pw = importlib.import_module("parallel_wavegan")
+        torch = importlib.import_module("torch")
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "ParallelWaveGAN not available. Install with: pip install parallel-wavegan"
+        ) from exc
 
     # Manually construct model from the config next to the checkpoint for robustness
     import os
@@ -99,7 +99,12 @@ def infer_pwgan(mel, checkpoint, out_path, sr=22050):
         raise TypeError(f"Expected config to be a dict, got {type(cfg_dict)}")
 
     # instantiate model class from parallel_wavegan.models
-    import parallel_wavegan.models as pw_models
+    try:
+        pw_models = importlib.import_module("parallel_wavegan.models")
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "ParallelWaveGAN models submodule missing. Ensure parallel-wavegan is installed"
+        ) from exc
     generator_type = cfg_dict.get('generator_type', 'ParallelWaveGANGenerator')
     model_class = getattr(pw_models, generator_type)
     generator_params_raw = cfg_dict.get('generator_params', {})
