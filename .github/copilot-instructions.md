@@ -1,6 +1,6 @@
 # ATLAS v4.0 - Adaptive Task and Learning Assistant System
 
-**LAST UPDATED:** 12 жовтня 2025 - День ~15:00 (Conversation Mode Silence Timeout Fix)
+**LAST UPDATED:** 12 жовтня 2025 - День ~15:30 (Conversation Mode Pending Continuous Listening Fix)
 **ALWAYS follow these instructions first and fallback to additional search and context gathering only if the information here is incomplete or found to be in error.**
 
 ATLAS is an intelligent multi-agent orchestration system with Flask web frontend, Node.js orchestrator, Ukrainian TTS/STT voice control, and living 3D GLB helmet interface. Features three specialized AI agents (Atlas, Тетяна, Гриша) working in a coordinated workflow with real-time voice interaction and **full context-aware conversations with memory**.
@@ -55,6 +55,18 @@ ATLAS is an intelligent multi-agent orchestration system with Flask web frontend
 ---
 
 ## 🎯 КЛЮЧОВІ ОСОБЛИВОСТІ СИСТЕМИ
+
+### ✅ Conversation Mode Pending Continuous Listening Fix (FIXED 12.10.2025 - день ~15:30)
+- **Проблема:** Після озвучення Atlas continuous listening НЕ запускався - діалог обривався
+- **Симптом:** "Атлас" → TTS → Користувач говорить → Atlas відповідає → СТОП (замість conversation loop)
+- **Корінь:** Race condition - транскрипція приходить ДО завершення activation TTS → pending queue → після відправки pending система робить `return` БЕЗ запуску continuous listening → чекає TTS_COMPLETED який НІКОЛИ не прийде (pending = дублікат)
+- **Логіка помилки:** Pending message - це ДУБЛІКАТ транскрипції що вже відправлена. Atlas вже відповів, TTS вже озвучено. Система НЕ має чекати новий TTS_COMPLETED після pending.
+- **Рішення:** Після відправки pending message МИТТЄВО запускати continuous listening (500ms пауза для природності), бо Atlas вже відповів
+- **Виправлено:** conversation-mode-manager.js (метод handleTTSCompleted, додано startContinuousListening після pending)
+- **Workflow тепер:** "Атлас" → activation TTS (3s) → Користувач говорить ОДРАЗУ (16s) → pending queue → activation TTS завершується → pending відправлено → continuous listening запускається (500ms) → Atlas відповідає → repeat
+- **Результат:** Conversation loop працює ЗАВЖДИ, pending message НЕ блокує діалог, deadlock неможливий, користувач може говорити ОДРАЗУ після activation
+- **Критично:** ЗАВЖДИ запускайте continuous listening після pending message, НЕ чекайте новий TTS_COMPLETED (його не буде!)
+- **Детально:** `docs/CONVERSATION_PENDING_CONTINUOUS_FIX_2025-10-12.md`
 
 ### ✅ Quick-Send Filter Fix (FIXED 12.10.2025 - день ~13:30)
 - **Проблема:** Валідні фрази користувача блокувались як "фонові" у Quick-send режимі
