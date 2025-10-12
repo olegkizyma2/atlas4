@@ -1,0 +1,24 @@
+{
+    "venvPath": ".",
+    "venv": ".venv",
+    "pythonVersion": "3.13",
+    "pythonPlatform": "Darwin",
+    "executionEnvironments": [
+        {
+            "root": ".",
+            "pythonVersion": "3.13",
+            "pythonPlatform": "Darwin",
+            "extraPaths": [
+                ".venv/lib/python3.13/site-packages"
+            ]
+        }
+    ],
+    "exclude": [
+        "**/__pycache__",
+        "**/third_party",
+        "**/.venv",
+        "**/node_modules"
+    ],
+    "reportMissingImports": "warning",
+    "reportMissingTypeStubs": false
+}
