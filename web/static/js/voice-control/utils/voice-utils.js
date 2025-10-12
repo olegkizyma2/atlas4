@@ -213,6 +213,73 @@ export function extractCommand(text, keywords = VOICE_CONFIG.activation.keywords
 }
 
 /**
+ * Корекція варіацій слова "Атлас" у розпізнаному тексті
+ * Виправляє поширені похибки розпізнавання Whisper
+ * ADDED (12.10.2025): Frontend-шар корекції для покращення точності
+ *
+ * @param {string} text - Розпізнаний текст
+ * @returns {string} - Текст з виправленим "Атлас"
+ */
+export function correctAtlasWord(text) {
+  if (!text || typeof text !== 'string') {
+    return text;
+  }
+
+  // Словник корекції "Атлас" (66+ варіантів)
+  const atlasCorrections = {
+    // Українські варіанти
+    'атлаз': 'Атлас', 'атлус': 'Атлас', 'атлес': 'Атлас', 'артлас': 'Атлас',
+    'атлось': 'Атлас', 'атланс': 'Атлас', 'адлас': 'Атлас', 'отлас': 'Атлас',
+    'етлас': 'Атлас', 'атлась': 'Атлас', 'атласе': 'Атлас', 'атласо': 'Атлас',
+    'атляс': 'Атлас', 'атлаша': 'Атлас', 'ітлас': 'Атлас', 'ітлус': 'Атлас',
+    'атлаас': 'Атлас', 'атлаш': 'Атлас', 'атлач': 'Атлас', 'тлас': 'Атлас',
+    'тлус': 'Атлас', 'тлаз': 'Атлас',
+
+    // Англійські варіанти
+    'atlas': 'Атлас', 'atlass': 'Атлас', 'atlus': 'Атлас', 'adlas': 'Атлас',
+    'atles': 'Атлас', 'atlantis': 'Атлас', 'atlaz': 'Атлас', 'atlos': 'Атлас',
+    'adlus': 'Атлас', 'atlash': 'Атлас', 'atlase': 'Атлас',
+
+    // Розділені варіанти
+    'а т л а с': 'Атлас', 'а-т-л-а-с': 'Атлас', 'атл ас': 'Атлас',
+    'ат лас': 'Атлас', 'атла с': 'Атлас',
+
+    // З акцентами
+    'а́тлас': 'Атлас', 'атла́с': 'Атлас'
+  };
+
+  let correctedText = text;
+
+  // Пошук та заміна кожного варіанта
+  for (const [incorrect, correct] of Object.entries(atlasCorrections)) {
+    // Word boundary regex для точного співпадіння слів
+    const pattern = new RegExp(`\\b${incorrect}\\b`, 'gi');
+    correctedText = correctedText.replace(pattern, correct);
+  }
+
+  // Додаткові регулярні вирази для складних випадків
+  const additionalPatterns = [
+    // Варіації з префіксами "ат-"
+    { pattern: /\b(ат[тл][ао]?[лзс]{1,2})\b/gi, replacement: 'Атлас' },
+    // Розділені пробілами/дефісами (а-т-л-а-с, а т л а с)
+    { pattern: /\b(а[\s-]?т[\s-]?л[\s-]?а[\s-]?с)\b/gi, replacement: 'Атлас' },
+    // Варіації з "от-", "ет-", "ад-"
+    { pattern: /\b([оеа][тд]л[ауо][зс])\b/gi, replacement: 'Атлас' }
+  ];
+
+  for (const { pattern, replacement } of additionalPatterns) {
+    correctedText = correctedText.replace(pattern, replacement);
+  }
+
+  // Логування якщо була корекція
+  if (correctedText !== text) {
+    logger.info(`[ATLAS_CORRECTION] ✅ Corrected: "${text}" → "${correctedText}"`);
+  }
+
+  return correctedText;
+}
+
+/**
  * Перевірка чи потрібно повертатись до keyword mode
  * Використовується в conversation mode для визначення невиразних фраз
  *

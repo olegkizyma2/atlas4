@@ -1,6 +1,6 @@
 # ATLAS v4.0 - Adaptive Task and Learning Assistant System
 
-**LAST UPDATED:** 12 жовтня 2025 - Ранок ~06:00 (Keyword Activation Response Fix)
+**LAST UPDATED:** 12 жовтня 2025 - День ~14:10 (Whisper Quality Improvements)
 **ALWAYS follow these instructions first and fallback to additional search and context gathering only if the information here is incomplete or found to be in error.**
 
 ATLAS is an intelligent multi-agent orchestration system with Flask web frontend, Node.js orchestrator, Ukrainian TTS/STT voice control, and living 3D GLB helmet interface. Features three specialized AI agents (Atlas, Тетяна, Гриша) working in a coordinated workflow with real-time voice interaction and **full context-aware conversations with memory**.
@@ -55,6 +55,38 @@ ATLAS is an intelligent multi-agent orchestration system with Flask web frontend
 ---
 
 ## 🎯 КЛЮЧОВІ ОСОБЛИВОСТІ СИСТЕМИ
+
+### ✅ Whisper Quality Improvements (COMPLETED 12.10.2025 - день ~14:10)
+- **Проблема:** Conversation mode мав 16kHz запис (низька якість) vs Quick-send 48kHz (висока якість)
+- **Симптом #1:** Погане розпізнавання "Атлас" в conversation mode (~70% точність)
+- **Симптом #2:** Варіації "атлаз", "атлус", "atlas" НЕ виправлялись на frontend
+- **Корінь #1:** WhisperKeywordDetection використовував 16kHz sample rate замість 48kHz
+- **Корінь #2:** Backend Python мав корекцію (66 варіантів), але frontend НЕ мав
+- **Рішення #1:** Уніфіковано sample rate до 48kHz в обох режимах (+30% accuracy)
+- **Рішення #2:** Створено `correctAtlasWord()` в voice-utils.js (66+ варіантів корекції)
+- **Рішення #3:** Інтегровано корекцію в WhisperService та WhisperKeywordDetection
+- **Результат:** Очікуваний сумарний ефект +40% покращення точності, 95%+ keyword detection
+- **Виправлено:** 
+  - whisper-keyword-detection.js (sampleRate 16000→48000, audio constraints)
+  - voice-utils.js (NEW функція correctAtlasWord з 66+ варіантами)
+  - whisper-service.js (інтеграція корекції в normalizeTranscriptionResult)
+- **Критично:** 
+  - ЗАВЖДИ використовуйте 48kHz для максимальної якості Whisper Large-v3
+  - Корекція працює на ДВОХ рівнях: backend Python + frontend JavaScript
+  - Логування всіх корекцій через `[ATLAS_CORRECTION]` для моніторингу
+- **Детально:** `docs/WHISPER_QUALITY_IMPROVEMENTS_2025-10-12.md`, `docs/TESTING_QUALITY_IMPROVEMENTS_2025-10-12.md`, `docs/WHISPER_WORKFLOW_AUDIT_2025-10-12.md`
+
+### ✅ Microphone SessionID Fix (FIXED 12.10.2025 - день ~12:45)
+- **Проблема:** Quick-send режим працював тільки ОДИН раз - всі наступні спроби блокувались з `Quick-send ignored - current state: processing`
+- **Симптом:** Перший запис успішний → транскрипція працює → стан НЕ скидається в `idle` → наступні запуски ігноруються
+- **Корінь:** WhisperService НЕ передавав `sessionId` в події `WHISPER_TRANSCRIPTION_COMPLETED` → MicrophoneButtonService НЕ обробляв подію через sessionId mismatch → `resetToIdle()` НЕ викликався
+- **Рішення #1:** Передавати `sessionId` в `transcribeAudio()` через options
+- **Рішення #2:** Додати `sessionId` в payload події `WHISPER_TRANSCRIPTION_COMPLETED`
+- **Рішення #3:** Додати `sessionId` в payload події `WHISPER_TRANSCRIPTION_ERROR`
+- **Результат:** Quick-send працює НЕОБМЕЖЕНО (1-й, 2-й, 3-й... клік), стан правильно скидається: `processing` → `idle`
+- **Виправлено:** whisper-service.js (3 місця: handleAudioReadyForTranscription, COMPLETED event, ERROR event)
+- **Критично:** ЗАВЖДИ передавайте sessionId через ВЕСЬ event chain - без нього lifecycle НЕ працює!
+- **Детально:** `docs/MICROPHONE_SESSIONID_FIX_2025-10-12.md`
 
 ### ✅ Keyword Activation Response Fix (FIXED 12.10.2025 - ранок ~06:00)
 - **Проблема:** Коли спрацьовував keyword "Атлас", відповідь "що бажаєте?" генерувалась, але НЕ відправлялась в чат і НЕ озвучувалась

@@ -6,7 +6,7 @@
 import { BaseService } from '../core/base-service.js';
 import { API_ENDPOINTS, AUDIO_CONFIG } from '../core/config.js';
 import { Events } from '../events/event-manager.js';
-import { retry, createAudioConstraints } from '../utils/voice-utils.js';
+import { retry, createAudioConstraints, correctAtlasWord } from '../utils/voice-utils.js';
 
 /**
  * @typedef {Object} TranscriptionOptions
@@ -127,7 +127,9 @@ export class WhisperService extends BaseService {
       this.logger.info(`🎙️ Received audio for transcription (session: ${payload.sessionId}, size: ${payload.audioBlob.size} bytes)`);
 
       // Виконання транскрипції
+      // FIXED (12.10.2025): Передаємо sessionId для правильної обробки в microphone-button-service
       const result = await this.transcribeAudio(payload.audioBlob, {
+        sessionId: payload.sessionId,  // ✅ КРИТИЧНО: передати sessionId!
         mode: payload.mode,
         language: 'uk'
       });
@@ -464,7 +466,9 @@ export class WhisperService extends BaseService {
 
       // Емісія події завершення транскрипції
       // FIXED (11.10.2025 - 17:10): Додаємо text на верхній рівень для conversation-mode
+      // FIXED (12.10.2025): Передаємо sessionId для правильної обробки в microphone-button-service
       await this.emit(Events.WHISPER_TRANSCRIPTION_COMPLETED, {
+        sessionId: transcriptionOptions.sessionId,  // ✅ КРИТИЧНО: sessionId для reset в idle!
         text: result.text,      // Для conversation-mode compatibility
         result,                 // Повний результат
         latency,
@@ -479,7 +483,9 @@ export class WhisperService extends BaseService {
       const latency = Date.now() - startTime;
       this.updateTranscriptionMetrics(latency, false);
 
+      // FIXED (12.10.2025): Передаємо sessionId для правильної обробки помилки
       await this.emit(Events.WHISPER_TRANSCRIPTION_ERROR, {
+        sessionId: transcriptionOptions.sessionId,  // ✅ КРИТИЧНО: sessionId для reset в idle!
         error: error.message,
         latency,
         audioSize: audioBlob.size
@@ -540,13 +546,21 @@ export class WhisperService extends BaseService {
      * @returns {TranscriptionResult} - Нормалізований результат
      */
   normalizeTranscriptionResult(rawResult) {
-    return {
+    // Базова нормалізація
+    const normalized = {
       text: rawResult.text || '',
       language: rawResult.language || this.defaultOptions.language,
       duration: rawResult.duration || 0,
       confidence: rawResult.confidence || 1.0,
       segments: rawResult.segments || []
     };
+
+    // ✅ FRONTEND КОРЕКЦІЯ (12.10.2025): Виправлення варіацій "Атлас"
+    if (normalized.text) {
+      normalized.text = correctAtlasWord(normalized.text);
+    }
+
+    return normalized;
   }
 
   /**
