@@ -75,7 +75,7 @@ export class ConfigManager {
     });
 
     this.addSyncTarget('legacy-shared', {
-      path: 'shared-config.js',
+      path: 'config/shared-config.js',
       type: 'es6-module',
       exports: ['AGENTS', 'WORKFLOW_STAGES', 'WORKFLOW_CONFIG', 'API_ENDPOINTS', 'TTS_CONFIG', 'VOICE_CONFIG', 'CHAT_CONFIG'],
       template: 'legacy-template'

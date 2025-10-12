@@ -113,8 +113,8 @@ get_goose_binary() {
     fi
 
     # 2) Try to get path from config.yaml (desktop_path for legacy compatibility)
-    if [ -f "$REPO_ROOT/config.yaml" ]; then
-        local config_path=$(grep -A 10 "^goose:" "$REPO_ROOT/config.yaml" | grep "desktop_path:" | sed 's/.*desktop_path: *"\([^"\\]*\)".*/\1/')
+    if [ -f "$REPO_ROOT/config/config.yaml" ]; then
+        local config_path=$(grep -A 10 "^goose:" "$REPO_ROOT/config/config.yaml" | grep "desktop_path:" | sed 's/.*desktop_path: *"\([^"\\]*\)".*/\1/')
         if [ -n "$config_path" ] && [ -x "$config_path" ]; then
             echo "$config_path"
             return 0
