@@ -796,6 +796,14 @@ class AtlasApp {
         updateIcon();
       });
 
+      // Підписка на зміни стану TTS
+      if (this.managers.chat) {
+        this.managers.chat.on('tts-state-changed', () => {
+          updateIcon();
+          this.logger.debug('TTS UI updated via state change event');
+        });
+      }
+
       // Встановлюємо початковий стан
       updateIcon();
     }
