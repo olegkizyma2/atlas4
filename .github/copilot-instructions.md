@@ -1,6 +1,6 @@
 # ATLAS v4.0 - Adaptive Task and Learning Assistant System
 
-**LAST UPDATED:** 12 жовтня 2025 - День ~14:30 (Conversation Mode TTS_COMPLETED Subscription Fix)
+**LAST UPDATED:** 12 жовтня 2025 - День ~14:45 (Conversation Mode Pending Message Clear Fix)
 **ALWAYS follow these instructions first and fallback to additional search and context gathering only if the information here is incomplete or found to be in error.**
 
 ATLAS is an intelligent multi-agent orchestration system with Flask web frontend, Node.js orchestrator, Ukrainian TTS/STT voice control, and living 3D GLB helmet interface. Features three specialized AI agents (Atlas, Тетяна, Гриша) working in a coordinated workflow with real-time voice interaction and **full context-aware conversations with memory**.
@@ -67,6 +67,18 @@ ATLAS is an intelligent multi-agent orchestration system with Flask web frontend
 - **Виправлено:** filters.js (2 умови - ФІЛЬТР 2 і ФІЛЬТР 3)
 - **Критично:** User-initiated дії НЕ мають фільтруватись як automatic listening
 - **Детально:** `docs/QUICK_SEND_FILTER_FIX_2025-10-12.md`
+
+### ✅ Conversation Mode Pending Message Clear Fix (FIXED 12.10.2025 - день ~14:45)
+- **Проблема:** Після TTS continuous listening НЕ запускався - pending message повторно відправлявся в чат замість запуску запису
+- **Симптом:** TTS_COMPLETED отримується → pending message є → відправляється ЗНОВУ в чат → return → continuous listening НЕ запускається
+- **Корінь:** sendToChat() встановлював pending при `isStreaming=true`, але після emit() НЕ очищував pending - при TTS_COMPLETED pending знову відправлявся
+- **Логіка помилки:** Повідомлення ВДАЛОСЬ відправити (через emit), stream почався (isStreaming=true), pending залишився → TTS_COMPLETED відправив дублікат
+- **Рішення:** Очищати pending message після успішного emit() в sendToChat() - `if (this.pendingMessage && this.pendingMessage.text === text) this.pendingMessage = null`
+- **Результат:** Pending очищується після відправки → TTS_COMPLETED НЕ знаходить pending → запускає startContinuousListening() → цикл працює
+- **Виправлено:** conversation-mode-manager.js (метод sendToChat, +5 LOC)
+- **Workflow тепер:** Transcription → sendToChat → emit → pending clear → Atlas TTS → TTS_COMPLETED → НЕ має pending → startContinuousListening → repeat
+- **Критично:** Pending message ЗАВЖДИ очищати після успішного emit(), НЕ тільки після відправки в handleTTSCompleted!
+- **Детально:** `docs/CONVERSATION_PENDING_MESSAGE_CLEAR_FIX_2025-10-12.md`
 
 ### ✅ Conversation Mode TTS Subscription Fix (FIXED 12.10.2025 - день ~14:30)
 - **Проблема:** Після TTS Atlas НЕ запускався continuous listening - conversation loop НЕ продовжувався

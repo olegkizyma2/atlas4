@@ -828,6 +828,13 @@ export class ConversationModeManager {
       mode: this.state.getCurrentMode(),
       ...metadata
     });
+    
+    // FIXED (12.10.2025 - 14:45): Очищуємо pending якщо повідомлення успішно емітилось
+    // Навіть якщо було в черзі - зараз вже відправили
+    if (this.pendingMessage && this.pendingMessage.text === text) {
+      this.logger.info(`✅ Pending message sent successfully, clearing queue`);
+      this.pendingMessage = null;
+    }
   }
 
   /**
