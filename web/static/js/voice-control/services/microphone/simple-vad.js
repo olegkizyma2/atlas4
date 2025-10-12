@@ -9,9 +9,10 @@ export class SimpleVAD {
   constructor(config = {}) {
     this.config = {
       silenceThreshold: config.silenceThreshold || 0.01, // Поріг тиші (RMS)
-      silenceDuration: config.silenceDuration || 1500, // 1.5 сек мовчання = кінець фрази
-      minSpeechDuration: config.minSpeechDuration || 300, // Мінімум 300мс для валідної мови
+      silenceDuration: config.silenceDuration || 1200, // 1.2 сек (було 1.5) - швидша детекція кінця фрази
+      minSpeechDuration: config.minSpeechDuration || 250, // 250мс (було 300мс) - швидша валідація
       noiseSuppression: config.noiseSuppression ?? true, // Придушення шуму
+      adaptiveThreshold: config.adaptiveThreshold ?? true, // Адаптивний поріг (NEW)
       ...config
     };
 
@@ -25,6 +26,11 @@ export class SimpleVAD {
     this.lastSpeechTime = null;
     this.speechStartTime = null;
     this.silenceStartTime = null;
+
+    // Адаптивний поріг (NEW 2025-10-11)
+    this.baselineNoiseLevel = 0;
+    this.noiseHistory = [];
+    this.maxNoiseHistory = 50;
 
     // Callbacks
     this.onSpeechStart = config.onSpeechStart || null;
@@ -63,7 +69,18 @@ export class SimpleVAD {
       }
 
       const rms = this.calculateRMS();
-      const isSpeech = rms > this.config.silenceThreshold;
+      
+      // Update adaptive threshold (NEW 2025-10-11)
+      if (this.config.adaptiveThreshold) {
+        this.updateAdaptiveThreshold(rms);
+      }
+      
+      // Use adaptive or fixed threshold
+      const threshold = this.config.adaptiveThreshold 
+        ? this.getAdaptiveThreshold() 
+        : this.config.silenceThreshold;
+      
+      const isSpeech = rms > threshold;
 
       this.lastLevel = rms;
       this.processAudioLevel(isSpeech, rms);
@@ -72,6 +89,7 @@ export class SimpleVAD {
         this.onAudioLevel({
           level: rms,
           isSpeech,
+          threshold,
           timestamp: Date.now()
         });
       }
@@ -80,6 +98,38 @@ export class SimpleVAD {
     };
 
     checkAudioLevel();
+  }
+
+  /**
+   * Update adaptive noise threshold (NEW 2025-10-11)
+   */
+  updateAdaptiveThreshold(rms) {
+    // Track noise levels when not speaking
+    if (!this.isSpeaking) {
+      this.noiseHistory.push(rms);
+      
+      if (this.noiseHistory.length > this.maxNoiseHistory) {
+        this.noiseHistory.shift();
+      }
+      
+      // Calculate baseline noise as median of history
+      if (this.noiseHistory.length >= 10) {
+        const sorted = [...this.noiseHistory].sort((a, b) => a - b);
+        this.baselineNoiseLevel = sorted[Math.floor(sorted.length / 2)];
+      }
+    }
+  }
+
+  /**
+   * Get adaptive threshold based on current noise level (NEW 2025-10-11)
+   */
+  getAdaptiveThreshold() {
+    if (this.baselineNoiseLevel === 0) {
+      return this.config.silenceThreshold;
+    }
+    
+    // Threshold is 2.5x the baseline noise
+    return Math.max(this.config.silenceThreshold, this.baselineNoiseLevel * 2.5);
   }
 
   calculateRMS() {
