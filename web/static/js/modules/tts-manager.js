@@ -234,10 +234,10 @@ export class TTSManager {
             body: JSON.stringify({
               text: processedText,
               voice,
-              return_audio: options.returnAudio || false,
+              return_audio: true,  // ЗАВЖДИ повертати аудіо
               ...options
             }),
-            responseType: options.return_audio || options.responseType === 'blob' ? 'blob' : undefined
+            responseType: 'blob'  // ЗАВЖДИ blob для аудіо
           });
 
           // Успіх - повертаємо результат

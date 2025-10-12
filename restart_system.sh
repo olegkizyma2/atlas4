@@ -417,16 +417,29 @@ start_tts_service() {
     
     if [ "$REAL_TTS_MODE" = "true" ]; then
         (
-            cd "$REPO_ROOT/ukrainian-tts"
-            if [ -f ".venv/bin/activate" ]; then
-                source .venv/bin/activate
-                log_info "Using TTS virtual environment: .venv"
-            elif [ -f "venv/bin/activate" ]; then
+            # Ukrainian-TTS пакет встановлено в web/venv/, використовуємо його
+            cd "$REPO_ROOT/web"
+            if [ -f "venv/bin/activate" ]; then
                 source venv/bin/activate
-                log_info "Using TTS virtual environment: venv"
+                log_info "Using web/venv for TTS (ukrainian-tts package installed here)"
             else
-                log_warn "No TTS virtual environment found, using system Python"
+                log_error "web/venv not found! Run: python3 -m venv web/venv && source web/venv/bin/activate && pip install git+https://github.com/robinhad/ukrainian-tts.git"
+                return 1
             fi
+            
+            # КРИТИЧНО: Копіюємо model files в ukrainian-tts/ якщо відсутні
+            cd "$REPO_ROOT"
+            for file in feats_stats.npz model.pth spk_xvector.ark config.yaml; do
+                if [ -f "$file" ] && [ ! -f "ukrainian-tts/$file" ]; then
+                    log_info "Copying TTS model file: $file → ukrainian-tts/"
+                    cp "$file" "ukrainian-tts/"
+                fi
+            done
+            
+            # Запускаємо TTS сервер з правильного venv
+            cd "$REPO_ROOT/ukrainian-tts"
+            # КРИТИЧНО: MPS fallback для unsupported operations
+            export PYTORCH_ENABLE_MPS_FALLBACK=1
             python3 tts_server.py --host 127.0.0.1 --port "$TTS_PORT" --device "$TTS_DEVICE" > "$LOGS_DIR/tts_real.log" 2>&1 &
             echo $! > "$LOGS_DIR/tts.pid"
         )

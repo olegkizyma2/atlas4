@@ -143,55 +143,61 @@ def _run_whisper_cpp(wav_path: str, language: str):
     with tempfile.TemporaryDirectory() as td:
         base = str(Path(td) / 'out')
         # whisper.cpp сейчас поставляет 2 утилиты:
-        #  - старый 'main' (устарел, но поддерживает -ngl)
-        #  - новый 'whisper-cli' (рекомендуется, НЕ поддерживает -ngl)
+        #  - старый 'main' (устарел, но поддерживает -ngl, -f flag)
+        #  - новый 'whisper-cli' (рекомендуется, НЕ поддерживает -ngl, file БЕЗ -f)
         bin_name = os.path.basename(WHISPER_CPP_BIN).lower()
+        
+        # FIXED 13.10.2025 - whisper-cli очікує файл БЕЗ -f прапорця в кінці команди
+        # Старий 'main': -f /path/to/file.wav
+        # Новий 'whisper-cli': /path/to/file.wav (в кінці, без -f)
+        is_whisper_cli = 'whisper-cli' in bin_name
+        
         cmd = [
             WHISPER_CPP_BIN,
             '-m', WHISPER_CPP_MODEL,
-            '-f', wav_path,
             '-l', language or WHISPER_CPP_LANG_DEFAULT,
             '-t', str(WHISPER_CPP_THREADS),
             '-oj',  # вывод JSON
             '-of', base,
         ]
         
-        # Додаємо покращені параметри для Large-v3
-        if WHISPER_CPP_TEMPERATURE > 0:
-            cmd += ['--temperature', str(WHISPER_CPP_TEMPERATURE)]
+        # Для старого бінаря додаємо -f, для whisper-cli - файл в кінці
+        if not is_whisper_cli:
+            cmd += ['-f', wav_path]
+        
+        # FIXED 13.10.2025 v2 - Додаємо ТІЛЬКИ параметри які підтримує whisper-cli
+        # whisper-cli НЕ підтримує: --patience, --length-penalty, --compression-ratio-threshold, --no-condition-on-previous-text, --no-coreml
+        # Підтримує: --best-of (-bo), --beam-size (-bs), --temperature (-tp), --no-speech-thold (-nth)
+        
+        if WHISPER_CPP_TEMPERATURE >= 0:  # whisper-cli дефолт 0.0
+            cmd += ['-tp', str(WHISPER_CPP_TEMPERATURE)]
         
         if WHISPER_CPP_BEST_OF > 1:
-            cmd += ['--best-of', str(WHISPER_CPP_BEST_OF)]
+            cmd += ['-bo', str(WHISPER_CPP_BEST_OF)]
             
         if WHISPER_CPP_BEAM_SIZE > 1:
-            cmd += ['--beam-size', str(WHISPER_CPP_BEAM_SIZE)]
+            cmd += ['-bs', str(WHISPER_CPP_BEAM_SIZE)]
             
-        if WHISPER_CPP_PATIENCE != 1.0:
-            cmd += ['--patience', str(WHISPER_CPP_PATIENCE)]
-            
-        if WHISPER_CPP_LENGTH_PENALTY != 1.0:
-            cmd += ['--length-penalty', str(WHISPER_CPP_LENGTH_PENALTY)]
-            
-        if WHISPER_CPP_COMPRESSION_RATIO_THRESHOLD != 2.4:
-            cmd += ['--compression-ratio-threshold', str(WHISPER_CPP_COMPRESSION_RATIO_THRESHOLD)]
-            
-        if WHISPER_CPP_NO_SPEECH_THRESHOLD != 0.6:
-            cmd += ['--no-speech-threshold', str(WHISPER_CPP_NO_SPEECH_THRESHOLD)]
-            
-        if not WHISPER_CPP_CONDITION_ON_PREVIOUS_TEXT:
-            cmd += ['--no-condition-on-previous-text']
-            
+        if WHISPER_CPP_NO_SPEECH_THRESHOLD != 0.6:  # whisper-cli дефолт 0.60
+            cmd += ['-nth', str(WHISPER_CPP_NO_SPEECH_THRESHOLD)]
+        
+        # Initial prompt підтримується через --prompt (тестуємо)
         if WHISPER_CPP_INITIAL_PROMPT:
             cmd += ['--prompt', WHISPER_CPP_INITIAL_PROMPT]
         
         # Добавляем offload-флаг только для старого бинаря 'main'
-        if 'whisper-cli' not in bin_name and WHISPER_CPP_NGL > 0:
+        if not is_whisper_cli and WHISPER_CPP_NGL > 0:
             cmd[0:0]  # no-op для читаемости
             cmd.insert(10, '-ngl')
             cmd.insert(11, str(WHISPER_CPP_NGL))
             
         if WHISPER_CPP_MAXLEN > 0:
             cmd += ['-ml', str(WHISPER_CPP_MAXLEN)]
+        
+        # FIXED 13.10.2025 - whisper-cli очікує файл В КІНЦІ команди БЕЗ -f прапорця
+        # Це КРИТИЧНО! Інакше whisper-cli показує help і НЕ запускається
+        if is_whisper_cli:
+            cmd.append(wav_path)  # Файл в кінці для whisper-cli
 
         logger.info('Running whisper.cpp: %s', ' '.join(cmd))
         start = datetime.now()
@@ -207,8 +213,10 @@ def _run_whisper_cpp(wav_path: str, language: str):
             # как fallback — попытаемся вычитать stdout (на новых версиях -oj пишет файл)
             try:
                 data = json.loads(proc.stdout)
-            except Exception:
-                raise RuntimeError('whisper.cpp did not produce JSON output')
+            except Exception as e:
+                # FIXED 13.10.2025 - Логуємо stderr для діагностики
+                logger.error(f'whisper.cpp JSON parse failed. stdout={proc.stdout[:200]}, stderr={proc.stderr[-500:]}')
+                raise RuntimeError(f'whisper.cpp did not produce JSON output: {str(e)}')
         else:
             with open(json_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)

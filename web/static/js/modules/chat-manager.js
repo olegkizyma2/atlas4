@@ -84,6 +84,19 @@ export class ChatManager {
     await this.ttsManager.init();
     this.setupUI();
     this.setupEventListeners();
+    
+    // Встановлюємо дефолтний стан TTS якщо не встановлено
+    if (localStorage.getItem('atlas_voice_enabled') === null) {
+      localStorage.setItem('atlas_voice_enabled', 'true'); // Дефолт: увімкнено
+      this.logger.info('TTS default state set to enabled');
+    }
+    
+    // Emit event щоб UI оновився після ініціалізації TTS
+    this.emit('tts-state-changed', { 
+      enabled: this.ttsManager.isEnabled(),
+      initialized: true 
+    });
+    
     // НЕ запускаємо TTS polling, оскільки використовуємо прямий TTS
     // this.startTTSPolling();
     this._initialized = true;
@@ -617,12 +630,16 @@ export class ChatManager {
   enableTTS() {
     localStorage.setItem('atlas_voice_enabled', 'true');
     this.logger.info('TTS enabled');
+    // Emit event для оновлення UI
+    this.emit('tts-state-changed', { enabled: true });
   }
 
   disableTTS() {
     localStorage.setItem('atlas_voice_enabled', 'false');
     this.ttsManager.stop();
     this.logger.info('TTS disabled');
+    // Emit event для оновлення UI
+    this.emit('tts-state-changed', { enabled: false });
   }
 
   setTTSMode(mode) {

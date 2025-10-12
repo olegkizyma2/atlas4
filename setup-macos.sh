@@ -187,28 +187,46 @@ install_homebrew() {
 # =============================================================================
 
 install_python() {
-    log_step "КРОК 3: Встановлення Python 3.9+"
+    log_step "КРОК 3: Встановлення Python 3.11"
     
-    if check_command python3; then
+    local required_version="3.11"
+    local has_python311=false
+    
+    # Перевірка наявності python3.11
+    if check_command python3.11; then
+        local python_version=$(python3.11 --version | awk '{print $2}')
+        log_info "Виявлено Python 3.11: $python_version"
+        has_python311=true
+    elif check_command python3; then
         local python_version=$(python3 --version | awk '{print $2}')
         log_info "Виявлено Python: $python_version"
         
-        # Перевірка мінімальної версії 3.9
-        local min_version="3.9"
-        if [ "$(printf '%s\n' "$min_version" "$python_version" | sort -V | head -n1)" = "$min_version" ]; then
-            log_success "Python версія підходить"
-            return 0
+        # Перевірка чи це 3.11.x
+        if [[ "$python_version" == 3.11.* ]]; then
+            log_success "Python 3.11 вже встановлено як python3"
+            has_python311=true
+        else
+            log_warn "Поточна версія Python ($python_version) не є 3.11.x"
         fi
     fi
     
-    log_info "Встановлення Python 3.11 через Homebrew..."
-    brew install python@3.11
-    
-    # Додати до PATH
-    echo 'export PATH="/opt/homebrew/opt/python@3.11/bin:$PATH"' >> ~/.zprofile
-    export PATH="/opt/homebrew/opt/python@3.11/bin:$PATH"
-    
-    log_success "Python встановлено: $(python3 --version)"
+    if [ "$has_python311" = false ]; then
+        log_info "Встановлення Python 3.11 через Homebrew..."
+        brew install python@3.11
+        
+        # Додати до PATH
+        echo 'export PATH="/opt/homebrew/opt/python@3.11/bin:$PATH"' >> ~/.zprofile
+        export PATH="/opt/homebrew/opt/python@3.11/bin:$PATH"
+        
+        # Створити symlink python3 → python3.11
+        if [ ! -L "/opt/homebrew/bin/python3" ]; then
+            ln -sf /opt/homebrew/opt/python@3.11/bin/python3.11 /opt/homebrew/bin/python3
+        fi
+        
+        log_success "Python 3.11 встановлено: $(python3.11 --version)"
+    else
+        log_success "Python 3.11 готовий до використання"
+    fi
 }
 
 # =============================================================================
@@ -283,31 +301,129 @@ install_dependencies() {
 install_goose() {
     log_step "КРОК 7: Встановлення Goose AI"
     
-    # Спочатку перевірити Desktop версію
+    # Спочатку перевірити Desktop версію (найкраща)
     if [ -x "/Applications/Goose.app/Contents/MacOS/goose" ]; then
         log_success "Goose Desktop вже встановлено"
         export GOOSE_BIN="/Applications/Goose.app/Contents/MacOS/goose"
         return 0
     fi
     
-    # Якщо Desktop немає, встановити CLI
+    # Перевірити CLI через команду
     if check_command goose; then
-        log_success "Goose CLI вже встановлено"
+        log_success "Goose CLI вже доступний"
         export GOOSE_BIN="goose"
         return 0
     fi
     
-    log_info "Встановлення Goose CLI..."
-    brew tap block/goose
-    brew install goose
+    # Спробувати прямий download з GitHub (більш надійний)
+    log_info "Встановлення Goose через GitHub releases..."
+    if install_goose_direct; then
+        export GOOSE_BIN="goose"
+        return 0
+    fi
     
-    log_success "Goose встановлено"
-    export GOOSE_BIN="goose"
+    # Fallback: встановлення через PyPI з Python 3.11
+    log_warn "GitHub метод не спрацював, спробуємо PyPI..."
+    
+    # Перевірити що Python 3.11 доступний
+    if ! check_command python3.11; then
+        log_info "Встановлення Python 3.11..."
+        brew install python@3.11
+    fi
+    
+    # Встановити pipx якщо потрібно
+    if ! check_command pipx; then
+        log_info "Встановлення pipx..."
+        brew install pipx
+        pipx ensurepath
+        # Reload PATH for current session
+        export PATH="$HOME/.local/bin:$PATH"
+    fi
+    
+    # Встановити goose-ai через pipx з Python 3.11
+    log_info "Встановлення goose-ai через pipx з Python 3.11..."
+    if pipx install --python python3.11 goose-ai 2>/dev/null; then
+        log_success "Goose успішно встановлено через PyPI"
+        export GOOSE_BIN="goose"
+        return 0
+    fi
+    
+    # Фінальна перевірка
+    if check_command goose; then
+        log_success "Goose встановлено"
+        export GOOSE_BIN="goose"
+    else
+        log_error "❌ Не вдалося встановити Goose автоматично"
+        log_warn "Будь ласка, встановіть Goose вручну:"
+        log_warn "1. Desktop: https://github.com/block/goose/releases"
+        log_warn "2. CLI: pipx install --python python3.11 goose-ai"
+        log_warn "3. Direct: curl -sSL https://github.com/block/goose/releases/download/v1.9.3/download_cli.sh | bash"
+        return 1
+    fi
     
     log_warn ""
-    log_warn "ВАЖЛИВО: Для кращої продуктивності рекомендується Goose Desktop:"
+    log_warn "💡 РЕКОМЕНДАЦІЯ: Для кращої продуктивності використовуйте Goose Desktop:"
     log_warn "Завантажте з: https://github.com/block/goose/releases"
     log_warn ""
+}
+
+# Fallback метод встановлення Goose через GitHub releases
+install_goose_direct() {
+    log_info "Спроба прямого завантаження з GitHub releases..."
+    
+    # Визначити архітектуру
+    ARCH=$(uname -m)
+    if [ "$ARCH" = "arm64" ]; then
+        GOOSE_ARCHIVE="goose-aarch64-apple-darwin.tar.bz2"
+    else
+        GOOSE_ARCHIVE="goose-x86_64-apple-darwin.tar.bz2"
+    fi
+    
+    # Завантажити та встановити
+    TEMP_DIR=$(mktemp -d)
+    DOWNLOAD_URL="https://github.com/block/goose/releases/download/v1.9.3/$GOOSE_ARCHIVE"
+    
+    log_info "Завантаження $GOOSE_ARCHIVE..."
+    if curl -L -o "$TEMP_DIR/$GOOSE_ARCHIVE" "$DOWNLOAD_URL" >/dev/null 2>&1; then
+        cd "$TEMP_DIR"
+        tar -xjf "$GOOSE_ARCHIVE" >/dev/null 2>&1
+        
+        # Знайти goose binary та встановити
+        if [ -f "./goose" ]; then
+            # Спробувати встановити в /usr/local/bin (потребує sudo)
+            if sudo cp "./goose" /usr/local/bin/goose 2>/dev/null && sudo chmod +x /usr/local/bin/goose 2>/dev/null; then
+                log_success "Goose встановлено в /usr/local/bin/goose"
+            else
+                # Fallback: встановити в home директорію
+                mkdir -p "$HOME/bin"
+                cp "./goose" "$HOME/bin/goose"
+                chmod +x "$HOME/bin/goose"
+                
+                # Додати до PATH якщо потрібно
+                if [[ ":$PATH:" != *":$HOME/bin:"* ]]; then
+                    export PATH="$HOME/bin:$PATH"
+                    echo 'export PATH="$HOME/bin:$PATH"' >> ~/.zshrc
+                fi
+                
+                log_success "Goose встановлено в $HOME/bin/goose"
+            fi
+        else
+            log_error "Не знайдено goose binary в архіві"
+            cd - > /dev/null
+            rm -rf "$TEMP_DIR"
+            return 1
+        fi
+        
+        # Очистити temp files
+        cd - > /dev/null
+        rm -rf "$TEMP_DIR"
+        
+        return 0
+    else
+        log_error "Не вдалося завантажити Goose з GitHub"
+        rm -rf "$TEMP_DIR"
+        return 1
+    fi
 }
 
 # =============================================================================
@@ -319,10 +435,26 @@ setup_python_venv() {
     
     cd "$REPO_ROOT"
     
+    # Визначити який python використовувати
+    local python_cmd="python3"
+    if check_command python3.11; then
+        python_cmd="python3.11"
+        log_info "Використовується Python 3.11 для віртуального середовища"
+    fi
+    
+    # Видалити старе venv якщо воно створене неправильною версією Python
+    if [ -d "web/venv" ]; then
+        local venv_python_version=$(web/venv/bin/python --version 2>&1 | awk '{print $2}')
+        if [[ ! "$venv_python_version" == 3.11.* ]]; then
+            log_warn "Видалення старого venv (версія $venv_python_version)"
+            rm -rf web/venv
+        fi
+    fi
+    
     # Створити venv якщо не існує
     if [ ! -d "web/venv" ]; then
-        log_info "Створення віртуального середовища..."
-        python3 -m venv web/venv
+        log_info "Створення віртуального середовища з Python 3.11..."
+        $python_cmd -m venv web/venv
         log_success "Віртуальне середовище створено"
     else
         log_info "Віртуальне середовище вже існує"
@@ -332,8 +464,29 @@ setup_python_venv() {
     log_info "Встановлення Python залежностей..."
     source web/venv/bin/activate
     
-    pip install --upgrade pip --quiet
-    pip install -r requirements.txt --quiet
+    # Оновити pip, setuptools, wheel
+    log_info "Оновлення pip, setuptools, wheel..."
+    pip install --upgrade pip setuptools wheel
+    
+    # Встановити залежності поетапно для уникнення конфліктів
+    log_info "Встановлення core залежностей..."
+    pip install Flask==2.3.3 Flask-CORS==4.0.0 requests==2.31.0 aiohttp==3.8.5
+    
+    log_info "Встановлення PyTorch та TTS залежностей (це може зайняти час)..."
+    # Встановити PyTorch з Metal підтримкою
+    pip install torch==2.1.0 torchaudio==2.1.0
+    
+    log_info "Встановлення Ukrainian TTS (це може зайняти час - завантажується з GitHub)..."
+    pip install git+https://github.com/robinhad/ukrainian-tts.git || {
+        log_warn "Не вдалося встановити ukrainian-tts з GitHub, спроба пізніше..."
+    }
+    
+    log_info "Встановлення решти залежностей..."
+    pip install -r requirements.txt || {
+        log_warn "Деякі залежності не встановились, спроба встановити критичні..."
+        pip install websockets jsonschema pyyaml colorama soundfile scipy librosa num2words
+        pip install openai faster-whisper aiofiles
+    }
     
     # Перевірка TTS підтримки
     log_info "Перевірка підтримки PyTorch MPS (Metal Performance Shaders)..."
@@ -456,8 +609,70 @@ create_directories() {
     mkdir -p "$HOME/.local/share/goose/sessions"
     mkdir -p "$HOME/.config/goose"
     mkdir -p data
+    mkdir -p "$REPO_ROOT/web/static/assets"
     
     log_success "Директорії створено"
+}
+
+# =============================================================================
+# Завантаження 3D моделей
+# =============================================================================
+
+download_3d_models() {
+    log_step "КРОК 13: Завантаження 3D моделей"
+    
+    local model_path="$REPO_ROOT/web/static/assets/DamagedHelmet.glb"
+    local model_url="https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/DamagedHelmet/glTF-Binary/DamagedHelmet.glb"
+    
+    if [ -f "$model_path" ]; then
+        log_info "3D модель DamagedHelmet.glb вже існує"
+        local file_size=$(stat -f%z "$model_path" 2>/dev/null || echo "0")
+        if [ "$file_size" -gt 100000 ]; then
+            log_success "Модель валідна (розмір: $(($file_size / 1024)) KB)"
+            return 0
+        else
+            log_warn "Модель пошкоджена або неповна, перезавантажуємо..."
+            rm -f "$model_path"
+        fi
+    fi
+    
+    log_info "Завантаження DamagedHelmet.glb з Khronos glTF Sample Models..."
+    
+    if check_command curl; then
+        if curl -L -f -o "$model_path" "$model_url" 2>/dev/null; then
+            local file_size=$(stat -f%z "$model_path" 2>/dev/null || echo "0")
+            if [ "$file_size" -gt 100000 ]; then
+                log_success "3D модель завантажено успішно ($(($file_size / 1024)) KB)"
+                return 0
+            else
+                log_error "Завантажена модель занадто мала (можливо, помилка)"
+                rm -f "$model_path"
+                return 1
+            fi
+        else
+            log_error "Не вдалося завантажити модель через curl"
+            return 1
+        fi
+    elif check_command wget; then
+        if wget -q -O "$model_path" "$model_url" 2>/dev/null; then
+            local file_size=$(stat -f%z "$model_path" 2>/dev/null || echo "0")
+            if [ "$file_size" -gt 100000 ]; then
+                log_success "3D модель завантажено успішно ($(($file_size / 1024)) KB)"
+                return 0
+            else
+                log_error "Завантажена модель занадто мала (можливо, помилка)"
+                rm -f "$model_path"
+                return 1
+            fi
+        else
+            log_error "Не вдалося завантажити модель через wget"
+            return 1
+        fi
+    else
+        log_error "curl або wget не знайдено - не можу завантажити модель"
+        log_warn "Встановіть curl: brew install curl"
+        return 1
+    fi
 }
 
 # =============================================================================
@@ -523,14 +738,81 @@ EOF
 # =============================================================================
 
 configure_goose() {
-    log_step "КРОК 14: Налаштування Goose AI"
+    log_step "КРОК 15: Налаштування Goose AI"
     
-    if [ ! -f "$HOME/.config/goose/config.yaml" ]; then
-        log_warn ""
-        log_warn "═══════════════════════════════════════════════════════════════"
-        log_warn "  Goose потребує налаштування для роботи з GitHub Copilot"
-        log_warn "═══════════════════════════════════════════════════════════════"
-        log_warn ""
+    # Перевірка чи Goose вже налаштований
+    if [ -f "$HOME/.config/goose/config.yaml" ]; then
+        # Перевірка чи provider налаштований
+        if grep -q "provider:" "$HOME/.config/goose/config.yaml" 2>/dev/null; then
+            log_success "Goose вже налаштовано"
+            return 0
+        fi
+    fi
+    
+    # Goose НЕ налаштований - потрібна конфігурація
+    log_warn ""
+    log_warn "═══════════════════════════════════════════════════════════════"
+    log_warn "  Goose потребує налаштування AI provider"
+    log_warn "═══════════════════════════════════════════════════════════════"
+    log_warn ""
+    
+    # Створити директорію config якщо не існує
+    mkdir -p "$HOME/.config/goose"
+    
+    # Спробувати автоматичну конфігурацію з OpenRouter (для ATLAS)
+    if [ -f "$REPO_ROOT/config/config.yaml" ]; then
+        log_info "Використовується OpenRouter конфігурація з ATLAS config..."
+        
+        # Створити базовий Goose config з GitHub Models
+        cat > "$HOME/.config/goose/config.yaml" << 'GOOSE_CONFIG'
+# Goose AI Configuration for ATLAS
+# Provider: GitHub Models (free access to multiple AI models)
+
+provider: openai
+model: gpt-4o  # GitHub Models default
+
+# GitHub Models API Configuration
+openai:
+  api_key: ${GITHUB_TOKEN}
+  base_url: https://models.inference.ai.azure.com
+
+# Available GitHub Models (безкоштовні):
+# - gpt-4o (рекомендовано)
+# - gpt-4o-mini (швидка)
+# - Meta-Llama-3.1-405B-Instruct
+# - Meta-Llama-3.1-70B-Instruct
+# - Mistral-large-2407
+# - Phi-3.5-mini-instruct
+# та багато інших...
+GOOSE_CONFIG
+        
+        log_success "Goose config створено: $HOME/.config/goose/config.yaml"
+        log_info ""
+        log_info "⚠️  ВАЖЛИВО: Налаштуйте GitHub Token"
+        log_info ""
+        log_info "Як отримати GitHub Token:"
+        log_info "  1. Відкрийте: https://github.com/settings/tokens"
+        log_info "  2. Generate new token (classic)"
+        log_info "  3. Виберіть scopes: read:user, read:project"
+        log_info "  4. Додайте до environment:"
+        log_info "     export GITHUB_TOKEN='ghp_...'"
+        log_info "     echo 'export GITHUB_TOKEN=\"ghp_...\"' >> ~/.zshrc"
+        log_info ""
+        log_info "  5. Або запустіть: ./scripts/configure-goose.sh"
+        log_info ""
+        
+        # Перевірка чи є GitHub Token в environment
+        if [ -n "$GITHUB_TOKEN" ]; then
+            log_success "✅ GITHUB_TOKEN знайдено в environment"
+            log_success "✅ Goose готовий до роботи з GitHub Models!"
+        else
+            log_warn "⚠️  GITHUB_TOKEN НЕ знайдено в environment"
+            log_warn "   Запустіть: ./scripts/configure-goose.sh"
+            log_warn "   Або додайте вручну до ~/.zshrc"
+        fi
+        
+    else
+        # Fallback: інтерактивне налаштування
         log_info "Запускаємо інтерактивне налаштування..."
         log_info "Будь ласка, дотримуйтесь інструкцій на екрані"
         log_info ""
@@ -543,8 +825,6 @@ configure_goose() {
             log_error "Goose binary не знайдено"
             return 1
         fi
-    else
-        log_success "Goose вже налаштовано"
     fi
 }
 
@@ -553,7 +833,7 @@ configure_goose() {
 # =============================================================================
 
 test_installation() {
-    log_step "КРОК 15: Тестування установки"
+    log_step "КРОК 16: Тестування установки"
     
     local all_ok=true
     
@@ -701,6 +981,7 @@ main() {
     build_whisper_cpp
     download_whisper_models
     create_directories
+    download_3d_models
     configure_system
     configure_goose
     test_installation
