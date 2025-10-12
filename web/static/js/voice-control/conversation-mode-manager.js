@@ -684,11 +684,14 @@ export class ConversationModeManager {
   /**
      * Обробка завершення TTS (Атлас закінчив говорити)
      * ОНОВЛЕНО (11.10.2025 - 20:30): Підтримка activation responses + continuous loop
+     * FIXED (12.10.2025 - 17:15): Правильна обробка payload structure
      */
   handleTTSCompleted(event) {
-    const mode = event?.mode || 'chat';
-    const isInConversation = event?.isInConversation || false;
-    const isActivationResponse = event?.isActivationResponse || false;
+    // EventManager може передавати або {type, payload} або прямий payload
+    const payload = event?.payload || event;
+    const mode = payload?.mode || 'chat';
+    const isInConversation = payload?.isInConversation || false;
+    const isActivationResponse = payload?.isActivationResponse || false;
 
     console.log('[CONVERSATION] 🔊 TTS_COMPLETED event received!', {
       isInConversation,
@@ -696,7 +699,8 @@ export class ConversationModeManager {
       currentMode: this.state.getCurrentMode(),
       eventMode: mode,
       isActivationResponse,
-      event
+      event,
+      payload
     });
 
     // Ігноруємо якщо НЕ в conversation mode
