@@ -99,17 +99,24 @@ export class ConversationEventHandlers {
     );
 
     // TTS events (FIXED: використовуємо правильні константи)
-    this.subscribe(
+    // КРИТИЧНО (12.10.2025 - 14:30): TTS події емітуються через window.eventManager в app-refactored.js
+    // Потрібно підписуватись на ГЛОБАЛЬНИЙ eventManager, НЕ локальний!
+    const globalEventManager = window.eventManager || this.eventManager;
+    
+    this.subscribeToGlobal(
+      globalEventManager,
       Events.TTS_STARTED,  // було TTS_PLAYBACK_STARTED (НЕ існує!)
       this.handleTTSStarted.bind(this)
     );
 
-    this.subscribe(
+    this.subscribeToGlobal(
+      globalEventManager,
       Events.TTS_COMPLETED,  // 'tts.completed' - КРИТИЧНО: той самий event що емітить app-refactored.js!
       this.handleTTSCompleted.bind(this)
     );
 
-    this.subscribe(
+    this.subscribeToGlobal(
+      globalEventManager,
       Events.TTS_ERROR,  // було TTS_PLAYBACK_ERROR (НЕ існує!)
       this.handleTTSError.bind(this)
     );
@@ -157,6 +164,21 @@ export class ConversationEventHandlers {
       logger.debug(`📌 Subscribed to: ${eventName}`);
     } catch (error) {
       logger.error(`Failed to subscribe to ${eventName}:`, error);
+    }
+  }
+
+  /**
+     * Helper для підписки на глобальний EventManager (TTS, Chat події)
+     * FIXED (12.10.2025 - 14:30): App-level події емітуються через window.eventManager
+     * @private
+     */
+  subscribeToGlobal(eventManager, eventName, handler) {
+    try {
+      const unsubscribe = eventManager.on(eventName, handler);
+      this.subscriptions.push(unsubscribe);
+      logger.debug(`📌 Subscribed to GLOBAL: ${eventName} (via ${eventManager === window.eventManager ? 'window.eventManager' : 'local eventManager'})`);
+    } catch (error) {
+      logger.error(`Failed to subscribe to global ${eventName}:`, error);
     }
   }
 

@@ -1,6 +1,6 @@
 # ATLAS v4.0 - Adaptive Task and Learning Assistant System
 
-**LAST UPDATED:** 12 жовтня 2025 - День ~17:15 (Conversation Mode TTS_COMPLETED Payload Fix)
+**LAST UPDATED:** 12 жовтня 2025 - День ~14:30 (Conversation Mode TTS_COMPLETED Subscription Fix)
 **ALWAYS follow these instructions first and fallback to additional search and context gathering only if the information here is incomplete or found to be in error.**
 
 ATLAS is an intelligent multi-agent orchestration system with Flask web frontend, Node.js orchestrator, Ukrainian TTS/STT voice control, and living 3D GLB helmet interface. Features three specialized AI agents (Atlas, Тетяна, Гриша) working in a coordinated workflow with real-time voice interaction and **full context-aware conversations with memory**.
@@ -67,6 +67,20 @@ ATLAS is an intelligent multi-agent orchestration system with Flask web frontend
 - **Виправлено:** filters.js (2 умови - ФІЛЬТР 2 і ФІЛЬТР 3)
 - **Критично:** User-initiated дії НЕ мають фільтруватись як automatic listening
 - **Детально:** `docs/QUICK_SEND_FILTER_FIX_2025-10-12.md`
+
+### ✅ Conversation Mode TTS Subscription Fix (FIXED 12.10.2025 - день ~14:30)
+- **Проблема:** Після TTS Atlas НЕ запускався continuous listening - conversation loop НЕ продовжувався
+- **Симптом:** TTS_COMPLETED емітується через window.eventManager → ConversationEventHandlers НЕ отримує подію → handleTTSCompleted НЕ викликається → pending message НЕ відправляється
+- **Корінь:** ConversationEventHandlers підписувався на `this.eventManager` (локальний Voice Control), але app-refactored емітує через `window.eventManager` (глобальний)
+- **Рішення #1:** Створено метод `subscribeToGlobal(eventManager, eventName, handler)` для app-level подій
+- **Рішення #2:** TTS події (TTS_STARTED, TTS_COMPLETED, TTS_ERROR) тепер підписуються через `window.eventManager || this.eventManager`
+- **Рішення #3:** Додано diagnostic logging: "Subscribed to GLOBAL: tts.completed (via window.eventManager)"
+- **Результат:** ConversationEventHandlers отримує TTS_COMPLETED → handleTTSCompleted викликається → pending message відправляється АБО continuous listening запускається
+- **Виправлено:** event-handlers.js (~25 LOC: subscribeToGlobal method, TTS subscriptions через global EventManager)
+- **Workflow тепер:** Atlas TTS → TTS_COMPLETED (window) → ConversationEventHandlers → handleTTSCompleted → pending send АБО continuous listening
+- **Критично:** App-level події (TTS, Chat) ЗАВЖДИ емітуються через window.eventManager, ЗАВЖДИ підписуйтесь через window.eventManager для цих подій!
+- **Паралель:** Точно та сама проблема як Keyword Activation TTS Fix (16:45) - локальний vs глобальний EventManager
+- **Детально:** `docs/CONVERSATION_TTS_SUBSCRIPTION_FIX_2025-10-12.md`
 
 ### ✅ Conversation Mode Streaming Conflict Fix (FIXED 12.10.2025 - день ~17:00)
 - **Проблема:** Conversation mode НЕ перевіряв streaming state - друге повідомлення відкидалось chat manager
