@@ -310,9 +310,18 @@ export class MCPTodoManager {
         this.logger.system('mcp-todo', `[TODO] Planning tools for item ${item.id}`);
 
         try {
+            // DIAGNOSTIC: Check mcpManager before using
+            if (!this.mcpManager) {
+                this.logger.error('mcp-todo', `[TODO] MCP Manager is null in planTools!`);
+                throw new Error('MCP Manager is not initialized (null) in planTools. Check DI registration and service instantiation.');
+            }
+            if (typeof this.mcpManager.listTools !== 'function') {
+                this.logger.error('mcp-todo', `[TODO] MCP Manager missing listTools method! Type: ${typeof this.mcpManager.listTools}`);
+                throw new Error('MCP Manager does not have listTools() method. Check implementation and DI registration.');
+            }
             // Get available MCP tools
             const availableTools = await this.mcpManager.listTools();
-            
+
             // Import Tetyana Plan Tools prompt
             const { MCP_PROMPTS } = await import('../../prompts/mcp/index.js');
             const planPrompt = MCP_PROMPTS.TETYANA_PLAN_TOOLS;
@@ -329,7 +338,7 @@ Previous items: ${JSON.stringify(todo.items.slice(0, item.id - 1).map(i => ({ id
             let apiResponse;
             try {
                 this.logger.system('mcp-todo', `[TODO] Calling LLM API at http://localhost:4000...`);
-                
+
                 apiResponse = await axios.post('http://localhost:4000/v1/chat/completions', {
                     model: 'openai/gpt-4o-mini',
                     messages: [
@@ -348,9 +357,9 @@ Previous items: ${JSON.stringify(todo.items.slice(0, item.id - 1).map(i => ({ id
                     headers: { 'Content-Type': 'application/json' },
                     timeout: 15000
                 });
-                
+
                 this.logger.system('mcp-todo', `[TODO] LLM API responded successfully`);
-                
+
             } catch (apiError) {
                 this.logger.error('mcp-todo', `[TODO] LLM API call failed: ${apiError.message}`);
                 if (apiError.code === 'ECONNREFUSED') {
@@ -360,14 +369,14 @@ Previous items: ${JSON.stringify(todo.items.slice(0, item.id - 1).map(i => ({ id
             }
 
             const response = apiResponse.data.choices[0].message.content;
-            
+
             // DIAGNOSTIC: Log raw response
             this.logger.system('mcp-todo', `[TODO] Raw LLM response (first 200 chars): ${response.substring(0, 200)}`);
             this.logger.system('mcp-todo', `[TODO] Full LLM response: ${response}`);
-            
+
             const plan = this._parseToolPlan(response);
             this.logger.system('mcp-todo', `[TODO] Parsed plan: ${JSON.stringify(plan, null, 2)}`);
-            
+
             plan.tts_phrase = this._generatePlanTTS(plan, item);
 
             this.logger.system('mcp-todo', `[TODO] Planned ${plan.tool_calls.length} tool calls for item ${item.id}`);
@@ -379,7 +388,7 @@ Previous items: ${JSON.stringify(todo.items.slice(0, item.id - 1).map(i => ({ id
             }
 
             return plan;
-            
+
         } catch (error) {
             this.logger.error('mcp-todo', `[TODO] Failed to plan tools for item ${item.id}: ${error.message}`);
             this.logger.error('mcp-todo', `[TODO] Error stack: ${error.stack}`);
