@@ -727,11 +727,23 @@ cmd_stop() {
     stop_service "Whisper Service" "$LOGS_DIR/whisper.pid"
     stop_service "Fallback LLM" "$LOGS_DIR/fallback.pid"
     
-    # ✅ CRITICAL FIX: Kill ALL node server.js processes (not just those on ports)
+    # ✅ CRITICAL FIX: Kill ALL node server.js processes (не чіпати ті, що займають порт 4000)
     log_info "Cleaning up any remaining orchestrator processes..."
     local remaining_pids=$(pgrep -f "node server.js" 2>/dev/null || true)
     if [ -n "$remaining_pids" ]; then
         for pid in $remaining_pids; do
+            # Перевіряємо чи цей PID займає порт 4000
+            local ports=$(lsof -Pan -p $pid -i 2>/dev/null | awk '{print $9}' | grep -Eo ':[0-9]+' | tr -d ':')
+            local skip=false
+            for p in $ports; do
+                if [ "$p" = "4000" ]; then
+                    log_info "Skipping process PID $pid (uses protected port 4000)"
+                    skip=true
+                fi
+            done
+            if [ "$skip" = "true" ]; then
+                continue
+            fi
             log_warn "Killing remaining orchestrator process (PID: $pid)"
             kill -9 $pid 2>/dev/null || true
         done
