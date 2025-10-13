@@ -39,12 +39,13 @@ if [ -f "$HOME/.config/goose/config.yaml" ]; then
     fi
 fi
 
-# Створити Goose config з GitHub Models API
-echo -e "${YELLOW}Створюємо конфігурацію Goose для GitHub Models...${NC}"
+# Створити Goose config з GitHub Models API + MCP Extensions
+echo -e "${YELLOW}Створюємо конфігурацію Goose для GitHub Models з MCP Extensions...${NC}"
 
 cat > "$HOME/.config/goose/config.yaml" << 'GOOSE_CONFIG'
-# Goose AI Configuration for ATLAS
+# Goose AI Configuration for ATLAS v4.0
 # Provider: GitHub Models API
+# MCP Extensions: developer, playwright, computercontroller
 # Generated: $(date)
 
 provider: openai
@@ -54,29 +55,89 @@ model: gpt-4o
 openai:
   api_key: ${GITHUB_TOKEN}
   base_url: https://models.inference.ai.azure.com
+
+# MCP Extensions для ATLAS агентів (Тетяна, Гриша)
+extensions:
+  # Developer Tools (файли, команди, процеси)
+  - name: developer
+    type: mcp
+    config:
+      command: npx
+      args:
+        - -y
+        - "@modelcontextprotocol/server-filesystem"
+      env:
+        ALLOWED_DIRECTORIES: "/Users,/tmp,/Desktop,/Applications"
+    
+  # Playwright (браузер automation)
+  - name: playwright
+    type: mcp
+    config:
+      command: npx
+      args:
+        - -y
+        - "@executeautomation/playwright-mcp-server"
+      env:
+        HEADLESS: "false"
+    
+  # Computer Controller (mouse, keyboard, screenshots)
+  - name: computercontroller
+    type: mcp
+    config:
+      command: npx
+      args:
+        - -y
+        - "@anthropic/computer-use"
+      env:
+        DISPLAY_NUM: ":0"
+
+# Налаштування безпеки
+security:
+  allow_code_execution: true
+  allow_file_access: true
+  allow_network_access: true
   
 # Available GitHub Models:
 # - gpt-4o (recommended)
 # - gpt-4o-mini
-# - gpt-4-turbo
-# - Llama-3.2-11B-Vision-Instruct
-# - Llama-3.2-90B-Vision-Instruct
-# - Phi-3.5-mini-instruct
-# - Phi-3.5-MoE-instruct
 # - Meta-Llama-3.1-405B-Instruct
 # - Meta-Llama-3.1-70B-Instruct
-# - Meta-Llama-3.1-8B-Instruct
-# - Mistral-large
 # - Mistral-large-2407
-# - Mistral-Nemo
-# - Mistral-small
-# - Cohere-command-r-plus
-# - Cohere-command-r
-# - AI21-Jamba-1.5-Large
-# - AI21-Jamba-1.5-Mini
+# - Phi-3.5-mini-instruct
+# та багато інших...
 GOOSE_CONFIG
 
 echo -e "${GREEN}✅ Конфігурація створена: ${NC}$HOME/.config/goose/config.yaml"
+echo ""
+
+# Встановити MCP packages
+echo -e "${YELLOW}Встановлення MCP npm packages...${NC}"
+npm install -g @modelcontextprotocol/server-filesystem \
+               @executeautomation/playwright-mcp-server \
+               @anthropic/computer-use 2>/dev/null || {
+    echo -e "${YELLOW}⚠️  Деякі MCP packages не встановились${NC}"
+}
+
+# Перевірка MCP packages
+echo ""
+echo "Перевірка MCP extensions:"
+if npm list -g @modelcontextprotocol/server-filesystem >/dev/null 2>&1; then
+    echo -e "  ${GREEN}✅${NC} developer (filesystem)"
+else
+    echo -e "  ${RED}❌${NC} developer (filesystem)"
+fi
+
+if npm list -g @executeautomation/playwright-mcp-server >/dev/null 2>&1; then
+    echo -e "  ${GREEN}✅${NC} playwright"
+else
+    echo -e "  ${RED}❌${NC} playwright"
+fi
+
+if npm list -g @anthropic/computer-use >/dev/null 2>&1; then
+    echo -e "  ${GREEN}✅${NC} computercontroller"
+else
+    echo -e "  ${YELLOW}⚠️${NC}  computercontroller (опціонально)"
+fi
 echo ""
 
 # Перевірка API ключів

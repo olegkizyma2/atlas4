@@ -807,35 +807,49 @@ EOF
 # =============================================================================
 
 configure_goose() {
-    log_step "КРОК 15: Налаштування Goose AI"
+    log_step "КРОК 15: Налаштування Goose AI з MCP Extensions"
     
     # Перевірка чи Goose вже налаштований
     if [ -f "$HOME/.config/goose/config.yaml" ]; then
         # Перевірка чи provider налаштований
         if grep -q "provider:" "$HOME/.config/goose/config.yaml" 2>/dev/null; then
-            log_success "Goose вже налаштовано"
-            return 0
+            # Перевірка чи є MCP extensions
+            if grep -q "extensions:" "$HOME/.config/goose/config.yaml" 2>/dev/null; then
+                log_success "Goose вже налаштовано з MCP extensions"
+                return 0
+            else
+                log_warn "Goose налаштовано, але БЕЗ MCP extensions - оновлюємо..."
+            fi
         fi
     fi
     
     # Goose НЕ налаштований - потрібна конфігурація
     log_warn ""
     log_warn "═══════════════════════════════════════════════════════════════"
-    log_warn "  Goose потребує налаштування AI provider"
+    log_warn "  Goose потребує налаштування AI provider + MCP Extensions"
     log_warn "═══════════════════════════════════════════════════════════════"
     log_warn ""
     
     # Створити директорію config якщо не існує
     mkdir -p "$HOME/.config/goose"
     
-    # Спробувати автоматичну конфігурацію з OpenRouter (для ATLAS)
+    # Встановити MCP npm packages глобально
+    log_info "Встановлення MCP extensions packages..."
+    npm install -g @modelcontextprotocol/server-filesystem \
+                   @executeautomation/playwright-mcp-server \
+                   @anthropic/computer-use 2>/dev/null || {
+        log_warn "Деякі MCP packages не встановились - спробуйте вручну після установки"
+    }
+    
+    # Спробувати автоматичну конфігурацію з GitHub Models + MCP
     if [ -f "$REPO_ROOT/config/config.yaml" ]; then
-        log_info "Використовується OpenRouter конфігурація з ATLAS config..."
+        log_info "Створення Goose config з GitHub Models + MCP Extensions..."
         
-        # Створити базовий Goose config з GitHub Models
+        # Створити повний Goose config з MCP extensions
         cat > "$HOME/.config/goose/config.yaml" << 'GOOSE_CONFIG'
-# Goose AI Configuration for ATLAS
+# Goose AI Configuration for ATLAS v4.0
 # Provider: GitHub Models (free access to multiple AI models)
+# MCP Extensions: developer, playwright, computercontroller
 
 provider: openai
 model: gpt-4o  # GitHub Models default
@@ -844,6 +858,47 @@ model: gpt-4o  # GitHub Models default
 openai:
   api_key: ${GITHUB_TOKEN}
   base_url: https://models.inference.ai.azure.com
+
+# MCP Extensions для ATLAS агентів (Тетяна, Гриша)
+extensions:
+  # Developer Tools (файли, команди, процеси)
+  - name: developer
+    type: mcp
+    config:
+      command: npx
+      args:
+        - -y
+        - "@modelcontextprotocol/server-filesystem"
+      env:
+        ALLOWED_DIRECTORIES: "/Users,/tmp,/Desktop,/Applications"
+    
+  # Playwright (браузер automation)
+  - name: playwright
+    type: mcp
+    config:
+      command: npx
+      args:
+        - -y
+        - "@executeautomation/playwright-mcp-server"
+      env:
+        HEADLESS: "false"
+    
+  # Computer Controller (mouse, keyboard, screenshots)
+  - name: computercontroller
+    type: mcp
+    config:
+      command: npx
+      args:
+        - -y
+        - "@anthropic/computer-use"
+      env:
+        DISPLAY_NUM: ":0"
+
+# Налаштування безпеки
+security:
+  allow_code_execution: true
+  allow_file_access: true
+  allow_network_access: true
 
 # Available GitHub Models (безкоштовні):
 # - gpt-4o (рекомендовано)
@@ -856,8 +911,9 @@ openai:
 GOOSE_CONFIG
         
         log_success "Goose config створено: $HOME/.config/goose/config.yaml"
+        log_success "MCP Extensions налаштовані: developer, playwright, computercontroller"
         log_info ""
-        log_info "⚠️  ВАЖЛИВО: Налаштуйте GitHub Token"
+        log_info "⚠️  ВАЖЛИВО: Налаштуйте GitHub Token для AI моделей"
         log_info ""
         log_info "Як отримати GitHub Token:"
         log_info "  1. Відкрийте: https://github.com/settings/tokens"
@@ -869,15 +925,40 @@ GOOSE_CONFIG
         log_info ""
         log_info "  5. Або запустіть: ./scripts/configure-goose.sh"
         log_info ""
+        log_info "📚 Детальна документація MCP: docs/GOOSE_MCP_SETUP_GUIDE.md"
+        log_info ""
         
-        # Перевірка чи є GitHub Token в environment
+        # Перевірка чи є GitHub Token in environment
         if [ -n "$GITHUB_TOKEN" ]; then
             log_success "✅ GITHUB_TOKEN знайдено в environment"
-            log_success "✅ Goose готовий до роботи з GitHub Models!"
+            log_success "✅ Goose готовий до роботи з GitHub Models + MCP!"
         else
             log_warn "⚠️  GITHUB_TOKEN НЕ знайдено в environment"
             log_warn "   Запустіть: ./scripts/configure-goose.sh"
             log_warn "   Або додайте вручну до ~/.zshrc"
+        fi
+        
+        # Перевірка MCP packages
+        log_info ""
+        log_info "Перевірка MCP packages..."
+        local mcp_ok=true
+        
+        if ! npm list -g @modelcontextprotocol/server-filesystem >/dev/null 2>&1; then
+            log_warn "⚠️  MCP filesystem server не встановлено"
+            mcp_ok=false
+        fi
+        
+        if ! npm list -g @executeautomation/playwright-mcp-server >/dev/null 2>&1; then
+            log_warn "⚠️  MCP playwright server не встановлено"
+            mcp_ok=false
+        fi
+        
+        if [ "$mcp_ok" = "true" ]; then
+            log_success "✅ MCP packages встановлено"
+        else
+            log_warn "Деякі MCP packages відсутні. Встановіть вручну:"
+            log_warn "  npm install -g @modelcontextprotocol/server-filesystem"
+            log_warn "  npm install -g @executeautomation/playwright-mcp-server"
         fi
         
     else
