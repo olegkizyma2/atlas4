@@ -142,12 +142,18 @@ async function executeConfiguredStage(stageConfig, userMessage, session, res, op
  */
 function extractModeFromResponse(content) {
   try {
-    const cleanContent = content.replace(/^\[SYSTEM\]\s*/, '').trim();
+    // FIXED 13.10.2025 - Handle content as object or string
+    let contentStr = content;
+    if (typeof content === 'object' && content !== null) {
+      contentStr = JSON.stringify(content);
+    }
+    
+    const cleanContent = contentStr.replace(/^\[SYSTEM\]\s*/, '').trim();
     const json = JSON.parse(cleanContent);
     return json.mode === 'chat' ? 'chat' : 'task';
   } catch (error) {
     // Fallback parsing
-    const text = content.toLowerCase();
+    const text = (typeof content === 'string' ? content : JSON.stringify(content)).toLowerCase();
     if (text.includes('"mode":"chat"') || text.includes('mode: chat')) {
       return 'chat';
     }
@@ -901,6 +907,7 @@ async function executeWorkflowStages(userMessage, session, res, allStages, workf
  * Execute task workflow stages
  */
 async function executeTaskWorkflow(userMessage, session, res, allStages, workflowConfig) {
+  const workflowStart = Date.now(); // FIXED 13.10.2025 - Define workflowStart
   let currentStage = session.currentStage || 1;
   const maxCycles = workflowConfig.maxCycles || 3;
   let cycleCount = 0;

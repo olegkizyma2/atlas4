@@ -86,20 +86,26 @@ export class MCPTodoManager {
         this.logger.system('mcp-todo', `[TODO] Creating TODO for request: "${request}"`);
 
         try {
-            // Call LLM to generate TODO structure via System API (port 4000)
-            const prompt = this._buildTodoCreationPrompt(request, context);
+            // Import full prompt from MCP prompts
+            const { MCP_PROMPTS } = await import('../../prompts/mcp/index.js');
+            const todoPrompt = MCP_PROMPTS.ATLAS_TODO_PLANNING;
             
-            // FIXED 13.10.2025 - Use direct axios call to port 4000 API
+            // Build user message with context
+            const userMessage = todoPrompt.userPrompt
+                .replace('{{request}}', request)
+                .replace('{{context}}', JSON.stringify(context, null, 2));
+            
+            // FIXED 13.10.2025 - Use FULL prompt with JSON schema and examples
             const apiResponse = await axios.post('http://localhost:4000/v1/chat/completions', {
                 model: 'openai/gpt-4o',
                 messages: [
                     {
                         role: 'system',
-                        content: 'You are Atlas, a planning AI. Create a TODO list in JSON format based on user requests.'
+                        content: todoPrompt.systemPrompt // Full detailed prompt with schema
                     },
                     {
                         role: 'user',
-                        content: prompt
+                        content: userMessage
                     }
                 ],
                 temperature: 0.3,
