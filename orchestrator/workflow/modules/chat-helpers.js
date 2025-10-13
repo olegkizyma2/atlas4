@@ -25,7 +25,19 @@ export async function detectChatTopic(userMessage, session) {
       .join('\n');
 
     const prompt = `${SYSTEM_CHAT_TOPIC_SYSTEM_PROMPT}\n\n${SYSTEM_CHAT_TOPIC_USER_PROMPT(userMessage, context)}`;
-    const resp = await callGooseAgent(prompt, session.id, { enableTools: false, agent: 'system' });
+    const respRaw = await callGooseAgent(prompt, session.id, { enableTools: false, agent: 'system' });
+
+    // Normalize respRaw to a string before manipulating it (sometimes an object is returned)
+    let resp = respRaw;
+    if (typeof resp === 'object' && resp !== null) {
+      try {
+        resp = JSON.stringify(resp);
+      } catch (e) {
+        resp = String(resp);
+      }
+    } else if (typeof resp !== 'string') {
+      resp = String(resp || '');
+    }
 
     return JSON.parse(resp.replace(/^```json\s*/, '').replace(/\s*```$/, '').trim());
   } catch (e) {
