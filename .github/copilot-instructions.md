@@ -1,6 +1,6 @@
 # ATLAS v4.0 - Adaptive Task and Learning Assistant System
 
-**LAST UPDATED:** 13 жовтня 2025 - День ~19:00 (AI Backend Modular System Created)
+**LAST UPDATED:** 13 жовтня 2025 - Пізній вечір ~03:40 (Phase 3 Stage Processors Implemented)
 
 ---
 
@@ -399,6 +399,116 @@ ATLAS is an intelligent multi-agent orchestration system with Flask web frontend
   - Додано AI_BACKEND_CONFIG в global-config.js
   - Потрібна інтеграція в DI Container та agent-stage-processor.js
 - **Детально:** `docs/AI_BACKEND_MODULAR_SYSTEM.md`
+
+### ✅ MCP Dynamic TODO Workflow System (DESIGNED 13.10.2025 - вечір ~20:00)
+- **Новий концепт:** MCP-First режим з динамічним TODO управлінням та синхронізацією TTS
+- **Мотивація:** Швидший темп виконання, адаптивність, прозорість прогресу, короткі TTS фрази
+- **Ключові особливості:**
+  - **Atlas створює TODO** - стандартне (1-3 пункти) або розширене (4-10 пунктів)
+  - **Тетяна виконує item-by-item** - підбирає MCP tools, виконує кожен пункт окремо
+  - **Гриша перевіряє кожен пункт** - не ціле завдання, а окремо кожен item
+  - **Динамічна адаптація** - Atlas коригує TODO при failing (до 3 спроб)
+  - **TTS синхронізація** - 3 рівні (quick 100ms, normal 1s, detailed 3s)
+- **Нові stage definitions:**
+  - Stage 0.5: Backend Selection (goose vs mcp routing)
+  - Stage 1-MCP: Atlas TODO Planning (через port 4000 LLM)
+  - Stage 2.1-MCP: Tetyana Plan Tools (підбір MCP tools)
+  - Stage 2.2-MCP: Tetyana Execute Tools (MCP Manager execution)
+  - Stage 2.3-MCP: Grisha Verify Item (перевірка ТІЛЬКИ item)
+  - Stage 3-MCP: Atlas Adjust TODO (корекція при failing)
+  - Stage 8-MCP: Final Summary (загальний результат)
+- **TODO Execution Loop:**
+  ```
+  Для кожного TODO item:
+    1. Tetyana Plan (які tools потрібні)
+    2. Tetyana Execute (виконати через MCP)
+    3. Grisha Verify (перевірити результат)
+    4. Якщо OK → наступний item
+    5. Якщо FAIL → Atlas Adjust → retry (до 3 спроб)
+  ```
+- **TodoItem Structure:**
+  ```javascript
+  {
+    id, action, tools_needed, mcp_servers,
+    success_criteria, fallback_options, dependencies,
+    attempt, max_attempts, status,
+    execution_results, verification,
+    tts: { start, success, failure, verify }
+  }
+  ```
+- **TTS Synchronization:**
+  - **Quick** (100-200ms): "✅ Виконано", "❌ Помилка", "Перевіряю..."
+  - **Normal** (500-1000ms): "Файл створено на Desktop", "Дані зібрано"
+  - **Detailed** (2-3s): "План з 5 пунктів, починаю виконання"
+- **Переваги над Goose Mode:**
+  - ✅ **Швидкість** - direct MCP без WebSocket overhead
+  - ✅ **Гранулярність** - item-by-item замість all-or-nothing
+  - ✅ **Адаптивність** - dynamic TODO adjustment при проблемах
+  - ✅ **Прозорість** - користувач бачить прогрес кожного пункту
+  - ✅ **Recovery** - retry тільки failed item (не весь workflow)
+  - ✅ **TTS темп** - короткі фрази для швидкого циклу
+- **Implementation Components:**
+  - `orchestrator/workflow/mcp-todo-manager.js` - головний менеджер TODO
+  - `orchestrator/workflow/tts-sync-manager.js` - синхронізація TTS
+  - Prompts: ATLAS_TODO_PLANNING, TETYANA_PLAN_TOOLS, GRISHA_VERIFY_ITEM, ATLAS_ADJUST_TODO
+  - Stage processors для всіх 7 нових stages
+- **Example Workflow:**
+  ```
+  Request: "Знайди інфо про Tesla, створи звіт, збережи на Desktop"
+  
+  1. Atlas → TODO (5 пунктів: open browser, scrape, format, save, verify)
+     TTS: "План з 5 пунктів" (2s)
+  
+  2. Item #1: Open browser
+     - Tetyana Plan → TTS: "Відкриваю браузер" (150ms)
+     - Tetyana Execute → TTS: "✅ Відкрито" (100ms)
+     - Grisha Verify → TTS: "✅ OK" (100ms)
+  
+  3. Item #2: Scrape data
+     - Tetyana Plan → TTS: "Збираю дані" (150ms)
+     - Tetyana Execute → TTS: "✅ Зібрано" (100ms)
+     - Grisha Verify → TTS: "✅ Дані валідні" (200ms)
+  
+  ... (items 3-5) ...
+  
+  6. Summary → TTS: "Завдання виконано на 100%" (2.5s)
+  ```
+- **Критичні правила:**
+  - TODO items ПОСЛІДОВНІ (не паралельні)
+  - Кожен item = 1 конкретна дія
+  - Dependencies обов'язкові
+  - Success criteria чіткі
+  - TTS phrases короткі (max 5-7 слів)
+  - Retry max 3 спроби
+  - Atlas коригує тільки при failing
+  - Grisha перевіряє item (не все завдання)
+  - TTS синхронізована з stage completion
+- **Integration Plan:**
+  - Phase 1: Infrastructure (MCPTodoManager, TTSSyncManager) - 2-3 дні ✅ **COMPLETED**
+  - Phase 2: LLM Prompts (5 нових промптів) - 1-2 дні ✅ **COMPLETED**
+  - Phase 3: Stage Processors (7 нових stages) - 2-3 дні ✅ **COMPLETED**
+  - Phase 4: Integration (executor, routing) - 1-2 дні ⏳ **NEXT**
+  - Phase 5: Testing & Optimization - 2-3 дні ⏳ PENDING
+  - **Total:** 8-13 днів розробки
+- **Поточний статус:** 🔨 PHASE 1+2+3 COMPLETED (Infrastructure + Prompts + Processors)
+  - ✅ Створено MCPTodoManager (orchestrator/workflow/mcp-todo-manager.js)
+  - ✅ Створено TTSSyncManager (orchestrator/workflow/tts-sync-manager.js)
+  - ✅ Створено 5 MCP промптів (prompts/mcp/*)
+  - ✅ Створено 7 stage processors (orchestrator/workflow/stages/*)
+    - ✅ backend-selection-processor.js - routing logic (280 LOC)
+    - ✅ atlas-todo-planning-processor.js - TODO creation (310 LOC)
+    - ✅ tetyana-plan-tools-processor.js - tool selection (290 LOC)
+    - ✅ tetyana-execute-tools-processor.js - tool execution (280 LOC)
+    - ✅ grisha-verify-item-processor.js - verification (320 LOC)
+    - ✅ atlas-adjust-todo-processor.js - adjustment (300 LOC)
+    - ✅ mcp-final-summary-processor.js - summary generation (290 LOC)
+  - ✅ Повна архітектурна документація
+  - ✅ Всі stage definitions визначено
+  - ✅ TodoItem/TodoList data structures
+  - ✅ TTS synchronization strategy
+  - ⏳ Потрібна інтеграція в DI Container (service-registry.js)
+  - ⏳ Потрібний routing в executor (executor-v3.js)
+- **Детально:** `docs/MCP_DYNAMIC_TODO_WORKFLOW_SYSTEM.md`, `docs/MCP_DYNAMIC_TODO_WORKFLOW_SUMMARY.md`
 
 ### ✅ Goose MCP Extensions Configuration (FIXED 13.10.2025 - день ~17:30)
 - **Проблема:** Тетяна та Гриша НЕ мали доступу до реальних інструментів (developer, playwright, computercontroller) - завдання НЕ виконувались
