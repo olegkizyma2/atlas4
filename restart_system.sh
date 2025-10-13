@@ -721,6 +721,16 @@ cmd_stop() {
     stop_service "Whisper Service" "$LOGS_DIR/whisper.pid"
     stop_service "Fallback LLM" "$LOGS_DIR/fallback.pid"
     
+    # ✅ CRITICAL FIX: Kill ALL node server.js processes (not just those on ports)
+    log_info "Cleaning up any remaining orchestrator processes..."
+    local remaining_pids=$(pgrep -f "node server.js" 2>/dev/null || true)
+    if [ -n "$remaining_pids" ]; then
+        for pid in $remaining_pids; do
+            log_warn "Killing remaining orchestrator process (PID: $pid)"
+            kill -9 $pid 2>/dev/null || true
+        done
+    fi
+    
     # Clean up any remaining processes on ports (except Goose port)
     for port in $FRONTEND_PORT $ORCHESTRATOR_PORT $RECOVERY_PORT $TTS_PORT $WHISPER_SERVICE_PORT $FALLBACK_PORT; do
         if ! check_port "$port"; then
