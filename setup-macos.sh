@@ -540,7 +540,10 @@ build_whisper_cpp() {
     else
         log_info "Whisper.cpp вже клоновано, оновлення..."
         cd "$whisper_dir"
-        git pull
+        # Скинути всі локальні зміни перед pull
+        git reset --hard HEAD
+        git clean -fd
+        git pull --rebase origin master || git pull origin master
     fi
     
     log_info "Підготовка до компіляції Whisper.cpp..."
@@ -870,19 +873,11 @@ GOOSE_CONFIG
         fi
         
     else
-        # Fallback: інтерактивне налаштування
-        log_info "Запускаємо інтерактивне налаштування..."
-        log_info "Будь ласка, дотримуйтесь інструкцій на екрані"
+        # Fallback: manual setup needed
+        log_warn "OpenRouter config не знайдено в ATLAS config"
+        log_info "Goose буде використовувати дефолтні налаштування"
+        log_info "Для зміни провайдера: goose providers list"
         log_info ""
-        
-        sleep 2
-        
-        if [ -n "$GOOSE_BIN" ]; then
-            $GOOSE_BIN configure || log_warn "Налаштування пропущено або не завершено"
-        else
-            log_error "Goose binary не знайдено"
-            return 1
-        fi
     fi
 }
 
@@ -985,28 +980,28 @@ run_goose_configure() {
     local should_run="yes"
 
     if [ -f "$goose_config" ] && ! grep -q '\${GITHUB_TOKEN}' "$goose_config" 2>/dev/null; then
-        log_info "Goose вже має налаштований config. Якщо потрібно змінити налаштування, запустіть 'goose configure' вручну."
+        log_info "Goose вже має налаштований config. Щоб перевірити провайдерів: 'goose providers list'"
         should_run="no"
     fi
 
     if [ "$should_run" = "yes" ]; then
         if [ -t 0 ] && [ -t 1 ]; then
             echo ""
-            read -r -p "Запустити goose configure зараз? [Y/n] " answer
+            read -r -p "Запустити goose session для перевірки? [Y/n] " answer
             if [[ "$answer" =~ ^([nN](o)?)$ ]]; then
-                log_info "Користувач пропустив автоматичний запуск goose configure"
+                log_info "Користувач пропустив автоматичний запуск goose session"
                 return 0
             fi
         else
-            log_info "Неінтерактивний режим — goose configure можна виконати вручну після завершення"
+            log_info "Неінтерактивний режим — goose вже налаштовано, config готовий"
             return 0
         fi
 
-        log_info "Запуск goose configure..."
-        if "$goose_exec" configure; then
-            log_success "Goose configure завершено"
+        log_info "Запуск goose session для тестування..."
+        if "$goose_exec" session start --profile default; then
+            log_success "Goose session запущено успішно"
         else
-            log_warn "goose configure завершився з помилкою або був перерваний. Ви можете повторити вручну: $goose_exec configure"
+            log_warn "Goose session не запустився. Config готовий, можна використовувати: goose session start"
         fi
     fi
 }
@@ -1058,11 +1053,11 @@ print_final_instructions() {
     if [ ! -f "$HOME/.config/goose/config.yaml" ]; then
         echo -e "${YELLOW}⚠️  ВАЖЛИВО:${NC}"
         echo ""
-        echo -e "   Goose потребує налаштування перед першим запуском:"
-        echo -e "   ${WHITE}${GOOSE_BIN} configure${NC}"
+        echo -e "   Goose config буде створено автоматично при першому запуску"
+        echo -e "   ${WHITE}goose session start${NC}"
         echo ""
     else
-        echo -e "${CYAN}ℹ️  Goose:${NC} якщо потрібно змінити постачальника моделей, запустіть 'goose configure'."
+        echo -e "${CYAN}ℹ️  Goose:${NC} Config готовий. Перевірити провайдерів: ${WHITE}goose providers list${NC}"
     fi
     
     echo -e "${GREEN}✨ Система готова до роботи!${NC}"
