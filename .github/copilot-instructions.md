@@ -1,6 +1,6 @@
 # ATLAS v4.0 - Adaptive Task and Learning Assistant System
 
-**LAST UPDATED:** 13 жовтня 2025 - Пізній вечір ~22:40 (MCP TTS Safety + Fallback Disable + JSON Parsing Fix)
+**LAST UPDATED:** 13 жовтня 2025 - Пізня ніч ~23:35 (MCP TODO Action Undefined + Workflow Errors Fix)
 
 ---
 
@@ -323,6 +323,93 @@ ATLAS is an intelligent multi-agent orchestration system with Flask web frontend
 ---
 
 ## 🎯 КЛЮЧОВІ ОСОБЛИВОСТІ СИСТЕМИ
+
+### ✅ MCP TODO Action Undefined Fix (FIXED 13.10.2025 - пізня ніч ~23:35)
+- **Проблема:** TODO items створювались з `action: undefined` замість реальних дій - workflow НЕ міг виконати завдання
+- **Симптом:** `[STAGE-1-MCP] 1. undefined`, `[STAGE-1-MCP] 2. undefined` в логах, Тетяна НЕ знає що робити
+- **Логи:**
+  ```
+  [TODO] Created standard TODO with 3 items (complexity: 5/10)
+  [STAGE-1-MCP]      1. undefined
+  [STAGE-1-MCP]      2. undefined
+  [STAGE-1-MCP]      3. undefined
+  ```
+- **Корінь:** LLM НЕ отримував детальний промпт з JSON schema - використовувався мінімальний: `'You are Atlas, a planning AI. Create a TODO list in JSON format.'` замість 213 рядків повного промпту
+- **Рішення:** Замінено виклик LLM на використання ПОВНОГО промпту з `MCP_PROMPTS.ATLAS_TODO_PLANNING`:
+  ```javascript
+  // orchestrator/workflow/mcp-todo-manager.js - createTodo()
+  const { MCP_PROMPTS } = await import('../../prompts/mcp/index.js');
+  const todoPrompt = MCP_PROMPTS.ATLAS_TODO_PLANNING;
+  
+  const userMessage = todoPrompt.userPrompt
+      .replace('{{request}}', request)
+      .replace('{{context}}', JSON.stringify(context, null, 2));
+  
+  const apiResponse = await axios.post('http://localhost:4000/v1/chat/completions', {
+      model: 'openai/gpt-4o',
+      messages: [
+          { role: 'system', content: todoPrompt.systemPrompt }, // ПОВНИЙ промпт!
+          { role: 'user', content: userMessage }
+      ],
+      temperature: 0.3
+  });
+  ```
+- **Виправлено:** `orchestrator/workflow/mcp-todo-manager.js` (lines ~85-115)
+- **Результат:**
+  - ✅ LLM тепер отримує 213 рядків детального промпту з JSON schema та прикладами
+  - ✅ TODO items створюються з правильними action текстами
+  - ✅ Тетяна знає що виконувати: "Відкрити калькулятор", "Ввести формулу 22×30.27", "Зробити скріншот"
+  - ✅ Workflow працює від початку до кінця БЕЗ undefined
+- **Критично:**
+  - **ЗАВЖДИ** використовуйте ПОВНИЙ промпт з `MCP_PROMPTS.ATLAS_TODO_PLANNING`
+  - **НІКОЛИ** НЕ використовуйте мінімальні system prompts без schema
+  - Промпт містить: JSON schema, правила створення, приклади Standard/Extended mode
+  - Temperature 0.3 для стабільного JSON output
+- **Детально:** `docs/MCP_TODO_WORKFLOW_TTS_GUIDE_2025-10-13.md`
+
+### ✅ MCP Workflow Errors Fix (FIXED 13.10.2025 - пізня ніч ~23:35)
+- **Проблема #1:** `workflowStart is not defined` - змінна використовувалась але НЕ була визначена
+- **Проблема #2:** `content.replace is not a function` - type mismatch при обробці response
+- **Симптом #1:** `Backend selection error: workflowStart is not defined` після MCP workflow
+- **Симптом #2:** `Stage execution failed (stage=1, agent=atlas): content.replace is not a function`
+- **Корінь #1:** `executeTaskWorkflow()` використовував `workflowStart` для metrics але НЕ визначав змінну
+- **Корінь #2:** `extractModeFromResponse()` очікував string але міг отримати object
+- **Рішення #1:** Додано визначення `workflowStart` на початку функції:
+  ```javascript
+  // orchestrator/workflow/executor-v3.js - executeTaskWorkflow()
+  async function executeTaskWorkflow(userMessage, session, res, allStages, workflowConfig) {
+    const workflowStart = Date.now(); // FIXED 13.10.2025
+    let currentStage = session.currentStage || 1;
+    // ...
+  }
+  ```
+- **Рішення #2:** Додано type-safe обробку content (string OR object):
+  ```javascript
+  // orchestrator/workflow/executor-v3.js - extractModeFromResponse()
+  function extractModeFromResponse(content) {
+    try {
+      let contentStr = content;
+      if (typeof content === 'object' && content !== null) {
+        contentStr = JSON.stringify(content);
+      }
+      const cleanContent = contentStr.replace(/^\[SYSTEM\]\s*/, '').trim();
+      // ...
+    }
+  }
+  ```
+- **Виправлено:**
+  - `orchestrator/workflow/executor-v3.js` (line ~902) - workflowStart визначення
+  - `orchestrator/workflow/executor-v3.js` (lines ~141-158) - type-safe content handling
+- **Результат:**
+  - ✅ Workflow metrics працюють - duration коректно обчислюється
+  - ✅ Mode extraction працює з обома типами - string і object
+  - ✅ Немає crashes після завершення MCP workflow
+  - ✅ Система може fallback на Goose БЕЗ undefined errors
+- **Критично:**
+  - **ЗАВЖДИ** визначайте timing змінні на початку workflow функцій
+  - **ЗАВЖДИ** перевіряйте typeof перед викликом string методів (.replace, .trim, etc)
+  - **Graceful degradation** - обробляйте обидва типи input (string/object)
+- **Детально:** `docs/MCP_TODO_WORKFLOW_TTS_GUIDE_2025-10-13.md`
 
 ### ✅ MCP TTS Safety Fix (FIXED 13.10.2025 - пізній вечір ~22:40)
 - **Проблема:** MCPTodoManager крашився на TTS виклики - `Cannot read properties of undefined (reading 'speak')`
