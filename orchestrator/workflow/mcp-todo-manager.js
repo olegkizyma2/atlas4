@@ -10,9 +10,7 @@
 
 import logger from '../utils/logger.js';
 import axios from 'axios';
-import GlobalConfig from '../../config/global-config.js';
-
-const { MCP_MODEL_CONFIG } = GlobalConfig;
+import GlobalConfig, { MCP_MODEL_CONFIG } from '../../config/global-config.js';
 
 /**
  * @typedef {Object} TodoItem
