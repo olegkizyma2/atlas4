@@ -8,6 +8,7 @@
  */
 
 import logger from '../utils/logger.js';
+import axios from 'axios';
 
 /**
  * @typedef {Object} TodoItem
@@ -85,14 +86,30 @@ export class MCPTodoManager {
         this.logger.system('mcp-todo', `[TODO] Creating TODO for request: "${request}"`);
 
         try {
-            // Call LLM to generate TODO structure
+            // Call LLM to generate TODO structure via System API (port 4000)
             const prompt = this._buildTodoCreationPrompt(request, context);
-            const response = await this.llmClient.generate({
-                systemPrompt: 'ATLAS_TODO_PLANNING',
-                userMessage: prompt,
+            
+            // FIXED 13.10.2025 - Use direct axios call to port 4000 API
+            const apiResponse = await axios.post('http://localhost:4000/v1/chat/completions', {
+                model: 'openai/gpt-4o',
+                messages: [
+                    {
+                        role: 'system',
+                        content: 'You are Atlas, a planning AI. Create a TODO list in JSON format based on user requests.'
+                    },
+                    {
+                        role: 'user',
+                        content: prompt
+                    }
+                ],
                 temperature: 0.3,
-                maxTokens: 2000
+                max_tokens: 2000
+            }, {
+                headers: { 'Content-Type': 'application/json' },
+                timeout: 30000
             });
+
+            const response = apiResponse.data.choices[0].message.content;
 
             const todo = this._parseTodoResponse(response, request);
             

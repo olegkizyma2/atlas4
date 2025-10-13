@@ -172,7 +172,11 @@ export function registerMCPWorkflowServices(container) {
 
     // MCPTodoManager - головний менеджер MCP TODO
     container.singleton('mcpTodoManager', (c) => {
+        // FIXED 13.10.2025 - Add missing dependencies (mcpManager, llmClient)
+        // Note: mcpManager and llmClient will be created on-demand when needed
         return new MCPTodoManager({
+            mcpManager: null, // Will be lazy-loaded when needed
+            llmClient: null,  // Will be lazy-loaded when needed
             ttsSyncManager: c.resolve('ttsSyncManager'),
             logger: c.resolve('logger')
         });
