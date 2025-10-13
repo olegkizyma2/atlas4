@@ -75,7 +75,7 @@ export class BackendSelectionProcessor {
                 default:
                     // Default to primary backend
                     selectedBackend = this.config.primary || 'goose';
-                    this.logger.warning('backend-selection', `[STAGE-0.5] Unknown mode '${configuredMode}', defaulting to ${selectedBackend}`);
+                    this.logger.warn(`[STAGE-0.5] Unknown mode '${configuredMode}', defaulting to ${selectedBackend}`);
             }
 
             // Log selection reasoning
@@ -102,7 +102,7 @@ export class BackendSelectionProcessor {
             // Fallback to primary backend on error
             const fallbackBackend = this.config.primary || 'goose';
             
-            this.logger.warning('backend-selection', `[STAGE-0.5] Falling back to ${fallbackBackend}`);
+            this.logger.warn(`[STAGE-0.5] Falling back to ${fallbackBackend}`);
 
             return {
                 success: true,
