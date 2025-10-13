@@ -48,7 +48,6 @@ set -o pipefail
 
 log_info() {
     echo -e "${GREEN}[INFO]${NC} $1"
-    local tmp_file="${model_file}.download"
 }
 
 log_warn() {
@@ -64,37 +63,9 @@ log_success() {
 }
 
 log_step() {
-    rm -f "$tmp_file"
+    echo -e "${BLUE}[STEP]${NC} ${WHITE}$1${NC}"
+}
 
-    if check_command curl; then
-        if curl -L --fail --progress-bar -o "$tmp_file" "$model_url"; then
-            mv "$tmp_file" "$model_file"
-        else
-            log_error "Не вдалося завантажити модель через curl"
-            rm -f "$tmp_file"
-            return 1
-        fi
-    elif check_command wget; then
-        if wget --show-progress -O "$tmp_file" "$model_url"; then
-            mv "$tmp_file" "$model_file"
-        else
-            log_error "Не вдалося завантажити модель через wget"
-            rm -f "$tmp_file"
-            return 1
-        fi
-    else
-        log_error "curl або wget не знайдено - неможливо завантажити модель"
-        return 1
-    fi
-
-    local file_size=$(stat -f%z "$model_file" 2>/dev/null || echo "0")
-    if [ "$file_size" -le 100000 ]; then
-        log_error "Завантажена модель занадто мала (можливо, помилка)"
-        rm -f "$model_file"
-        return 1
-    fi
-
-    log_success "Модель завантажена (розмір: $(($file_size / 1024)) KB)"
 check_command() {
     if command -v "$1" >/dev/null 2>&1; then
         return 0
@@ -610,19 +581,59 @@ download_whisper_models() {
     local model_file="ggml-large-v3.bin"
     
     if [ -f "$model_file" ]; then
-        log_info "Модель $model_file вже завантажена"
-    else
-        log_info "Завантаження Whisper Large-v3 моделі (~3GB)..."
-        log_warn "Це може зайняти кілька хвилин залежно від швидкості інтернету..."
-        
-        if wget --show-progress -O "$model_file" "$model_url" 2>&1 | grep -o '[0-9]*%' | tail -1; then
-            log_success "Модель завантажена"
+        # Перевірка чи модель валідна (не пошкоджена)
+        local file_size=$(stat -f%z "$model_file" 2>/dev/null || echo "0")
+        if [ "$file_size" -gt 100000 ]; then
+            log_info "Модель $model_file вже завантажена ($(($file_size / 1024 / 1024)) MB)"
+            cd "$REPO_ROOT"
+            return 0
         else
-            log_error "Не вдалося завантажити модель"
-            return 1
+            log_warn "Існуюча модель пошкоджена або неповна, перезавантажуємо..."
+            rm -f "$model_file"
         fi
     fi
     
+    log_info "Завантаження Whisper Large-v3 моделі (~3GB)..."
+    log_warn "Це може зайняти кілька хвилин залежно від швидкості інтернету..."
+    
+    # Спроба завантаження через тимчасовий файл
+    local tmp_file="${model_file}.download"
+    rm -f "$tmp_file"
+
+    if check_command curl; then
+        if curl -L --fail --progress-bar -o "$tmp_file" "$model_url"; then
+            mv "$tmp_file" "$model_file"
+        else
+            log_error "Не вдалося завантажити модель через curl"
+            rm -f "$tmp_file"
+            cd "$REPO_ROOT"
+            return 1
+        fi
+    elif check_command wget; then
+        if wget --show-progress -O "$tmp_file" "$model_url"; then
+            mv "$tmp_file" "$model_file"
+        else
+            log_error "Не вдалося завантажити модель через wget"
+            rm -f "$tmp_file"
+            cd "$REPO_ROOT"
+            return 1
+        fi
+    else
+        log_error "curl або wget не знайдено - неможливо завантажити модель"
+        cd "$REPO_ROOT"
+        return 1
+    fi
+
+    # Перевірка розміру завантаженого файлу
+    local file_size=$(stat -f%z "$model_file" 2>/dev/null || echo "0")
+    if [ "$file_size" -le 100000 ]; then
+        log_error "Завантажена модель занадто мала (можливо, помилка)"
+        rm -f "$model_file"
+        cd "$REPO_ROOT"
+        return 1
+    fi
+
+    log_success "Модель завантажена успішно (розмір: $(($file_size / 1024 / 1024)) MB)"
     cd "$REPO_ROOT"
 }
 
