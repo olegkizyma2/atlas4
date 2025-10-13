@@ -731,7 +731,8 @@ cmd_stop() {
         done
     fi
     
-    # Clean up any remaining processes on ports (except Goose port)
+    # Clean up any remaining processes on ports (except Goose port and external API port 4000)
+    # NOTE: Port 4000 is NOT touched - it's an external API service (OpenRouter/local LLM)
     for port in $FRONTEND_PORT $ORCHESTRATOR_PORT $RECOVERY_PORT $TTS_PORT $WHISPER_SERVICE_PORT $FALLBACK_PORT; do
         if ! check_port "$port"; then
             local pid=$(lsof -ti:$port 2>/dev/null || true)
@@ -745,6 +746,11 @@ cmd_stop() {
     # Note about Goose port
     if ! check_port "$GOOSE_SERVER_PORT"; then
         log_info "Goose Desktop is still running on port $GOOSE_SERVER_PORT (not touched)"
+    fi
+    
+    # Note about external API port
+    if ! check_port "4000"; then
+        log_info "External API service is running on port 4000 (not touched - managed separately)"
     fi
     
     # Clean up PID files
@@ -914,6 +920,23 @@ cmd_diagnose() {
             fi
         fi
     done
+    
+    # Check external API port (informational only, not managed by this script)
+    echo ""
+    echo -e "${CYAN}External Services:${NC}"
+    echo "─────────────────────────────────────────"
+    if ! check_port "4000"; then
+        echo -e "${GREEN}✓${NC} Port 4000 (External API) is available"
+        local pid=$(lsof -ti:4000 2>/dev/null || echo "unknown")
+        if [ "$pid" != "unknown" ]; then
+            local process=$(ps -p $pid -o comm= 2>/dev/null || echo "unknown")
+            echo "  Process: $process (PID: $pid)"
+        fi
+    else
+        echo -e "${YELLOW}⚠${NC} Port 4000 (External API) is NOT available"
+        echo "  Note: This is an external service (not managed by this script)"
+        echo "  Please ensure your OpenRouter API or local LLM server is running on port 4000"
+    fi
     
     # Check dependencies
     echo ""
