@@ -100,6 +100,104 @@ export const AI_MODEL_CONFIG = {
   defaultModel: 'classification'
 };
 
+// === AI BACKEND CONFIGURATION (NEW 13.10.2025) ===
+// Модульна система для переключення між Goose та прямими MCP серверами
+export const AI_BACKEND_CONFIG = {
+  // Режим роботи: 'goose', 'mcp', 'hybrid'
+  mode: process.env.AI_BACKEND_MODE || 'hybrid',
+  
+  // Primary backend для task execution
+  primary: process.env.AI_BACKEND_PRIMARY || 'goose',
+  
+  // Fallback при недоступності primary
+  fallback: process.env.AI_BACKEND_FALLBACK || 'mcp',
+  
+  // Retry налаштування
+  retry: {
+    maxAttempts: 2,
+    timeoutMs: 30000,
+    switchToFallbackOnTimeout: true
+  },
+  
+  // Provider конфігурації
+  providers: {
+    // Goose Desktop через WebSocket
+    goose: {
+      enabled: true,
+      type: 'websocket',
+      url: 'ws://localhost:3000/ws',
+      apiKey: process.env.GITHUB_TOKEN,
+      model: 'gpt-4o',
+      
+      // MCP extensions через Goose
+      extensions: ['developer', 'playwright', 'computercontroller'],
+      
+      // Коли використовувати
+      useFor: ['complex_tasks', 'multi_step', 'reasoning']
+    },
+    
+    // Прямі MCP сервери
+    mcp: {
+      enabled: true,
+      type: 'direct',
+      
+      // Direct MCP server connections
+      servers: {
+        filesystem: {
+          command: 'npx',
+          args: ['-y', '@modelcontextprotocol/server-filesystem'],
+          env: {
+            ALLOWED_DIRECTORIES: '/Users,/tmp,/Desktop,/Applications'
+          }
+        },
+        
+        playwright: {
+          command: 'npx',
+          args: ['-y', '@executeautomation/playwright-mcp-server'],
+          env: {
+            HEADLESS: 'false'
+          }
+        },
+        
+        computercontroller: {
+          command: 'npx',
+          args: ['-y', '@anthropic/computer-use'],
+          env: {}
+        }
+      },
+      
+      // LLM для MCP mode (використовується для reasoning)
+      llm: {
+        provider: 'openai',
+        apiEndpoint: 'http://localhost:4000/v1/chat/completions',
+        model: 'openai/gpt-4o-mini',
+        temperature: 0.3
+      },
+      
+      // Коли використовувати
+      useFor: ['file_operations', 'browser_automation', 'screenshots']
+    }
+  },
+  
+  // Routing rules (коли який backend)
+  routing: {
+    // Якщо prompt містить ці ключові слова → використовувати MCP
+    mcpKeywords: [
+      'створи файл', 'create file', 'save file',
+      'відкрий браузер', 'open browser',
+      'скріншот', 'screenshot',
+      'desktop', 'файл', 'file'
+    ],
+    
+    // Якщо prompt містить ці → Goose
+    gooseKeywords: [
+      'проаналізуй', 'analyze', 'порівняй', 'compare',
+      'поясни', 'explain', 'розкажи', 'tell',
+      'знайди інформацію', 'search for', 'find information'
+    ]
+  }
+};
+
 /**
  * Отримати конфігурацію моделі для конкретної стадії
  * @param {string} stageName - Назва стадії (напр. 'stage0_mode_selection')
@@ -327,6 +425,8 @@ export default {
   CHAT_CONFIG,
   SECURITY_CONFIG,
   ENV_CONFIG,
+  AI_MODEL_CONFIG,
+  AI_BACKEND_CONFIG,  // NEW: Модульна система backends
 
   // Модульні конфігурації
   AGENTS,
