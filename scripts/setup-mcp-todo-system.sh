@@ -69,19 +69,28 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 
 log_info "Встановлення глобальних MCP серверів..."
 
+# MCP packages to install
 MCP_PACKAGES=(
     "@modelcontextprotocol/server-filesystem"
     "@executeautomation/playwright-mcp-server"
-    "@anthropic/computer-use"
     "@modelcontextprotocol/server-vscode"
+    "super-shell-mcp"
+    "@mseep/applescript-mcp"
+    "@wipiano/github-mcp-lightweight"
+    "@cyanheads/git-mcp-server"
+    "@modelcontextprotocol/server-memory"
 )
 
 echo ""
-echo "📦 MCP Сервери що будуть встановлені:"
-echo "  1. filesystem       - Робота з файлами та директоріями"
-echo "  2. playwright       - Автоматизація браузера та web scraping"
-echo "  3. computercontroller - Скріншоти та desktop control"
-echo "  4. vscode           - Автоматизація VSCode (відкриття/редагування файлів)"
+echo -e "${BLUE}📦 MCP Сервери що будуть встановлені:${NC}"
+echo -e "  ${GREEN}1. filesystem${NC}          - Робота з файлами та директоріями"
+echo -e "  ${GREEN}2. playwright${NC}          - Автоматизація браузера та web scraping"
+echo -e "  ${GREEN}3. vscode${NC}              - Автоматизація VSCode (відкриття/редагування файлів)"
+echo -e "  ${GREEN}4. super-shell${NC}         - Виконання Terminal команд (npm, brew, git CLI)"
+echo -e "  ${GREEN}5. applescript${NC}         - macOS автоматизація (запуск програм, UI control)"
+echo -e "  ${GREEN}6. github-lightweight${NC}  - GitHub API (issues, pull requests, repos)"
+echo -e "  ${GREEN}7. git-mcp${NC}             - Git операції (commit, push, pull, merge, branch)"
+echo -e "  ${GREEN}8. memory${NC}              - Тривала пам'ять AI між сесіями"
 echo ""
 
 for package in "${MCP_PACKAGES[@]}"; do
@@ -218,7 +227,7 @@ echo "✅ MCP TODO WORKFLOW SYSTEM - ВСТАНОВЛЕНО УСПІШНО!"
 echo "════════════════════════════════════════════════════════════════"
 echo ""
 log_success "Режим: $AI_MODE"
-log_info "MCP servers (4): filesystem, playwright, computercontroller, vscode"
+log_info "MCP servers (8): filesystem, playwright, vscode, super-shell, applescript, github-lightweight, git-mcp, memory"
 log_info "Orchestrator: dependencies installed"
 echo ""
 echo "📋 НАСТУПНІ КРОКИ:"
