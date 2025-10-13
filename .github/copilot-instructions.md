@@ -332,6 +332,7 @@ ATLAS is an intelligent multi-agent orchestration system with Flask web frontend
 - **Рішення:** увімкнули `set -o pipefail`, завантаження через тимчасовий файл з перевіркою розміру, fallback на `curl/wget`, динамічні `WHISPER_CPP_THREADS` і повага до наявних `GOOSE_BIN/TTS_DEVICE/WHISPER_DEVICE/WHISPER_CPP_DISABLE_GPU`.
 - **Виправлено:** `setup-macos.sh` (встановлення, конфігурація `.env`).
 - **Результат:** setup зупиняється при невдалому завантаженні, `.env` одразу оптимізований під залізо, Whisper запускається стабільно.
+- **Додатково:** `.env` тепер прописує `WHISPER_CPP_BIN` на зібраний `third_party/whisper.cpp.upstream/build/bin/whisper-cli`, а після інсталяції скрипт пропонує запустити `goose configure` у інтерактивному режимі.
 - **Критично:** залишайте `curl` або `wget` встановленими; для CPU fallback задавайте `WHISPER_CPP_DISABLE_GPU=true` перед запуском setup — значення потрапить в `.env`.
 - **Детально:** `docs/SETUP_DEPLOYMENT_RELIABILITY_FIX_2025-10-13.md`
 
