@@ -253,8 +253,8 @@ describe('CircuitBreaker', () => {
             expect(negBreaker.failures).toBeGreaterThan(0);
         });
 
-        it('should handle very short timeouts', () => {
-            const fastBreaker = new CircuitBreaker(3, 100); // 100ms
+        it('should respect custom timeout values', (done) => {
+            const fastBreaker = new CircuitBreaker(3, 100); // 100ms timeout
             
             fastBreaker.recordFailure();
             fastBreaker.recordFailure();
@@ -265,6 +265,7 @@ describe('CircuitBreaker', () => {
             // Wait 150ms
             setTimeout(() => {
                 expect(fastBreaker.canAttempt()).toBe(true);
+                done(); // Signal async test completion
             }, 150);
         });
     });
