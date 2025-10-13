@@ -162,6 +162,12 @@ free_port() {
     local port=$1
     local name=$2
     
+    # CRITICAL: NEVER touch port 4000 (External LLM API server)
+    if [ "$port" = "4000" ]; then
+        log_info "Port 4000 is protected (External LLM API) - skipping"
+        return 1
+    fi
+    
     if [ "$FORCE_FREE_PORTS" = "true" ]; then
         log_warn "Freeing port $port ($name)..."
         local pids=$(lsof -ti:$port 2>/dev/null || true)
@@ -733,7 +739,14 @@ cmd_stop() {
     
     # Clean up any remaining processes on ports (except Goose port and external API port 4000)
     # NOTE: Port 4000 is NOT touched - it's an external API service (OpenRouter/local LLM)
+    # CRITICAL: Port 4000 is explicitly excluded from cleanup to preserve LLM API service
     for port in $FRONTEND_PORT $ORCHESTRATOR_PORT $RECOVERY_PORT $TTS_PORT $WHISPER_SERVICE_PORT $FALLBACK_PORT; do
+        # Double-check: NEVER kill port 4000 even if somehow it appears in the list
+        if [ "$port" = "4000" ]; then
+            log_info "Skipping port 4000 (protected External LLM API)"
+            continue
+        fi
+        
         if ! check_port "$port"; then
             local pid=$(lsof -ti:$port 2>/dev/null || true)
             if [ -n "$pid" ]; then
