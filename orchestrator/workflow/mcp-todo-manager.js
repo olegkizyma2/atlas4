@@ -728,38 +728,71 @@ Context: ${JSON.stringify(context, null, 2)}
 
     _parseToolPlan(response) {
         try {
-            const parsed = typeof response === 'string' ? JSON.parse(response) : response;
+            // FIXED 13.10.2025 - Clean markdown wrappers before parsing
+            let cleanResponse = response;
+            if (typeof response === 'string') {
+                cleanResponse = response
+                    .replace(/^```json\s*/i, '')  // Remove opening ```json
+                    .replace(/^```\s*/i, '')       // Remove opening ```
+                    .replace(/\s*```$/i, '')       // Remove closing ```
+                    .trim();
+            }
+            
+            const parsed = typeof cleanResponse === 'string' ? JSON.parse(cleanResponse) : cleanResponse;
             return {
                 tool_calls: parsed.tool_calls || [],
                 reasoning: parsed.reasoning || ''
             };
         } catch (error) {
+            this.logger.error('mcp-todo', `[TODO] Failed to parse tool plan. Raw response: ${response}`);
             throw new Error(`Failed to parse tool plan: ${error.message}`);
         }
     }
 
     _parseVerification(response) {
         try {
-            const parsed = typeof response === 'string' ? JSON.parse(response) : response;
+            // FIXED 13.10.2025 - Clean markdown wrappers before parsing
+            let cleanResponse = response;
+            if (typeof response === 'string') {
+                cleanResponse = response
+                    .replace(/^```json\s*/i, '')  // Remove opening ```json
+                    .replace(/^```\s*/i, '')       // Remove opening ```
+                    .replace(/\s*```$/i, '')       // Remove closing ```
+                    .trim();
+            }
+            
+            const parsed = typeof cleanResponse === 'string' ? JSON.parse(cleanResponse) : cleanResponse;
             return {
                 verified: parsed.verified === true,
                 reason: parsed.reason || '',
                 evidence: parsed.evidence || {}
             };
         } catch (error) {
+            this.logger.error('mcp-todo', `[TODO] Failed to parse verification. Raw response: ${response}`);
             throw new Error(`Failed to parse verification: ${error.message}`);
         }
     }
 
     _parseAdjustment(response) {
         try {
-            const parsed = typeof response === 'string' ? JSON.parse(response) : response;
+            // FIXED 13.10.2025 - Clean markdown wrappers before parsing
+            let cleanResponse = response;
+            if (typeof response === 'string') {
+                cleanResponse = response
+                    .replace(/^```json\s*/i, '')  // Remove opening ```json
+                    .replace(/^```\s*/i, '')       // Remove opening ```
+                    .replace(/\s*```$/i, '')       // Remove closing ```
+                    .trim();
+            }
+            
+            const parsed = typeof cleanResponse === 'string' ? JSON.parse(cleanResponse) : cleanResponse;
             return {
                 strategy: parsed.strategy || 'retry',
                 updated_todo_item: parsed.updated_todo_item || {},
                 reasoning: parsed.reasoning || ''
             };
         } catch (error) {
+            this.logger.error('mcp-todo', `[TODO] Failed to parse adjustment. Raw response: ${response}`);
             throw new Error(`Failed to parse adjustment: ${error.message}`);
         }
     }
