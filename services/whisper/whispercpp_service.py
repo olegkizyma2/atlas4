@@ -49,6 +49,7 @@ WHISPER_CPP_BEST_OF = int(os.environ.get('WHISPER_CPP_BEST_OF', '5'))  # кіл�
 WHISPER_CPP_BEAM_SIZE = int(os.environ.get('WHISPER_CPP_BEAM_SIZE', '5'))  # розмір пучка
 WHISPER_CPP_NO_SPEECH_THRESHOLD = float(os.environ.get('WHISPER_CPP_NO_SPEECH_THRESHOLD', '0.6'))
 WHISPER_CPP_INITIAL_PROMPT = os.environ.get('WHISPER_CPP_INITIAL_PROMPT', 'Це українська мова з правильною орфографією, граматикою та пунктуацією. Олег Миколайович розмовляє з Атласом.')
+WHISPER_CPP_DISABLE_GPU = os.environ.get('WHISPER_CPP_DISABLE_GPU', 'false').lower() in ('1', 'true', 'yes')
 
 # Словник корекції для активаційних слів (аналогічно faster-whisper)
 ATLAS_ACTIVATION_WORDS = {
@@ -162,8 +163,8 @@ def _run_whisper_cpp(wav_path: str, language: str):
         # FIXED 13.10.2025 v4 - Вимикаємо Core ML для whisper-cli (використовуємо Metal замість)
         # Core ML модель може бути пошкоджена → крашиться при завантаженні
         # Metal стабільніший і швидший на Apple Silicon
-        if is_whisper_cli:
-            cmd.append('--no-gpu')  # Вимкнути Core ML, використати Metal
+        if WHISPER_CPP_DISABLE_GPU and is_whisper_cli:
+            cmd.append('--no-gpu')  # allow forcing CPU fallback when explicitly requested
         
         # Для старого бінаря додаємо -f, для whisper-cli - файл в кінці
         if not is_whisper_cli:

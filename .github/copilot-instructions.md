@@ -1,6 +1,6 @@
 # ATLAS v4.0 - Adaptive Task and Learning Assistant System
 
-**LAST UPDATED:** 13 жовтня 2025 - Ніч ~02:06 (Whisper Core ML → Metal Fix v4)
+**LAST UPDATED:** 13 жовтня 2025 - День ~14:25 (Setup Deployment Reliability Fix)
 
 ---
 
@@ -324,6 +324,17 @@ ATLAS is an intelligent multi-agent orchestration system with Flask web frontend
 
 ## 🎯 КЛЮЧОВІ ОСОБЛИВОСТІ СИСТЕМИ
 
+### ✅ Setup Deployment Reliability Fix (FIXED 13.10.2025 - день ~14:25)
+- **Проблема:** setup-macos.sh позначав завантаження Whisper Large-v3 як успішне навіть при мережевих помилках і створював `.env` з фіксованим `WHISPER_CPP_THREADS=6`.
+- **Симптом:** відсутня або зіпсована `models/whisper/ggml-large-v3.bin`, краш Whisper service (`failed to load model`), неповне використання CPU на Mac Studio.
+- **Логи:** `wget: unable to resolve host ...` в процесі setup, але скрипт повідомляв «Модель завантажена»; під час старту — `whisper-cli: failed to init model`.
+- **Корінь:** pipeline з `wget | grep | tail` приховував exit code без `pipefail`, `.env` ігнорував реальні ядра та попередньо виставлені змінні оточення.
+- **Рішення:** увімкнули `set -o pipefail`, завантаження через тимчасовий файл з перевіркою розміру, fallback на `curl/wget`, динамічні `WHISPER_CPP_THREADS` і повага до наявних `GOOSE_BIN/TTS_DEVICE/WHISPER_DEVICE/WHISPER_CPP_DISABLE_GPU`.
+- **Виправлено:** `setup-macos.sh` (встановлення, конфігурація `.env`).
+- **Результат:** setup зупиняється при невдалому завантаженні, `.env` одразу оптимізований під залізо, Whisper запускається стабільно.
+- **Критично:** залишайте `curl` або `wget` встановленими; для CPU fallback задавайте `WHISPER_CPP_DISABLE_GPU=true` перед запуском setup — значення потрапить в `.env`.
+- **Детально:** `docs/SETUP_DEPLOYMENT_RELIABILITY_FIX_2025-10-13.md`
+
 ### ✅ Whisper CLI Invalid Parameters Fix (FIXED 13.10.2025 - ніч ~01:50)
 - **Проблема:** Quick-send режим НЕ працював - Whisper крашився з HTTP 500 при КОЖНІЙ транскрипції
 - **Симптом:** `POST /transcribe 500 INTERNAL SERVER ERROR` × 4 retries → stderr містить help message замість JSON
@@ -334,13 +345,13 @@ ATLAS is an intelligent multi-agent orchestration system with Flask web frontend
   3. `--no-coreml` (додано в попередньому fix) НЕ ІСНУЄ в whisper-cli
   4. `--patience`, `--length-penalty`, `--compression-ratio-threshold` - тільки для Python Whisper
   5. `--no-speech-threshold` має невірний формат (правильно: `-nth`)
-- **Рішення #1:** Видалено ВСІ невалідні параметри (patience, length-penalty, compression-ratio-threshold, no-condition-on-previous-text, no-coreml)
-- **Рішення #2:** Виправлено формат валідних параметрів:
+- **Рішення 1:** Видалено ВСІ невалідні параметри (patience, length-penalty, compression-ratio-threshold, no-condition-on-previous-text, no-coreml)
+- **Рішення 2:** Виправлено формат валідних параметрів:
   - `--temperature` → `-tp` (коротка форма)
   - `--best-of` → `-bo`
   - `--beam-size` → `-bs`
   - `--no-speech-threshold` → `-nth`
-- **Рішення #3:** Повернуто `--prompt` для initial prompt (підтримується whisper-cli)
+- **Рішення 3:** Повернуто `--prompt` для initial prompt (підтримується whisper-cli)
 - **Виправлено:** 
   - services/whisper/whispercpp_service.py (видалено невалідні параметри, ~15 LOC)
 - **Результат:** 
@@ -348,15 +359,32 @@ ATLAS is an intelligent multi-agent orchestration system with Flask web frontend
   - ✅ whisper-cli виконує транскрипцію (НЕ показує help)
   - ✅ JSON генерується успішно
   - ✅ Текст з'являється в чаті після розпізнавання
-  - ✅ Metal GPU працює через `--no-gpu` прапорець (вимикає Core ML)
+  - ✅ Metal GPU активний за замовчуванням (Core ML відключено на рівні білду)
 - **Критично:** 
   - whisper-cli підтримує: `-tp`, `-bo`, `-bs`, `-nth`, `--prompt`, `--no-gpu`
   - whisper-cli НЕ підтримує: `--patience`, `--length-penalty`, `--no-coreml`, `--compression-ratio-threshold`, `--no-condition-on-previous-text`
-  - ЗАВЖДИ додавайте `--no-gpu` для whisper-cli (вимикає Core ML, вмикає Metal)
-  - Core ML може крашитись при завантаженні `.mlmodelc` моделі
+  - Для CPU fallback використовуйте `WHISPER_CPP_DISABLE_GPU=true` (додає `--no-gpu`)
+  - Core ML `.mlmodelc` не потрібна — вона відключена на рівні збірки
   - Metal працює стабільніше та швидше на Apple Silicon
   - Файл в кінці команди БЕЗ `-f` прапорця для whisper-cli
 - **Детально:** `docs/WHISPER_COREML_NOGPU_FIX_2025-10-13.md`
+
+### ✅ Whisper Core ML Disable Fix (FIXED 13.10.2025 - ніч ~02:35)
+- **Проблема:** Навіть з `--no-gpu` whisper-cli намагався завантажити Core ML encoder і падав з `failed to load Core ML model` → HTTP 500
+- **Симптом:** 4 ретраю підряд, stderr повторює `failed to load Core ML model from ... mlmodelc`
+- **Корінь:** Бінарник зібраний з `WHISPER_COREML=ON`, але `.mlmodelc` відсутній у репозиторії
+- **Рішення:** Перебудували `whisper-cli` з `WHISPER_COREML=OFF` (Metal залишається) + ввели `WHISPER_CPP_DISABLE_GPU` для явного CPU fallback
+- **Виправлено:**
+  - Перезібрано `third_party/whisper.cpp.upstream/build/bin/whisper-cli` (без Core ML)
+  - `services/whisper/whispercpp_service.py` додає `--no-gpu` лише якщо `WHISPER_CPP_DISABLE_GPU=true`
+- **Результат:**
+  - ✅ Whisper service стабільно повертає 200, жодних Core ML крашів
+  - ✅ Metal GPU увімкнено за замовчуванням (0 потреби в `.mlmodelc`)
+  - ✅ CPU fallback доступний через env флаг
+- **Критично:**
+  - Після оновлення whisper.cpp обовʼязково запускайте `cmake -B build -DWHISPER_COREML=OFF -DWHISPER_METAL=ON`
+  - Не вмикайте Core ML на Mac Studio — ми працюємо виключно через Metal
+- **Детально:** `docs/WHISPER_COREML_DISABLE_FIX_2025-10-13.md`
 
 ### ✅ Whisper CLI Invalid Parameters Fix (DEPRECATED 13.10.2025 - ніч ~01:50)
 - **NOTE:** Цей fix був частковим - виправив параметри, але НЕ виправив Core ML crash
@@ -529,20 +557,20 @@ ATLAS is an intelligent multi-agent orchestration system with Flask web frontend
 - **Корінь #1:** silenceDuration: 1200ms занадто короткий для природної розмови
 - **Корінь #2:** 16kHz audio + відсутність Whisper optimization (beam_size, initial_prompt)
 - **Корінь #3:** `onUserSilenceTimeout()` викликав `showIdleMode()` замість `showConversationWaitingForKeyword()`
-- **Рішення #1 (Smart VAD):**
+- **Рішення 1 (Smart VAD):**
   - Збільшено silenceDuration: 1200 → 3000ms (3 сек на паузу)
   - Додано pauseGracePeriod: 3000ms (дати 3 сек після першої паузи)
   - Додано minSpeechDuration: 250 → 400ms (фільтр коротких шумів)
   - Додано continueOnPause: true (двохетапна логіка: 1-ша пауза → wait, 2-га → stop)
   - Додано multi-pause tracking (pauseCount, firstSilenceTime, hasSpokenRecently)
-- **Рішення #2 (Whisper Quality):**
+- **Рішення 2 (Whisper Quality):**
   - Підвищено sampleRate: 16000 → 48000 Hz (+200% якість)
   - Додано temperature: 0.2 → 0.0 (максимальна точність keyword)
   - Додано beam_size: 5 (beam search, Metal GPU прискорює)
   - Додано best_of: 5 (кращий з 5 варіантів)
   - Додано initial_prompt: 'Атлас, Atlas, слухай, олег миколайович' (підказка моделі)
   - Додано patience: 1.0, compression_ratio_threshold: 2.4, no_speech_threshold: 0.4
-- **Рішення #3 (UI Fix):**
+- **Рішення 3 (UI Fix):**
   - Змінено `showIdleMode()` → `showConversationWaitingForKeyword()` в onUserSilenceTimeout
   - UI тепер: 5 сек мовчання → 🟡 Yellow + breathing animation (чекає "Атлас")
 - **Результат:**
