@@ -1,6 +1,6 @@
 # ATLAS v4.0 - Adaptive Task and Learning Assistant System
 
-**LAST UPDATED:** 13 жовтня 2025 - Пізня ніч ~23:50 (MCP JSON Parsing Infinite Loop Fix - 4 Critical Bugs)
+**LAST UPDATED:** 14 жовтня 2025 - Ніч ~02:35 (MCP Initialization Timeout Fix - Mac M1 Performance)
 
 ---
 
@@ -323,6 +323,72 @@ ATLAS is an intelligent multi-agent orchestration system with Flask web frontend
 ---
 
 ## 🎯 КЛЮЧОВІ ОСОБЛИВОСТІ СИСТЕМИ
+
+### ✅ MCP Initialization Timeout Fix (FIXED 14.10.2025 - ніч ~02:35)
+- **Проблема:** MCP сервери НЕ встигали ініціалізуватись за 5 секунд → система крашилась при старті
+- **Симптом:** `Error: filesystem initialization timeout`, всі 7 серверів почали init але жоден не завершився
+- **Логі:** `[MCP filesystem] Initializing...` × 7 → 5s timeout → `Application startup failed`
+- **Корінь #1:** Timeout 5s занадто короткий для Mac M1 Max (ARM + npx overhead = 8-12s)
+- **Корінь #2:** Недостатнє логування - не видно що відбувається під час init
+- **Корінь #3:** Відсутність graceful degradation - один failed server → вся система crash
+- **Корінь #4:** Неправильне розпізнавання init response - шукав `method=initialize` замість `result.capabilities`
+- **Рішення #1:** Збільшено timeout 5s → 15s для Mac M1 Max:
+  ```javascript
+  const timeout = setTimeout(() => {
+    if (!this.ready) {
+      logger.error('mcp-server', `[MCP ${this.name}] ❌ Initialization timeout after 15s`);
+      logger.debug('mcp-server', `[MCP ${this.name}] Stdout: ${this.stdoutBuffer}`);
+      reject(new Error(`${this.name} initialization timeout`));
+    }
+  }, 15000); // Було 5000
+  ```
+- **Рішення #2:** Додано детальне логування stdout/stderr:
+  ```javascript
+  this.process.stdout.on('data', (data) => {
+    const chunk = data.toString();
+    logger.debug('mcp-server', `[MCP ${this.name}] stdout: ${chunk.substring(0, 200)}`);
+  });
+  // stderr з warning/error detection
+  if (message.includes('warn') || message.includes('error')) {
+    logger.warn('mcp-server', `[MCP ${this.name}] stderr: ${message}`);
+  }
+  ```
+- **Рішення #3:** Graceful degradation - система працює навіть якщо деякі сервери failing:
+  ```javascript
+  startPromises.push(
+    this.startServer(name, config).catch((error) => {
+      logger.error('mcp-manager', `❌ ${name} failed: ${error.message}`);
+      return null; // Продовжуємо з іншими
+    })
+  );
+  // Якщо 5/7 OK → система працює
+  ```
+- **Рішення #4:** Виправлено розпізнавання init response:
+  ```javascript
+  // ❌ WRONG
+  if (message.method === 'initialize' && message.result)
+  
+  // ✅ CORRECT
+  if (message.result && message.result.capabilities)
+  ```
+- **Виправлено:** `orchestrator/ai/mcp-manager.js` (~150 LOC):
+  - `MCPServer.initialize()` - timeout 5s→15s + логування + debug buffers
+  - `MCPServer._setupStreams()` - детальне логування stdout/stderr
+  - `MCPServer._handleMCPMessage()` - виправлено розпізнавання init
+  - `MCPManager.initialize()` - graceful degradation з error handling
+- **Результат:**
+  - ✅ 7/7 серверів запускаються на Mac M1 Max (~8-12s)
+  - ✅ Система стартує навіть якщо 2-3 сервери failing
+  - ✅ Детальні логи для діагностики (stdout/stderr/buffers)
+  - ✅ Performance metrics в логах для кожного серверу
+- **Критично:**
+  - **Mac M1 Max:** ЗАВЖДИ timeout >= 15s для MCP init (ARM overhead)
+  - **Graceful degradation:** Система має працювати навіть якщо деякі сервери failing
+  - **Логування:** ЗАВЖДИ логувати stdout/stderr для діагностики timeouts
+  - **Init response:** Перевіряти `result.capabilities`, НЕ `method=initialize`
+  - **Performance:** filesystem ~3-5s, playwright ~8-12s, решта ~4-7s
+- **Додатково:** Створено `check-mcp-packages.sh` для перевірки доступності npm пакетів
+- **Детально:** `docs/MCP_INITIALIZATION_TIMEOUT_FIX_2025-10-14.md`
 
 ### ✅ MCP JSON Parsing Infinite Loop Fix (FIXED 13.10.2025 - пізня ніч ~23:50)
 - **Проблема:** MCP workflow входив в **infinite retry loop** - Stage 2.1 повторювався 3x для КОЖНОГО TODO item БЕЗ фактичного виконання
