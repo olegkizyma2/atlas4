@@ -1,0 +1,31 @@
+{
+  "testEnvironment": "node",
+  "transform": {},
+  "extensionsToTreatAsEsm": [".js"],
+  "moduleNameMapper": {
+    "^(\\.{1,2}/.*)\\.js$": "$1"
+  },
+  "testMatch": [
+    "**/tests/unit/**/*.test.js",
+    "**/tests/integration/**/*.test.js",
+    "**/tests/e2e/**/*.test.js",
+    "**/tests/performance/**/*.test.js"
+  ],
+  "collectCoverageFrom": [
+    "orchestrator/**/*.js",
+    "web/static/js/**/*.js",
+    "!**/node_modules/**",
+    "!**/tests/**",
+    "!**/third_party/**"
+  ],
+  "coverageThreshold": {
+    "global": {
+      "branches": 80,
+      "functions": 80,
+      "lines": 80,
+      "statements": 80
+    }
+  },
+  "testTimeout": 10000,
+  "verbose": true
+}

@@ -5,9 +5,15 @@
   "description": "Root package for ATLAS project to declare ESM module type",
   "license": "UNLICENSED",
   "scripts": {
-    "test": "cd config && npm test",
+    "test": "npm run test:unit && npm run test:integration",
     "test:config": "cd config && npm test",
-    "test:all": "npm run test:config",
+    "test:unit": "NODE_OPTIONS=--experimental-vm-modules jest tests/unit --verbose",
+    "test:integration": "NODE_OPTIONS=--experimental-vm-modules jest tests/integration --verbose",
+    "test:e2e": "NODE_OPTIONS=--experimental-vm-modules jest tests/e2e --verbose",
+    "test:performance": "NODE_OPTIONS=--experimental-vm-modules jest tests/performance --verbose",
+    "test:all": "npm run test:config && npm run test:unit && npm run test:integration && npm run test:e2e",
+    "test:quick": "./tests/test-mcp-workflow.sh",
+    "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
     "start": "./restart_system.sh start",
     "stop": "./restart_system.sh stop",
     "restart": "./restart_system.sh restart",
@@ -21,6 +27,8 @@
     "axios": "^1.12.2"
   },
   "devDependencies": {
-    "eslint": "^9.37.0"
+    "eslint": "^9.37.0",
+    "jest": "^29.7.0",
+    "@jest/globals": "^29.7.0"
   }
 }
