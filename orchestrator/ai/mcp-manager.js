@@ -240,6 +240,14 @@ class MCPServer {
  */
 export class MCPManager {
   /**
+   * @param {Object} serversConfig - Конфігурація серверів з AI_BACKEND_CONFIG
+   */
+  constructor(serversConfig) {
+    this.config = serversConfig;
+    this.servers = new Map();
+  }
+
+  /**
    * Повертає список всіх доступних tools з усіх MCP серверів
    * @returns {Array<string>} Масив назв tools
    */
@@ -251,13 +259,6 @@ export class MCPManager {
       }
     }
     return allTools;
-  }
-  /**
-   * @param {Object} serversConfig - Конфігурація серверів з AI_BACKEND_CONFIG
-   */
-  constructor(serversConfig) {
-    this.config = serversConfig;
-    this.servers = new Map();
   }
 
   /**
