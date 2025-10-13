@@ -118,7 +118,15 @@ export default class SystemStageProcessor {
       let confidence = 0.7;
 
       try {
-        const cleanResponse = aiResponse.replace(/^\[SYSTEM\]\s*/, '').trim();
+        // Normalize aiResponse to a string safely (it may sometimes be an object)
+        let content = aiResponse;
+        if (typeof content === 'object' && content !== null) {
+          content = JSON.stringify(content);
+        } else if (typeof content !== 'string') {
+          content = String(content || '');
+        }
+
+        const cleanResponse = content.replace(/^\[SYSTEM\]\s*/, '').trim();
         const parsed = JSON.parse(cleanResponse);
         mode = parsed.mode === 'chat' ? 'chat' : 'task';
         confidence = parsed.confidence || 0.7;
