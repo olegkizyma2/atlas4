@@ -13,10 +13,10 @@ import { chatCompletion, getAvailableModels } from '../../ai/fallback-llm.js';
 /**
  * Налаштовує chat та session management routes
  * @param {express.Application} app Express додаток
- * @param {Object} context Контекст з sessions та networkConfig
+ * @param {Object} context Контекст з sessions, networkConfig та DI container
  */
 export function setupChatRoutes(app, context) {
-    const { sessions, networkConfig } = context;
+    const { sessions, networkConfig, container } = context;
 
     // =============================================================================
     // CHAT STREAMING ENDPOINT
@@ -55,12 +55,14 @@ export function setupChatRoutes(app, context) {
                 originalMessage: message,
                 waitingForConfirmation: false,
                 lastMode: undefined,
-                chatThread: { messages: [], lastTopic: undefined }
+                chatThread: { messages: [], lastTopic: undefined },
+                container: container  // ✅ NEW: Add DI container to session for MCP workflow
             };
             sessions.set(sessionId, session);
         } else {
             session.lastInteraction = Date.now();
             session.originalMessage = message;
+            session.container = container;  // ✅ NEW: Update container in existing session
         }
 
         // Keep-alive пінги
