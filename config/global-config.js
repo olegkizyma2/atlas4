@@ -159,14 +159,6 @@ export const AI_BACKEND_CONFIG = {
           }
         },
         
-        vscode: {
-          command: 'node',
-          args: ['./node_modules/@modelcontextprotocol/server-vscode/dist/index.js'],
-          env: {
-            VSCODE_WORKSPACE: process.env.VSCODE_WORKSPACE || process.cwd()
-          }
-        },
-        
         shell: {
           command: 'npx',
           args: ['-y', 'super-shell-mcp'],
@@ -218,7 +210,6 @@ export const AI_BACKEND_CONFIG = {
         'file_operations',      // filesystem
         'browser_automation',   // playwright
         'screenshots',          // playwright
-        'code_editing',         // vscode
         'web_scraping',         // playwright
         'terminal_commands',    // shell
         'macos_automation',     // applescript
@@ -241,10 +232,6 @@ export const AI_BACKEND_CONFIG = {
       'відкрий браузер', 'open browser',
       'скріншот', 'screenshot',
       'web scraping', 'scrape',
-      
-      // VSCode
-      'відкрий файл', 'open file', 'edit file',
-      'vscode', 'code editor', 'редагувати код',
       
       // Terminal
       'виконай команду', 'run command', 'terminal',

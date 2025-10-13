@@ -58,7 +58,7 @@ npx -y @modelcontextprotocol/server-filesystem
 
 ---
 
-## 2. **Playwright MCP Server** 🌐
+### 2. **Playwright MCP Server** 🌐
 
 **Package:** `@executeautomation/playwright-mcp-server`
 
@@ -98,8 +98,65 @@ npx -y @executeautomation/playwright-mcp-server
 
 ---
 
-
 ## 3. **Super Shell MCP Server** 🔧
+
+**Package:** `super-shell-mcp`
+
+**Функції:**
+- Виконання Terminal команд (`shell.exec`)
+- npm/yarn/pnpm команди
+- brew (Homebrew) операції
+- Git CLI команди
+- Системні команди (ls, cd, mkdir, rm)
+- Pipe та redirects
+- Background processes
+
+---
+
+## 3. **VSCode MCP Server** �
+
+**Package:** `@modelcontextprotocol/server-vscode`
+
+**Функції:**
+- Відкривання файлів у VSCode (`vscode.openFile`)
+- Редагування коду (`vscode.editFile`)
+- Виконання команд редактора (`vscode.executeCommand`)
+- Пошук файлів у workspace (`vscode.findFiles`)
+- Навігація по коду (go to definition, references)
+- Отримання діагностики (errors, warnings)
+- Зміна налаштувань VSCode
+- Запуск tasks та debug configurations
+
+**Налаштування:**
+```javascript
+env: {
+  VSCODE_WORKSPACE: process.env.VSCODE_WORKSPACE || process.cwd()
+}
+```
+
+**Команда запуску:**
+```bash
+node ./node_modules/@modelcontextprotocol/server-vscode/dist/index.js
+```
+
+**Use Cases:**
+- ✅ "Відкрий файл server.js в VSCode"
+- ✅ "Знайди всі файли з розширенням .test.js"
+- ✅ "Покажи помилки в поточному проекті"
+- ✅ "Виконай команду 'Format Document'"
+- ✅ "Додай breakpoint на лінію 42 в index.js"
+
+**Keywords для роутингу:**
+- `vscode`, `code editor`, `відкрий файл`, `редагувати код`
+
+**Обмеження:**
+- ⚠️ Потребує встановленого VSCode
+- ⚠️ Працює тільки з відкритим workspace
+- ⚠️ Деякі команди потребують розширень VSCode
+
+---
+
+## 4. **Super Shell MCP Server** 🔧
 
 **Package:** `super-shell-mcp`
 
