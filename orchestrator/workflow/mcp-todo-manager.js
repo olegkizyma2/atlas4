@@ -349,8 +349,11 @@ Previous items: ${JSON.stringify(todo.items.slice(0, item.id - 1).map(i => ({ id
             
             // DIAGNOSTIC: Log raw response
             this.logger.system('mcp-todo', `[TODO] Raw LLM response (first 200 chars): ${response.substring(0, 200)}`);
+            this.logger.system('mcp-todo', `[TODO] Full LLM response: ${response}`);
             
             const plan = this._parseToolPlan(response);
+            this.logger.system('mcp-todo', `[TODO] Parsed plan: ${JSON.stringify(plan, null, 2)}`);
+            
             plan.tts_phrase = this._generatePlanTTS(plan, item);
 
             this.logger.system('mcp-todo', `[TODO] Planned ${plan.tool_calls.length} tool calls for item ${item.id}`);
