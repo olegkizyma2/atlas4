@@ -651,6 +651,9 @@ async function processStopDispatch(userMessage, session, res, allStages) {
  * Execute main workflow stages
  */
 async function executeWorkflowStages(userMessage, session, res, allStages, workflowConfig) {
+  // FIXED 13.10.2025 - Define workflowStart for metrics
+  const workflowStart = Date.now();
+  
   // Initialize chat thread if needed
   if (!session.chatThread) {
     session.chatThread = { messages: [], lastTopic: undefined };

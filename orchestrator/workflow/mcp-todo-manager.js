@@ -309,10 +309,15 @@ export class MCPTodoManager {
     async planTools(item, todo) {
         this.logger.system('mcp-todo', `[TODO] Planning tools for item ${item.id}`);
 
-        // Get available MCP tools
-        const availableTools = await this.mcpManager.listTools();
+        try {
+            // Get available MCP tools
+            const availableTools = await this.mcpManager.listTools();
+            
+            // Import Tetyana Plan Tools prompt
+            const { MCP_PROMPTS } = await import('../../prompts/mcp/index.js');
+            const planPrompt = MCP_PROMPTS.TETYANA_PLAN_TOOLS;
 
-        const prompt = `
+            const userMessage = `
 TODO Item: ${item.action}
 Available MCP Tools: ${JSON.stringify(availableTools, null, 2)}
 Previous items: ${JSON.stringify(todo.items.slice(0, item.id - 1).map(i => ({ id: i.id, action: i.action, status: i.status })), null, 2)}
@@ -320,19 +325,38 @@ Previous items: ${JSON.stringify(todo.items.slice(0, item.id - 1).map(i => ({ id
 Визнач які інструменти потрібні та параметри для виконання.
 `;
 
-        const response = await this.llmClient.generate({
-            systemPrompt: 'TETYANA_PLAN_TOOLS',
-            userMessage: prompt,
-            temperature: 0.2,
-            maxTokens: 1000
-        });
+            // FIXED 13.10.2025 - Use correct API call format
+            const apiResponse = await axios.post('http://localhost:4000/v1/chat/completions', {
+                model: 'openai/gpt-4o-mini',
+                messages: [
+                    {
+                        role: 'system',
+                        content: planPrompt.systemPrompt || planPrompt.SYSTEM_PROMPT
+                    },
+                    {
+                        role: 'user',
+                        content: userMessage
+                    }
+                ],
+                temperature: 0.2,
+                max_tokens: 1000
+            }, {
+                headers: { 'Content-Type': 'application/json' },
+                timeout: 15000
+            });
 
-        const plan = this._parseToolPlan(response);
-        plan.tts_phrase = this._generatePlanTTS(plan, item);
+            const response = apiResponse.data.choices[0].message.content;
+            const plan = this._parseToolPlan(response);
+            plan.tts_phrase = this._generatePlanTTS(plan, item);
 
-        this.logger.system('mcp-todo', `[TODO] Planned ${plan.tool_calls.length} tool calls for item ${item.id}`);
+            this.logger.system('mcp-todo', `[TODO] Planned ${plan.tool_calls.length} tool calls for item ${item.id}`);
 
-        return plan;
+            return plan;
+            
+        } catch (error) {
+            this.logger.error('mcp-todo', `[TODO] Failed to plan tools for item ${item.id}: ${error.message}`);
+            throw new Error(`Tool planning failed: ${error.message}`);
+        }
     }
 
     /**
@@ -400,7 +424,12 @@ Previous items: ${JSON.stringify(todo.items.slice(0, item.id - 1).map(i => ({ id
     async verifyItem(item, execution) {
         this.logger.system('mcp-todo', `[TODO] Verifying item ${item.id}`);
 
-        const prompt = `
+        try {
+            // Import Grisha Verify Item prompt
+            const { MCP_PROMPTS } = await import('../../prompts/mcp/index.js');
+            const verifyPrompt = MCP_PROMPTS.GRISHA_VERIFY_ITEM;
+
+            const userMessage = `
 TODO Item: ${item.action}
 Success Criteria: ${item.success_criteria}
 Execution Results: ${JSON.stringify(execution.results, null, 2)}
@@ -408,19 +437,38 @@ Execution Results: ${JSON.stringify(execution.results, null, 2)}
 Перевір чи виконано успішно. Використовуй MCP інструменти для перевірки (скріншот, file read, etc).
 `;
 
-        const response = await this.llmClient.generate({
-            systemPrompt: 'GRISHA_VERIFY_ITEM',
-            userMessage: prompt,
-            temperature: 0.1,
-            maxTokens: 800
-        });
+            // FIXED 13.10.2025 - Use correct API call format
+            const apiResponse = await axios.post('http://localhost:4000/v1/chat/completions', {
+                model: 'openai/gpt-4o-mini',
+                messages: [
+                    {
+                        role: 'system',
+                        content: verifyPrompt.systemPrompt || verifyPrompt.SYSTEM_PROMPT
+                    },
+                    {
+                        role: 'user',
+                        content: userMessage
+                    }
+                ],
+                temperature: 0.1,
+                max_tokens: 800
+            }, {
+                headers: { 'Content-Type': 'application/json' },
+                timeout: 15000
+            });
 
-        const verification = this._parseVerification(response);
-        verification.tts_phrase = verification.verified ? '✅ Підтверджено' : '❌ Не підтверджено';
+            const response = apiResponse.data.choices[0].message.content;
+            const verification = this._parseVerification(response);
+            verification.tts_phrase = verification.verified ? '✅ Підтверджено' : '❌ Не підтверджено';
 
-        this.logger.system('mcp-todo', `[TODO] Verification result for item ${item.id}: ${verification.verified ? 'PASS' : 'FAIL'}`);
+            this.logger.system('mcp-todo', `[TODO] Verification result for item ${item.id}: ${verification.verified ? 'PASS' : 'FAIL'}`);
 
-        return verification;
+            return verification;
+            
+        } catch (error) {
+            this.logger.error('mcp-todo', `[TODO] Failed to verify item ${item.id}: ${error.message}`);
+            throw new Error(`Verification failed: ${error.message}`);
+        }
     }
 
     /**
@@ -434,7 +482,12 @@ Execution Results: ${JSON.stringify(execution.results, null, 2)}
     async adjustTodoItem(item, verification, attempt) {
         this.logger.system('mcp-todo', `[TODO] Adjusting item ${item.id} after attempt ${attempt}`);
 
-        const prompt = `
+        try {
+            // Import Atlas Adjust TODO prompt
+            const { MCP_PROMPTS } = await import('../../prompts/mcp/index.js');
+            const adjustPrompt = MCP_PROMPTS.ATLAS_ADJUST_TODO;
+
+            const userMessage = `
 Failed TODO Item: ${JSON.stringify(item, null, 2)}
 Verification: ${JSON.stringify(verification, null, 2)}
 Attempt: ${attempt}/${item.max_attempts}
@@ -443,18 +496,37 @@ Attempt: ${attempt}/${item.max_attempts}
 Стратегії: retry (повтор), modify (зміна параметрів), split (розділити), skip (пропустити).
 `;
 
-        const response = await this.llmClient.generate({
-            systemPrompt: 'ATLAS_ADJUST_TODO',
-            userMessage: prompt,
-            temperature: 0.3,
-            maxTokens: 1000
-        });
+            // FIXED 13.10.2025 - Use correct API call format
+            const apiResponse = await axios.post('http://localhost:4000/v1/chat/completions', {
+                model: 'openai/gpt-4o',
+                messages: [
+                    {
+                        role: 'system',
+                        content: adjustPrompt.systemPrompt || adjustPrompt.SYSTEM_PROMPT
+                    },
+                    {
+                        role: 'user',
+                        content: userMessage
+                    }
+                ],
+                temperature: 0.3,
+                max_tokens: 1000
+            }, {
+                headers: { 'Content-Type': 'application/json' },
+                timeout: 15000
+            });
 
-        const adjustment = this._parseAdjustment(response);
+            const response = apiResponse.data.choices[0].message.content;
+            const adjustment = this._parseAdjustment(response);
 
-        this.logger.system('mcp-todo', `[TODO] Adjustment strategy for item ${item.id}: ${adjustment.strategy}`);
+            this.logger.system('mcp-todo', `[TODO] Adjustment strategy for item ${item.id}: ${adjustment.strategy}`);
 
-        return adjustment;
+            return adjustment;
+            
+        } catch (error) {
+            this.logger.error('mcp-todo', `[TODO] Failed to adjust item ${item.id}: ${error.message}`);
+            throw new Error(`Adjustment failed: ${error.message}`);
+        }
     }
 
     /**

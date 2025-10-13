@@ -1,6 +1,6 @@
 # ATLAS v4.0 - Adaptive Task and Learning Assistant System
 
-**LAST UPDATED:** 13 жовтня 2025 - Пізня ніч ~23:35 (MCP TODO Action Undefined + Workflow Errors Fix)
+**LAST UPDATED:** 13 жовтня 2025 - Пізня ніч ~23:45 (MCP Workflow Complete Fix - 3 Critical Bugs)
 
 ---
 
@@ -323,6 +323,65 @@ ATLAS is an intelligent multi-agent orchestration system with Flask web frontend
 ---
 
 ## 🎯 КЛЮЧОВІ ОСОБЛИВОСТІ СИСТЕМИ
+
+### ✅ MCP Workflow Complete Fix (FIXED 13.10.2025 - пізня ніч ~23:45)
+- **Проблема #1:** `workflowStart is not defined` - відсутня змінна для metrics в executeWorkflowStages()
+- **Проблема #2:** `content.replace is not a function` - type mismatch при обробці msg.content (могло бути object)
+- **Проблема #3:** Infinite retry loop - Stage 2.1 повторювався 3x для КОЖНОГО TODO item БЕЗ фактичного виконання
+- **Симптом #1:** Backend selection error при fallback на Goose workflow
+- **Симптом #2:** Stage execution crashes при обробці історії conversation
+- **Симптом #3:** TODO items 0% success rate, всі 6 items failed, жодного tool execution
+- **Логи #1:** `Backend selection error: workflowStart is not defined`
+- **Логи #2:** `Stage execution failed (stage=1, agent=atlas): content.replace is not a function`
+- **Логи #3:** `[STAGE-2.1-MCP] Planning tools for item X` × 3 повторів → наступний item БЕЗ execution
+- **Корінь #1:** `workflowStart` визначено в executeStepByStepWorkflow, але executeWorkflowStages() НЕ має доступу
+- **Корінь #2:** msg.content міг бути object (напр. {text: '...'}) замість string → .replace() failing
+- **Корінь #3:** MCPTodoManager викликав `llmClient.generate({ systemPrompt: 'STRING', userMessage: '...' })` замість axios.post() з правильними параметрами → метод НЕ працював → retry loop
+- **Рішення #1:** Додано `const workflowStart = Date.now()` на початок executeWorkflowStages()
+- **Рішення #2:** Додано type-safe content handling:
+  ```javascript
+  let content = msg.content;
+  if (typeof content === 'object' && content !== null) {
+    content = JSON.stringify(content);
+  } else if (typeof content !== 'string') {
+    content = String(content || '');
+  }
+  // Тепер безпечно викликати .replace()
+  ```
+- **Рішення #3:** Замінено llmClient.generate() → axios.post() в 3 методах:
+  ```javascript
+  // planTools(), verifyItem(), adjustTodoItem()
+  const { MCP_PROMPTS } = await import('../../prompts/mcp/index.js');
+  const prompt = MCP_PROMPTS.TETYANA_PLAN_TOOLS;
+  
+  const apiResponse = await axios.post('http://localhost:4000/v1/chat/completions', {
+      model: 'openai/gpt-4o-mini',
+      messages: [
+          { role: 'system', content: prompt.systemPrompt || prompt.SYSTEM_PROMPT },
+          { role: 'user', content: userMessage }
+      ],
+      temperature: 0.2,
+      max_tokens: 1000
+  });
+  const response = apiResponse.data.choices[0].message.content;
+  ```
+- **Виправлено:**
+  - `orchestrator/workflow/executor-v3.js` (line ~653) - workflowStart визначення
+  - `orchestrator/workflow/stages/agent-stage-processor.js` (2 місця: ~110-125, ~135-150) - type-safe content
+  - `orchestrator/workflow/mcp-todo-manager.js` (3 методи: planTools, verifyItem, adjustTodoItem) - axios.post calls
+- **Результат:**
+  - ✅ Metrics працюють - workflowStart коректно обчислюється
+  - ✅ Немає crashes на object content - graceful conversion
+  - ✅ LLM API calls працюють - prompts завантажуються з MCP_PROMPTS
+  - ✅ TODO items будуть СПРАВДІ виконуватись через MCP tools
+  - ✅ Tetyana планує → виконує → Grisha перевіряє (повний цикл)
+- **Критично:**
+  - **ЗАВЖДИ** визначайте timing змінні на початку workflow функцій
+  - **ЗАВЖДИ** перевіряйте typeof перед викликом string методів (.replace, .trim, etc)
+  - **ЗАВЖДИ** використовуйте axios.post() для MCP workflow LLM calls (НЕ llmClient.generate)
+  - **Pattern:** Import MCP_PROMPTS → axios.post → data.choices[0].message.content
+  - **Fallback:** prompt.systemPrompt || prompt.SYSTEM_PROMPT для compatibility
+- **Детально:** `docs/MCP_WORKFLOW_COMPLETE_FIX_2025-10-13.md`
 
 ### ✅ MCP TODO Action Undefined Fix (FIXED 13.10.2025 - пізня ніч ~23:35)
 - **Проблема:** TODO items створювались з `action: undefined` замість реальних дій - workflow НЕ міг виконати завдання
