@@ -94,6 +94,16 @@ class Telemetry {
   recordResourceUsage(resource, value, details = {}) {
     return this.recordMetric('resource', resource, value, details);
   }
+
+  // Event emission для сумісності з DI Container
+  emit(eventName, data = {}) {
+    // Розбираємо event name на category та name
+    const parts = eventName.split('.');
+    const category = parts[0] || 'general';
+    const name = parts.slice(1).join('.') || eventName;
+    
+    return this.recordMetric(category, name, data.value || 1, data);
+  }
 }
 
 export default new Telemetry();
