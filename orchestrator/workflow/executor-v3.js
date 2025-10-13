@@ -54,7 +54,7 @@ class CircuitBreaker {
 
     if (this.failureCount >= this.threshold) {
       this.state = 'OPEN';
-      logger.warning('circuit-breaker', `Circuit breaker OPEN after ${this.failureCount} failures`);
+      logger.warn('circuit-breaker', `Circuit breaker OPEN after ${this.failureCount} failures`);
       
       // Auto-reset after timeout
       setTimeout(() => {
@@ -748,7 +748,7 @@ async function executeWorkflowStages(userMessage, session, res, allStages, workf
       // ✅ PHASE 4 TASK 3: Check circuit breaker before executing MCP workflow
       if (!mcpCircuitBreaker.canExecute()) {
         const breakerState = mcpCircuitBreaker.getState();
-        logger.warning('executor', `Circuit breaker ${breakerState.state} - routing to Goose workflow`, {
+        logger.warn('executor', `Circuit breaker ${breakerState.state} - routing to Goose workflow`, {
           sessionId: session.id,
           failureCount: breakerState.failureCount,
           threshold: breakerState.threshold
@@ -871,7 +871,7 @@ async function executeWorkflowStages(userMessage, session, res, allStages, workf
           })}\n\n`);
         }
 
-        logger.warning('executor', 'Falling back to Goose workflow after MCP failure');
+        logger.warn('executor', 'Falling back to Goose workflow after MCP failure');
         return await executeTaskWorkflow(userMessage, session, res, allStages, workflowConfig);
       }
     } else {

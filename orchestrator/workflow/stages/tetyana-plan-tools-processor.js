@@ -79,7 +79,7 @@ export class TetyanaПlanToolsProcessor {
             const validation = this._validatePlan(plan, availableTools);
 
             if (!validation.valid) {
-                this.logger.warning('tetyana-plan-tools', `[STAGE-2.1-MCP] ⚠️ Plan validation issues: ${validation.issues.join(', ')}`);
+                this.logger.warn('tetyana-plan-tools', `[STAGE-2.1-MCP] ⚠️ Plan validation issues: ${validation.issues.join(', ')}`);
             }
 
             // Generate summary
@@ -127,7 +127,7 @@ export class TetyanaПlanToolsProcessor {
             const tools = await this.mcpManager.getAvailableTools();
             
             if (!tools || tools.length === 0) {
-                this.logger.warning('tetyana-plan-tools', '[STAGE-2.1-MCP] No MCP tools available, using default list');
+                this.logger.warn('tetyana-plan-tools', '[STAGE-2.1-MCP] No MCP tools available, using default list');
                 
                 // Return default tool list if MCPManager not ready
                 return this._getDefaultTools();
@@ -136,7 +136,7 @@ export class TetyanaПlanToolsProcessor {
             return tools;
 
         } catch (error) {
-            this.logger.warning('tetyana-plan-tools', `[STAGE-2.1-MCP] Failed to get tools from MCPManager: ${error.message}`);
+            this.logger.warn('tetyana-plan-tools', `[STAGE-2.1-MCP] Failed to get tools from MCPManager: ${error.message}`);
             
             // Fallback to default tools
             return this._getDefaultTools();
