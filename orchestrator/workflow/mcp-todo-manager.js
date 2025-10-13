@@ -326,24 +326,38 @@ Previous items: ${JSON.stringify(todo.items.slice(0, item.id - 1).map(i => ({ id
 `;
 
             // FIXED 13.10.2025 - Use correct API call format
-            const apiResponse = await axios.post('http://localhost:4000/v1/chat/completions', {
-                model: 'openai/gpt-4o-mini',
-                messages: [
-                    {
-                        role: 'system',
-                        content: planPrompt.systemPrompt || planPrompt.SYSTEM_PROMPT
-                    },
-                    {
-                        role: 'user',
-                        content: userMessage
-                    }
-                ],
-                temperature: 0.2,
-                max_tokens: 1000
-            }, {
-                headers: { 'Content-Type': 'application/json' },
-                timeout: 15000
-            });
+            let apiResponse;
+            try {
+                this.logger.system('mcp-todo', `[TODO] Calling LLM API at http://localhost:4000...`);
+                
+                apiResponse = await axios.post('http://localhost:4000/v1/chat/completions', {
+                    model: 'openai/gpt-4o-mini',
+                    messages: [
+                        {
+                            role: 'system',
+                            content: planPrompt.systemPrompt || planPrompt.SYSTEM_PROMPT
+                        },
+                        {
+                            role: 'user',
+                            content: userMessage
+                        }
+                    ],
+                    temperature: 0.2,
+                    max_tokens: 1000
+                }, {
+                    headers: { 'Content-Type': 'application/json' },
+                    timeout: 15000
+                });
+                
+                this.logger.system('mcp-todo', `[TODO] LLM API responded successfully`);
+                
+            } catch (apiError) {
+                this.logger.error('mcp-todo', `[TODO] LLM API call failed: ${apiError.message}`);
+                if (apiError.code === 'ECONNREFUSED') {
+                    throw new Error('LLM API not available at localhost:4000. Start it with: ./start-llm-api-4000.sh');
+                }
+                throw new Error(`LLM API error: ${apiError.message}`);
+            }
 
             const response = apiResponse.data.choices[0].message.content;
             
