@@ -121,11 +121,17 @@ export class MCPTodoManager {
             
             this.logger.system('mcp-todo', `[TODO] Created ${todo.mode} TODO with ${todo.items.length} items (complexity: ${todo.complexity}/10)`);
             
-            // TTS feedback
-            await this.tts.speak(
-                `План створено, ${todo.items.length} ${this._getPluralForm(todo.items.length, 'пункт', 'пункти', 'пунктів')}, починаю виконання`,
-                { mode: 'detailed', duration: 2500 }
-            );
+            // TTS feedback (optional - skip if TTS not available)
+            if (this.tts && typeof this.tts.speak === 'function') {
+                try {
+                    await this._safeTTSSpeak(
+                        `План створено, ${todo.items.length} ${this._getPluralForm(todo.items.length, 'пункт', 'пункти', 'пунктів')}, починаю виконання`,
+                        { mode: 'detailed', duration: 2500 }
+                    );
+                } catch (ttsError) {
+                    this.logger.warning('mcp-todo', `[TODO] TTS feedback failed: ${ttsError.message}`);
+                }
+            }
 
             return todo;
 
@@ -191,7 +197,7 @@ export class MCPTodoManager {
             this.logger.system('mcp-todo', `[TODO] Execution completed in ${duration}s - Success: ${summary.success_rate}%`);
 
             // Final TTS
-            await this.tts.speak(
+            await this._safeTTSSpeak(
                 `Завдання виконано на ${summary.success_rate}%`,
                 { mode: 'detailed', duration: 2500 }
             );
@@ -225,15 +231,15 @@ export class MCPTodoManager {
 
                 // Stage 2.1: Plan Tools (Tetyana)
                 const plan = await this.planTools(item, todo);
-                await this.tts.speak(plan.tts_phrase, { mode: 'quick', duration: 150 });
+                await this._safeTTSSpeak(plan.tts_phrase, { mode: 'quick', duration: 150 });
 
                 // Stage 2.2: Execute Tools (Tetyana)
                 const execution = await this.executeTools(plan, item);
-                await this.tts.speak(execution.tts_phrase, { mode: 'normal', duration: 800 });
+                await this._safeTTSSpeak(execution.tts_phrase, { mode: 'normal', duration: 800 });
 
                 // Stage 2.3: Verify Item (Grisha)
                 const verification = await this.verifyItem(item, execution);
-                await this.tts.speak(verification.tts_phrase, { mode: 'normal', duration: 800 });
+                await this._safeTTSSpeak(verification.tts_phrase, { mode: 'normal', duration: 800 });
 
                 // Check verification result
                 if (verification.verified) {
@@ -243,7 +249,7 @@ export class MCPTodoManager {
 
                     this.logger.system('mcp-todo', `[TODO] ✅ Item ${item.id} completed on attempt ${attempt}`);
                     
-                    await this.tts.speak('✅ Виконано', { mode: 'quick', duration: 100 });
+                    await this._safeTTSSpeak('✅ Виконано', { mode: 'quick', duration: 100 });
                     
                     return { status: 'completed', attempts: attempt, item };
                 }
@@ -259,10 +265,10 @@ export class MCPTodoManager {
                     // Apply adjustments
                     Object.assign(item, adjustment.updated_todo_item);
                     
-                    await this.tts.speak('Коригую та повторюю...', { mode: 'normal', duration: 1000 });
+                    await this._safeTTSSpeak('Коригую та повторюю...', { mode: 'normal', duration: 1000 });
                 } else {
                     // Final attempt failed
-                    await this.tts.speak('❌ Помилка', { mode: 'quick', duration: 100 });
+                    await this._safeTTSSpeak('❌ Помилка', { mode: 'quick', duration: 100 });
                 }
 
             } catch (error) {
@@ -672,6 +678,25 @@ Context: ${JSON.stringify(context, null, 2)}
             return 'Готово';
         }
         return 'Виконано частково';
+    }
+
+    /**
+     * Safe TTS helper - speaks only if TTS is available
+     * FIXED 13.10.2025 - Added null-safety for TTS
+     * 
+     * @param {string} phrase - Text to speak
+     * @param {Object} options - TTS options (mode, duration)
+     * @returns {Promise<void>}
+     */
+    async _safeTTSSpeak(phrase, options = {}) {
+        if (this.tts && typeof this.tts.speak === 'function') {
+            try {
+                await this.tts.speak(phrase, options);
+            } catch (ttsError) {
+                this.logger.warning('mcp-todo', `[TODO] TTS failed: ${ttsError.message}`);
+            }
+        }
+        // Silently skip if TTS not available
     }
 
     _getPluralForm(count, one, few, many) {
