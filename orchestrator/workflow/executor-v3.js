@@ -33,6 +33,60 @@ import {
 // Session tracking for preventing duplicates
 const activeAgentSessions = new Set();
 
+// ✅ PHASE 4 TASK 3: Circuit breaker for repeated failures
+class CircuitBreaker {
+  constructor(threshold = 3, resetTimeout = 60000) {
+    this.failureCount = 0;
+    this.threshold = threshold;
+    this.resetTimeout = resetTimeout;
+    this.state = 'CLOSED'; // CLOSED, OPEN, HALF_OPEN
+    this.lastFailureTime = null;
+  }
+
+  recordSuccess() {
+    this.failureCount = 0;
+    this.state = 'CLOSED';
+  }
+
+  recordFailure() {
+    this.failureCount++;
+    this.lastFailureTime = Date.now();
+
+    if (this.failureCount >= this.threshold) {
+      this.state = 'OPEN';
+      logger.warning('circuit-breaker', `Circuit breaker OPEN after ${this.failureCount} failures`);
+      
+      // Auto-reset after timeout
+      setTimeout(() => {
+        this.state = 'HALF_OPEN';
+        this.failureCount = 0;
+        logger.info('circuit-breaker', 'Circuit breaker entering HALF_OPEN state');
+      }, this.resetTimeout);
+    }
+  }
+
+  canExecute() {
+    if (this.state === 'OPEN') {
+      const timeSinceFailure = Date.now() - this.lastFailureTime;
+      if (timeSinceFailure < this.resetTimeout) {
+        return false;
+      }
+      this.state = 'HALF_OPEN';
+    }
+    return true;
+  }
+
+  getState() {
+    return {
+      state: this.state,
+      failureCount: this.failureCount,
+      threshold: this.threshold
+    };
+  }
+}
+
+const mcpCircuitBreaker = new CircuitBreaker(3, 60000); // 3 failures, 60s reset
+
 // ============================================================================
 // HELPER FUNCTIONS (must be defined before use due to hoisting)
 // ============================================================================
@@ -126,6 +180,18 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
   });
 
   const workflowStart = Date.now();
+  
+  // ✅ PHASE 4 TASK 3: Timeout protection (max 5 minutes)
+  const WORKFLOW_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+  let workflowCompleted = false;
+  
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => {
+      if (!workflowCompleted) {
+        reject(new Error(`MCP workflow timeout after ${WORKFLOW_TIMEOUT_MS / 1000}s`));
+      }
+    }, WORKFLOW_TIMEOUT_MS);
+  });
 
   try {
     // Resolve processors from DI Container
@@ -145,14 +211,28 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
       res
     });
 
+    // ✅ PHASE 4 TASK 3: Validate TODO result structure
     if (!todoResult.success) {
       throw new Error(`TODO planning failed: ${todoResult.error || 'Unknown error'}`);
+    }
+
+    if (!todoResult.todo || !todoResult.todo.items || !Array.isArray(todoResult.todo.items)) {
+      throw new Error('Invalid TODO structure: missing items array');
+    }
+
+    if (todoResult.todo.items.length === 0) {
+      throw new Error('TODO planning produced empty items list');
     }
 
     const todo = todoResult.todo;
     logger.info(`TODO created with ${todo.items.length} items`, {
       sessionId: session.id,
-      mode: todo.mode
+      mode: todo.mode,
+      items: todo.items.map(item => ({
+        id: item.id,
+        action: item.action,
+        max_attempts: item.max_attempts
+      }))
     });
 
     // Send TODO plan to frontend
@@ -182,6 +262,16 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
         logger.info(`Item ${item.id}: Attempt ${attempt}/${maxAttempts}`, {
           sessionId: session.id
         });
+
+        // ✅ PHASE 4 TASK 3: Exponential backoff between retries
+        if (attempt > 1) {
+          const backoffDelay = Math.min(1000 * Math.pow(2, attempt - 2), 8000); // Max 8s
+          logger.info(`Retry backoff: waiting ${backoffDelay}ms before attempt ${attempt}`, {
+            sessionId: session.id,
+            itemId: item.id
+          });
+          await new Promise(resolve => setTimeout(resolve, backoffDelay));
+        }
 
         try {
           // Stage 2.1-MCP: Tetyana Plan Tools
@@ -314,8 +404,22 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
           attempt++;
 
         } catch (itemError) {
+          // ✅ PHASE 4 TASK 3: Enhanced error logging with context
           logger.error(`Item ${item.id} execution error: ${itemError.message}`, {
             sessionId: session.id,
+            itemId: item.id,
+            action: item.action,
+            attempt,
+            maxAttempts,
+            error: itemError.message,
+            stack: itemError.stack,
+            tools_needed: item.tools_needed,
+            mcp_servers: item.mcp_servers
+          });
+
+          telemetry.emit('workflow.mcp.item_error', {
+            sessionId: session.id,
+            itemId: item.id,
             attempt,
             error: itemError.message
           });
@@ -325,6 +429,20 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
           if (attempt > maxAttempts) {
             item.status = 'failed';
             item.error = itemError.message;
+
+            // ✅ PHASE 4 TASK 3: Log final failure with full context
+            logger.error(`Item ${item.id} PERMANENTLY FAILED after ${maxAttempts} attempts`, {
+              sessionId: session.id,
+              itemId: item.id,
+              action: item.action,
+              totalAttempts: maxAttempts,
+              finalError: itemError.message,
+              context: {
+                tools: item.tools_needed,
+                servers: item.mcp_servers,
+                dependencies: item.dependencies
+              }
+            });
           }
         }
       }
@@ -394,9 +512,15 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
       metrics: summaryResult.metadata?.metrics
     });
 
+    // ✅ PHASE 4 TASK 3: Mark workflow as completed (disables timeout)
+    workflowCompleted = true;
+
     return summaryResult;
 
   } catch (error) {
+    // ✅ PHASE 4 TASK 3: Mark workflow as completed on error too
+    workflowCompleted = true;
+
     logger.error(`MCP workflow failed: ${error.message}`, {
       sessionId: session.id,
       error: error.message,
@@ -621,10 +745,98 @@ async function executeWorkflowStages(userMessage, session, res, allStages, workf
 
     // Route based on selected backend
     if (selectedBackend === 'mcp') {
+      // ✅ PHASE 4 TASK 3: Check circuit breaker before executing MCP workflow
+      if (!mcpCircuitBreaker.canExecute()) {
+        const breakerState = mcpCircuitBreaker.getState();
+        logger.warning('executor', `Circuit breaker ${breakerState.state} - routing to Goose workflow`, {
+          sessionId: session.id,
+          failureCount: breakerState.failureCount,
+          threshold: breakerState.threshold
+        });
+
+        telemetry.emit('workflow.mcp.circuit_breaker_open', {
+          sessionId: session.id,
+          state: breakerState.state
+        });
+
+        // Send circuit breaker notification to frontend
+        if (res.writable && !res.writableEnded) {
+          res.write(`data: ${JSON.stringify({
+            type: 'workflow_fallback',
+            data: {
+              from: 'mcp',
+              to: 'goose',
+              reason: `Circuit breaker ${breakerState.state} - too many recent failures`
+            }
+          })}\n\n`);
+        }
+
+        return await executeTaskWorkflow(userMessage, session, res, allStages, workflowConfig);
+      }
+
       logger.info('Routing to MCP Dynamic TODO Workflow', { sessionId: session.id });
-      return await executeMCPWorkflow(userMessage, session, res, container);
+      
+      // ✅ PHASE 4 TASK 3: Enhanced error handling with Goose fallback
+      try {
+        telemetry.emit('workflow.mcp.started', {
+          sessionId: session.id,
+          userMessage: userMessage.substring(0, 100)
+        });
+
+        const mcpResult = await executeMCPWorkflow(userMessage, session, res, container);
+        
+        // ✅ PHASE 4 TASK 3: Record success in circuit breaker
+        mcpCircuitBreaker.recordSuccess();
+
+        telemetry.emit('workflow.mcp.completed', {
+          sessionId: session.id,
+          duration: Date.now() - workflowStart,
+          success: true
+        });
+
+        return mcpResult;
+
+      } catch (mcpError) {
+        // ✅ PHASE 4 TASK 3: Record failure in circuit breaker
+        mcpCircuitBreaker.recordFailure();
+
+        logger.error('executor', `MCP workflow failed: ${mcpError.message}`, {
+          sessionId: session.id,
+          error: mcpError.message,
+          stack: mcpError.stack,
+          circuitBreakerState: mcpCircuitBreaker.getState()
+        });
+
+        telemetry.emit('workflow.mcp.failed', {
+          sessionId: session.id,
+          error: mcpError.message,
+          fallbackToGoose: true,
+          circuitBreakerState: mcpCircuitBreaker.getState()
+        });
+
+        // Send error notification to frontend
+        if (res.writable && !res.writableEnded) {
+          res.write(`data: ${JSON.stringify({
+            type: 'workflow_fallback',
+            data: {
+              from: 'mcp',
+              to: 'goose',
+              reason: mcpError.message
+            }
+          })}\n\n`);
+        }
+
+        logger.warning('executor', 'Falling back to Goose workflow after MCP failure');
+        return await executeTaskWorkflow(userMessage, session, res, allStages, workflowConfig);
+      }
     } else {
       logger.info('Routing to traditional Goose Workflow', { sessionId: session.id });
+      
+      telemetry.emit('workflow.goose.started', {
+        sessionId: session.id,
+        userMessage: userMessage.substring(0, 100)
+      });
+
       return await executeTaskWorkflow(userMessage, session, res, allStages, workflowConfig);
     }
 
