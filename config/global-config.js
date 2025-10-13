@@ -102,15 +102,23 @@ export const AI_MODEL_CONFIG = {
 
 // === AI BACKEND CONFIGURATION (NEW 13.10.2025) ===
 // Модульна система для переключення між Goose та прямими MCP серверами
+// CRITICAL: Use getters to read fresh values from process.env (after dotenv.config())
 export const AI_BACKEND_CONFIG = {
   // Режим роботи: 'goose', 'mcp', 'hybrid'
-  mode: process.env.AI_BACKEND_MODE || 'hybrid',
+  // FIXED 13.10.2025 - getter reads from process.env dynamically
+  get mode() { 
+    return process.env.AI_BACKEND_MODE || 'hybrid';
+  },
   
   // Primary backend для task execution
-  primary: process.env.AI_BACKEND_PRIMARY || 'goose',
+  get primary() {
+    return process.env.AI_BACKEND_PRIMARY || 'goose';
+  },
   
   // Fallback при недоступності primary
-  fallback: process.env.AI_BACKEND_FALLBACK || 'mcp',
+  get fallback() {
+    return process.env.AI_BACKEND_FALLBACK || 'mcp';
+  },
   
   // Retry налаштування
   retry: {

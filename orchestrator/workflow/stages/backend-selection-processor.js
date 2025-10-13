@@ -39,10 +39,17 @@ export class BackendSelectionProcessor {
         const { userMessage, session } = context;
 
         try {
-            // Get configured mode
-            const configuredMode = this.config.mode;
+            // CRITICAL: Re-read from process.env to get actual value (after dotenv.config())
+            const envMode = process.env.AI_BACKEND_MODE;
+            const configMode = this.config.mode;
+            
+            this.logger.system('backend-selection', `[STAGE-0.5] ENV AI_BACKEND_MODE: ${envMode}`);
+            this.logger.system('backend-selection', `[STAGE-0.5] Config mode: ${configMode}`);
+            
+            // Use ENV value if available (override static config)
+            const configuredMode = envMode || configMode;
 
-            this.logger.system('backend-selection', `[STAGE-0.5] Configured mode: ${configuredMode}`);
+            this.logger.system('backend-selection', `[STAGE-0.5] Final configured mode: ${configuredMode}`);
 
             let selectedBackend;
 
