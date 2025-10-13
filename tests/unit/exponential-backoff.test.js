@@ -6,7 +6,7 @@
  * @date 2025-10-13
  */
 
-import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+const { describe, it, expect, beforeEach } = require('@jest/globals');
 
 // Exponential backoff implementation (from executor-v3.js)
 function calculateBackoff(attempt, baseDelay = 1000, maxDelay = 8000) {
@@ -209,4 +209,4 @@ describe('Exponential Backoff', () => {
 });
 
 // Export for integration tests
-export { calculateBackoff, sleep };
+module.exports = { calculateBackoff, sleep };

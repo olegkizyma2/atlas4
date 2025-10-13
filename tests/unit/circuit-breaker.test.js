@@ -6,7 +6,7 @@
  * @date 2025-10-13
  */
 
-import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+const { describe, it, expect, beforeEach } = require('@jest/globals');
 
 // Mock CircuitBreaker class (extracted from executor-v3.js)
 class CircuitBreaker {
@@ -271,4 +271,4 @@ describe('CircuitBreaker', () => {
 });
 
 // Export for use in integration tests
-export { CircuitBreaker };
+module.exports = { CircuitBreaker };
