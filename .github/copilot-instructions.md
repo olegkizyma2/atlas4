@@ -1,6 +1,6 @@
 # ATLAS v4.0 - Adaptive Task and Learning Assistant System
 
-**LAST UPDATED:** 13 жовтня 2025 - Вечір ~21:30 (MCP Fallback Disable + JSON Parsing Fix)
+**LAST UPDATED:** 13 жовтня 2025 - Пізній вечір ~22:40 (MCP TTS Safety + Fallback Disable + JSON Parsing Fix)
 
 ---
 
@@ -323,6 +323,64 @@ ATLAS is an intelligent multi-agent orchestration system with Flask web frontend
 ---
 
 ## 🎯 КЛЮЧОВІ ОСОБЛИВОСТІ СИСТЕМИ
+
+### ✅ MCP TTS Safety Fix (FIXED 13.10.2025 - пізній вечір ~22:40)
+- **Проблема:** MCPTodoManager крашився на TTS виклики - `Cannot read properties of undefined (reading 'speak')`
+- **Симптом:** `[TODO] Created standard TODO with 3 items` → `ERROR Cannot read properties of undefined (reading 'speak')` → Fallback на Goose
+- **Логі:**
+  ```
+  [2025-10-13T22:32:24.827Z] [SYSTEM] [mcp-todo] [TODO] Created standard TODO with 3 items (complexity: 5/10)
+  [2025-10-13T22:32:24.828Z] ERROR [mcp-todo] [TODO] Failed to execute TODO: Cannot read properties of undefined (reading 'speak')
+  [2025-10-13T22:32:24.829Z] ⚠️ Falling back to Goose workflow
+  ```
+- **Корінь:** 
+  1. TTSSyncManager може бути undefined під час ініціалізації MCPTodoManager
+  2. DI Container реєструє сервіси, але вони можуть бути null при resolution
+  3. 16 прямих викликів `await this.tts.speak()` без null-safety перевірок
+  4. createTodo() успішно створював TODO, але падав на TTS feedback
+- **Рішення:** Створено безпечний wrapper `_safeTTSSpeak()` з null-check + try-catch
+  ```javascript
+  // orchestrator/workflow/mcp-todo-manager.js (~line 665)
+  async _safeTTSSpeak(phrase, options = {}) {
+      if (this.tts && typeof this.tts.speak === 'function') {
+          try {
+              await this.tts.speak(phrase, options);
+          } catch (ttsError) {
+              this.logger.warning('mcp-todo', `[TODO] TTS failed: ${ttsError.message}`);
+          }
+      }
+      // Silent skip if TTS not available - don't block workflow
+  }
+  ```
+- **Виправлено:**
+  - `orchestrator/workflow/mcp-todo-manager.js` - додано `_safeTTSSpeak()` метод
+  - Замінено 7 унікальних локацій з прямими викликами TTS (16 загальних викликів):
+    1. createTodo() - feedback після створення TODO (line ~125)
+    2. executeTodo() - фінальний summary (line ~197)
+    3-7. executeItemWithRetry() - item-by-item feedback (6 викликів: plan/execute/verify/success/retry/failure)
+- **Результат:** 
+  - ✅ MCPTodoManager працює БЕЗ TTS (graceful degradation)
+  - ✅ Немає crashes на undefined TTSSyncManager
+  - ✅ Workflow продовжується навіть без voice feedback
+  - ✅ TTS errors логуються як warnings (НЕ блокують виконання)
+  - ✅ Всі 16 прямих викликів замінено на safe wrapper
+- **Критично:** 
+  - **ЗАВЖДИ** використовуйте `_safeTTSSpeak()` для TTS в MCP workflow
+  - **Перевіряйте null** перед викликом DI-ін'єктованих сервісів
+  - **Graceful degradation** - workflow має працювати БЕЗ TTS
+  - **НЕ блокуйте workflow** якщо TTS недоступний
+  - **Логуйте warnings** для TTS failures (НЕ errors)
+- **Тестування:**
+  ```bash
+  # Має показати тільки 2 виклики (обидва в _safeTTSSpeak)
+  grep -n "await this\.tts\.speak" orchestrator/workflow/mcp-todo-manager.js
+  
+  # Test MCP workflow БЕЗ TTS crash
+  curl -X POST http://localhost:5101/chat/stream \
+    -H "Content-Type: application/json" \
+    -d '{"message": "Запусти кліп на весь основному екрані в ютубі", "sessionId": "test"}'
+  ```
+- **Детально:** `docs/MCP_TTS_SAFETY_FIX_2025-10-13.md`
 
 ### ✅ MCP Fallback Disable & JSON Parsing Fix (FIXED 13.10.2025 - вечір ~21:30)
 - **Проблема #1:** MCP Dynamic TODO Workflow падав з JSON parsing error
