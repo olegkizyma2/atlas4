@@ -155,6 +155,23 @@ export function registerUtilityServices(container) {
  * @returns {DIContainer}
  */
 export function registerMCPWorkflowServices(container) {
+
+    // MCPManager - керування MCP servers
+    container.singleton('mcpManager', (c) => {
+        // Конфігурація серверів з глобального config
+        const serversConfig = c.resolve('config').AI_BACKEND_CONFIG?.mcpServers || {};
+        const { MCPManager } = require('../ai/mcp-manager.js');
+        return new MCPManager(serversConfig);
+    }, {
+        dependencies: ['config'],
+        metadata: { category: 'workflow', priority: 55 },
+        lifecycle: {
+            onInit: async function () {
+                logger.system('startup', '[DI] MCPManager initialized');
+            }
+        }
+    });
+
     // TTSSyncManager - TTS synchronization для MCP workflow
     container.singleton('ttsSyncManager', (c) => {
         return new TTSSyncManager({
@@ -172,16 +189,14 @@ export function registerMCPWorkflowServices(container) {
 
     // MCPTodoManager - головний менеджер MCP TODO
     container.singleton('mcpTodoManager', (c) => {
-        // FIXED 13.10.2025 - Add missing dependencies (mcpManager, llmClient)
-        // Note: mcpManager and llmClient will be created on-demand when needed
         return new MCPTodoManager({
-            mcpManager: null, // Will be lazy-loaded when needed
+            mcpManager: c.resolve('mcpManager'),
             llmClient: null,  // Will be lazy-loaded when needed
             ttsSyncManager: c.resolve('ttsSyncManager'),
             logger: c.resolve('logger')
         });
     }, {
-        dependencies: ['ttsSyncManager', 'logger'],
+        dependencies: ['mcpManager', 'ttsSyncManager', 'logger'],
         metadata: { category: 'workflow', priority: 50 },
         lifecycle: {
             onInit: async function () {
