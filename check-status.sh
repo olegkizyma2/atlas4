@@ -64,15 +64,18 @@ else
 fi
 
 if [ -d "config/node_modules" ]; then
-    echo -e "   ${GREEN}✓${NC} config/node_modules/"
+    CONFIG_PKG_COUNT=$(ls -1 config/node_modules | wc -l | tr -d ' ')
+    echo -e "   ${GREEN}✓${NC} config/node_modules/ (${CONFIG_PKG_COUNT} packages)"
 else
     echo -e "   ${RED}✗${NC} config/node_modules/ НЕ знайдено"
 fi
 
 if [ -d "orchestrator/node_modules" ]; then
-    echo -e "   ${GREEN}✓${NC} orchestrator/node_modules/"
+    ORCH_PKG_COUNT=$(ls -1 orchestrator/node_modules | wc -l | tr -d ' ')
+    echo -e "   ${GREEN}✓${NC} orchestrator/node_modules/ (${ORCH_PKG_COUNT} packages)"
 else
     echo -e "   ${RED}✗${NC} orchestrator/node_modules/ НЕ знайдено"
+    echo -e "   ${YELLOW}⚠️${NC}  Виправлення: cd orchestrator && npm install"
 fi
 
 echo ""

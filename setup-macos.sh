@@ -519,6 +519,14 @@ setup_nodejs_packages() {
         cd "$REPO_ROOT"
     fi
     
+    # Встановити пакети в orchestrator/
+    if [ -f "orchestrator/package.json" ]; then
+        log_info "Встановлення orchestrator залежностей..."
+        cd orchestrator
+        npm install --silent
+        cd "$REPO_ROOT"
+    fi
+    
     log_success "Node.js залежності встановлено"
 }
 
