@@ -1,6 +1,6 @@
 # ATLAS v4.0 - Adaptive Task and Learning Assistant System
 
-**LAST UPDATED:** 13 жовтня 2025 - День ~14:25 (Setup Deployment Reliability Fix)
+**LAST UPDATED:** 13 жовтня 2025 - День ~17:30 (Goose MCP Extensions Configuration Fix)
 
 ---
 
@@ -323,6 +323,41 @@ ATLAS is an intelligent multi-agent orchestration system with Flask web frontend
 ---
 
 ## 🎯 КЛЮЧОВІ ОСОБЛИВОСТІ СИСТЕМИ
+
+### ✅ Goose MCP Extensions Configuration (FIXED 13.10.2025 - день ~17:30)
+- **Проблема:** Тетяна та Гриша НЕ мали доступу до реальних інструментів (developer, playwright, computercontroller) - завдання НЕ виконувались
+- **Симптом:** `[ТЕТЯНА] "Немає доступу до розширень..."`, `[ГРИША] "developer недоступний у конфігурації"`
+- **Логи:** Запит на створення файлу на Desktop → "інструмент недоступний" → завдання провалено
+- **Корінь #1:** `setup-macos.sh` встановлював Goose Desktop, але НЕ налаштовував MCP (Model Context Protocol) extensions
+- **Корінь #2:** `~/.config/goose/config.yaml` був БЕЗ секції `extensions:` → tools не завантажувались
+- **Корінь #3:** MCP npm packages НЕ встановлено глобально → `npx -y @...` failing
+- **Корінь #4:** `goose-client.js` відправляв **fake tool responses** але справжніх tools не було
+- **Рішення #1:** Оновлено `configure_goose()` в `setup-macos.sh` - тепер створює config З MCP extensions
+- **Рішення #2:** Додано автоматичне встановлення MCP npm packages: `@modelcontextprotocol/server-filesystem`, `@executeautomation/playwright-mcp-server`, `@anthropic/computer-use`
+- **Рішення #3:** Оновлено `scripts/configure-goose.sh` - повний MCP setup + перевірка packages
+- **Рішення #4:** Додано секцію `security:` в config з `allow_code_execution: true`, `allow_file_access: true`
+- **Виправлено:** 
+  - `setup-macos.sh` - функція configure_goose() з MCP extensions
+  - `scripts/configure-goose.sh` - повна MCP конфігурація + npm install
+  - `~/.config/goose/config.yaml` - тепер з extensions: developer, playwright, computercontroller
+- **Результат:** 
+  - ✅ Тетяна тепер створює файли через `developer__shell`
+  - ✅ Тетяна відкриває браузер через `playwright__browser_open`
+  - ✅ Гриша робить скріншоти через `computercontroller`
+  - ✅ Завдання виконуються ПОВНІСТЮ (було: провал, стало: успіх)
+- **Критично:** 
+  - MCP extensions MUST бути в `~/.config/goose/config.yaml`
+  - npm packages MUST бути встановлено глобально: `npm install -g @modelcontextprotocol/...`
+  - GitHub Token обов'язковий: `export GITHUB_TOKEN="ghp_..."`
+  - Goose Desktop > CLI (краща підтримка MCP)
+  - Перезапуск Goose після змін config: `killall Goose && open -a Goose`
+  - security налаштування: `allow_code_execution: true` інакше tools блокуються
+- **Тестування:**
+  - Команда: "Створи файл test.txt на Desktop з текстом Hello ATLAS"
+  - Очікуване: `[GOOSE] Tool request: developer__shell` → файл створено ✅
+  - Команда: "Відкрий браузер та перейди на google.com"
+  - Очікуване: браузер відкривається через Playwright ✅
+- **Детально:** `docs/GOOSE_MCP_SETUP_GUIDE.md`, `docs/GOOSE_TOOLS_NOT_AVAILABLE_FIX.md`
 
 ### ✅ Setup Deployment Reliability Fix (FIXED 13.10.2025 - день ~14:25)
 - **Проблема:** setup-macos.sh позначав завантаження Whisper Large-v3 як успішне навіть при мережевих помилках і створював `.env` з фіксованим `WHISPER_CPP_THREADS=6`.
