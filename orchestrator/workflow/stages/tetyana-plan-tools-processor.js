@@ -57,7 +57,11 @@ export class TetyanaПlanToolsProcessor {
             this.logger.system('tetyana-plan-tools', `[STAGE-2.1-MCP] Available MCP servers: ${availableTools.map(t => t.server).join(', ')}`);
 
             // Plan tools using MCPTodoManager
+            this.logger.system('tetyana-plan-tools', `[STAGE-2.1-MCP] Calling mcpTodoManager.planTools()...`);
+            
             const plan = await this.mcpTodoManager.planTools(currentItem, todo);
+            
+            this.logger.system('tetyana-plan-tools', `[STAGE-2.1-MCP] planTools() returned: ${JSON.stringify(plan).substring(0, 300)}`);
 
             if (!plan || !plan.tool_calls) {
                 throw new Error('MCPTodoManager.planTools() returned invalid plan');

@@ -346,15 +346,26 @@ Previous items: ${JSON.stringify(todo.items.slice(0, item.id - 1).map(i => ({ id
             });
 
             const response = apiResponse.data.choices[0].message.content;
+            
+            // DIAGNOSTIC: Log raw response
+            this.logger.system('mcp-todo', `[TODO] Raw LLM response (first 200 chars): ${response.substring(0, 200)}`);
+            
             const plan = this._parseToolPlan(response);
             plan.tts_phrase = this._generatePlanTTS(plan, item);
 
             this.logger.system('mcp-todo', `[TODO] Planned ${plan.tool_calls.length} tool calls for item ${item.id}`);
 
+            // DIAGNOSTIC: Check if tool_calls is empty
+            if (!plan.tool_calls || plan.tool_calls.length === 0) {
+                this.logger.warn('mcp-todo', `[TODO] Warning: No tool calls in plan! Plan: ${JSON.stringify(plan)}`);
+                throw new Error('No tool calls generated - plan is empty');
+            }
+
             return plan;
             
         } catch (error) {
             this.logger.error('mcp-todo', `[TODO] Failed to plan tools for item ${item.id}: ${error.message}`);
+            this.logger.error('mcp-todo', `[TODO] Error stack: ${error.stack}`);
             throw new Error(`Tool planning failed: ${error.message}`);
         }
     }
