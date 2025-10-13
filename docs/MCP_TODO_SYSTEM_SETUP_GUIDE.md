@@ -1,6 +1,6 @@
 # MCP TODO WORKFLOW SYSTEM - Installation & Testing Guide
 
-**Версія:** 1.3.0  
+**Версія:** 1.4.0  
 **Дата:** 2025-10-13  
 **Автор:** ATLAS System
 
@@ -10,15 +10,14 @@
 
 Цей гайд описує встановлення та тестування **MCP Dynamic TODO Workflow System** в чистому режимі (без Goose hybrid).
 
-**Встановлено 8 MCP серверів:**
+**Встановлено 7 MCP серверів:**
 1. ✅ **filesystem** - Файли та директорії
-2. ✅ **playwright** - Браузер + скріншоти
-3. ✅ **vscode** - VSCode редагування коду
-4. ✅ **super-shell** - Terminal команди (npm, brew, git)
-5. ✅ **applescript** - macOS автоматизація (запуск програм)
-6. ✅ **github-lightweight** - GitHub API (issues, PRs)
-7. ✅ **git-mcp** - Git операції (commit, push, merge)
-8. ✅ **memory** - Тривала пам'ять AI
+2. ✅ **playwright** - Браузер + скріншоти + web scraping
+3. ✅ **super-shell** - Terminal команди (npm, brew, git)
+4. ✅ **applescript** - macOS автоматизація (запуск програм)
+5. ✅ **github-lightweight** - GitHub API (issues, PRs)
+6. ✅ **git-mcp** - Git операції (commit, push, merge)
+7. ✅ **memory** - Тривала пам'ять AI
 
 ---
 
@@ -40,7 +39,7 @@
 
 **Що робить скрипт:**
 1. ✅ Перевіряє Node.js
-2. ✅ Встановлює 8 MCP npm packages (filesystem, playwright, vscode, super-shell, applescript, github-lightweight, git-mcp, memory)
+2. ✅ Встановлює 7 MCP npm packages (filesystem, playwright, super-shell, applescript, github-lightweight, git-mcp, memory)
 3. ✅ Налаштовує `.env` з `AI_BACKEND_MODE=mcp`
 4. ✅ Встановлює orchestrator залежності
 5. ✅ Створює директорії для логів
@@ -51,7 +50,7 @@
 
 ### Крок 1: Встановлення MCP серверів
 
-**Всі 8 MCP сервери з config/global-config.js:**
+**Всі 7 MCP сервери з config/global-config.js:**
 
 ```bash
 # 1. Filesystem - робота з файлами та директоріями
@@ -60,28 +59,25 @@ npm install -g @modelcontextprotocol/server-filesystem
 # 2. Playwright - автоматизація браузера + скріншоти
 npm install -g @executeautomation/playwright-mcp-server
 
-# 3. VSCode - відкриття та редагування файлів
-npm install -g @modelcontextprotocol/server-vscode
-
-# 4. Super Shell - виконання Terminal команд
+# 3. Super Shell - виконання Terminal команд
 npm install -g super-shell-mcp
 
-# 5. AppleScript - macOS автоматизація (запуск програм)
+# 4. AppleScript - macOS автоматизація (запуск програм)
 npm install -g @mseep/applescript-mcp
 
-# 6. GitHub Lightweight - GitHub API (issues, pull requests)
+# 5. GitHub Lightweight - GitHub API (issues, pull requests)
 npm install -g @wipiano/github-mcp-lightweight
 
-# 7. Git MCP - Git операції (commit, push, pull, merge)
+# 6. Git MCP - Git операції (commit, push, pull, merge)
 npm install -g @cyanheads/git-mcp-server
 
-# 8. Memory - тривала пам'ять AI між сесіями
+# 7. Memory - тривала пам'ять AI між сесіями
 npm install -g @modelcontextprotocol/server-memory
 ```
 
 **Перевірка встановлення:**
 ```bash
-npm list -g | grep -E "server-filesystem|playwright-mcp-server|server-vscode|super-shell-mcp|applescript-mcp|github-mcp-lightweight|git-mcp-server|server-memory"
+npm list -g | grep -E "server-filesystem|playwright-mcp-server|super-shell-mcp|applescript-mcp|github-mcp-lightweight|git-mcp-server|server-memory"
 ```
 
 **Що робить кожен сервер:**
@@ -90,12 +86,11 @@ npm list -g | grep -E "server-filesystem|playwright-mcp-server|server-vscode|sup
 |---|------------|---------|------------------|
 | 1 | **filesystem** | `@modelcontextprotocol/server-filesystem` | Читання/запис файлів, створення директорій |
 | 2 | **playwright** | `@executeautomation/playwright-mcp-server` | Браузер, scraping, скріншоти веб-сторінок |
-| 3 | **vscode** | `@modelcontextprotocol/server-vscode` | Відкривати/редагувати файли в VSCode |
-| 4 | **shell** | `super-shell-mcp` | Terminal команди (npm, brew, git CLI) |
-| 5 | **applescript** | `@mseep/applescript-mcp` | macOS автоматизація, запуск програм |
-| 6 | **github** | `@wipiano/github-mcp-lightweight` | GitHub issues, pull requests, repos |
-| 7 | **git** | `@cyanheads/git-mcp-server` | Git commit, push, pull, merge, branch |
-| 8 | **memory** | `@modelcontextprotocol/server-memory` | Тривала пам'ять AI між сесіями |
+| 3 | **shell** | `super-shell-mcp` | Terminal команди (npm, brew, git CLI) |
+| 4 | **applescript** | `@mseep/applescript-mcp` | macOS автоматизація, запуск програм |
+| 5 | **github** | `@wipiano/github-mcp-lightweight` | GitHub issues, pull requests, repos |
+| 6 | **git** | `@cyanheads/git-mcp-server` | Git commit, push, pull, merge, branch |
+| 7 | **memory** | `@modelcontextprotocol/server-memory` | Тривала пам'ять AI між сесіями |
 
 **Дозволені директорії (filesystem):**
 - `/Users` - домашня директорія користувача
@@ -183,8 +178,11 @@ ls orchestrator/node_modules | head -10
 **🔧 MCP Сервери що використовуються:**
 1. **filesystem** - створення/читання файлів (npx @modelcontextprotocol/server-filesystem)
 2. **playwright** - браузер automation (npx @executeautomation/playwright-mcp-server)
-3. **computercontroller** - скріншоти/desktop (npx @anthropic/computer-use)
-4. **vscode** - редагування коду в VSCode (node @modelcontextprotocol/server-vscode)
+3. **shell** - terminal commands (npx super-shell-mcp)
+4. **applescript** - macOS automation (npx @mseep/applescript-mcp)
+5. **github** - GitHub API (npx @wipiano/github-mcp-lightweight)
+6. **git** - Git operations (npx @cyanheads/git-mcp-server)
+7. **memory** - persistent context (npx @modelcontextprotocol/server-memory)
 
 ### Крок 2: Перевірити логи
 
@@ -344,10 +342,9 @@ lsof -i :4000
 **Рішення:**
 
 ```bash
-# Встановити ВСІ 8 MCP серверів
+# Встановити ВСІ 7 MCP серверів
 npm install -g @modelcontextprotocol/server-filesystem
 npm install -g @executeautomation/playwright-mcp-server
-npm install -g @modelcontextprotocol/server-vscode
 npm install -g super-shell-mcp
 npm install -g @mseep/applescript-mcp
 npm install -g @wipiano/github-mcp-lightweight
@@ -355,9 +352,9 @@ npm install -g @cyanheads/git-mcp-server
 npm install -g @modelcontextprotocol/server-memory
 
 # Перевірити
-npm list -g | grep -E "filesystem|playwright|vscode|super-shell|applescript|github-mcp-lightweight|git-mcp-server|server-memory"
+npm list -g | grep -E "filesystem|playwright|super-shell|applescript|github-mcp-lightweight|git-mcp-server|server-memory"
 
-# Має показати 8 пакетів
+# Має показати 7 пакетів
 ```
 
 ### Проблема 4: Система використовує Goose замість MCP
@@ -518,20 +515,22 @@ export AI_BACKEND_MODE=hybrid
 ## ✅ Checklist для успішного setup
 
 - [ ] Node.js встановлено (v16+)
-- [ ] **8 MCP packages встановлено глобально:**
+- [ ] **7 MCP packages встановлено глобально:**
   - [ ] @modelcontextprotocol/server-filesystem
   - [ ] @executeautomation/playwright-mcp-server
-  - [ ] @modelcontextprotocol/server-vscode
   - [ ] super-shell-mcp
   - [ ] @mseep/applescript-mcp
   - [ ] @wipiano/github-mcp-lightweight
   - [ ] @cyanheads/git-mcp-server
   - [ ] @modelcontextprotocol/server-memory
-- [ ] **4 MCP npm packages** встановлено глобально:
+- [ ] **7 MCP npm packages** встановлено глобально:
   - [ ] `@modelcontextprotocol/server-filesystem` (файли)
   - [ ] `@executeautomation/playwright-mcp-server` (браузер)
-  - [ ] `@anthropic/computer-use` (скріншоти/desktop)
-  - [ ] `@modelcontextprotocol/server-vscode` (code editor)
+  - [ ] `super-shell-mcp` (terminal)
+  - [ ] `@mseep/applescript-mcp` (macOS)
+  - [ ] `@wipiano/github-mcp-lightweight` (GitHub API)
+  - [ ] `@cyanheads/git-mcp-server` (Git operations)
+  - [ ] `@modelcontextprotocol/server-memory` (memory)
 - [ ] `.env` налаштовано з `AI_BACKEND_MODE=mcp`
 - [ ] Orchestrator залежності встановлено (`npm install`)
 - [ ] Всі сервіси запущено (`./restart_system.sh start`)
