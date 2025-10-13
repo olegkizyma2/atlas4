@@ -35,15 +35,24 @@ class MCPServer {
   _setupStreams() {
     // stdout - MCP JSON-RPC messages
     this.process.stdout.on('data', (data) => {
-      this.stdoutBuffer += data.toString();
+      const chunk = data.toString();
+      this.stdoutBuffer += chunk;
+      logger.debug('mcp-server', `[MCP ${this.name}] stdout: ${chunk.substring(0, 200)}`);
       this._processStdoutBuffer();
     });
 
-    // stderr - логи
+    // stderr - логи (зберігаємо для діагностики)
     this.process.stderr.on('data', (data) => {
       const message = data.toString().trim();
+      this.stderrBuffer += message + '\n';
+      
       if (message) {
-        logger.debug('mcp-server', `[MCP ${this.name}] stderr: ${message}`);
+        // Показуємо npm warnings та errors
+        if (message.includes('warn') || message.includes('error') || message.includes('ERR')) {
+          logger.warn('mcp-server', `[MCP ${this.name}] stderr: ${message}`);
+        } else {
+          logger.debug('mcp-server', `[MCP ${this.name}] stderr: ${message}`);
+        }
       }
     });
 
@@ -84,11 +93,19 @@ class MCPServer {
    * @private
    */
   _handleMCPMessage(message) {
+    logger.debug('mcp-server', `[MCP ${this.name}] Received message:`, message);
+
     // Initialize response
-    if (message.method === 'initialize' && message.result) {
+    if (message.result && message.result.capabilities) {
       this.tools = message.result.capabilities?.tools || [];
       this.ready = true;
       logger.system('mcp-server', `[MCP ${this.name}] ✅ Initialized with ${this.tools.length} tools`);
+      return;
+    }
+
+    // Error response
+    if (message.error) {
+      logger.error('mcp-server', `[MCP ${this.name}] Error: ${JSON.stringify(message.error)}`);
     }
 
     // Tool execution response
@@ -109,6 +126,7 @@ class MCPServer {
    */
   async initialize() {
     logger.system('mcp-server', `[MCP ${this.name}] Initializing...`);
+    logger.debug('mcp-server', `[MCP ${this.name}] Command: ${this.config.command} ${this.config.args.join(' ')}`);
 
     const initMessage = {
       jsonrpc: '2.0',
@@ -126,15 +144,24 @@ class MCPServer {
       }
     };
 
-    this.process.stdin.write(JSON.stringify(initMessage) + '\n');
+    try {
+      this.process.stdin.write(JSON.stringify(initMessage) + '\n');
+      logger.debug('mcp-server', `[MCP ${this.name}] Initialize message sent, waiting for response...`);
+    } catch (error) {
+      logger.error('mcp-server', `[MCP ${this.name}] Failed to send initialize message: ${error.message}`);
+      throw error;
+    }
 
-    // Чекати на initialize response (timeout 5s)
+    // Чекати на initialize response (timeout 15s для Mac M1 + npx)
     await new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         if (!this.ready) {
+          logger.error('mcp-server', `[MCP ${this.name}] ❌ Initialization timeout after 15s`);
+          logger.debug('mcp-server', `[MCP ${this.name}] Stdout buffer: ${this.stdoutBuffer}`);
+          logger.debug('mcp-server', `[MCP ${this.name}] Stderr buffer: ${this.stderrBuffer}`);
           reject(new Error(`${this.name} initialization timeout`));
         }
-      }, 5000);
+      }, 15000); // Збільшено з 5s до 15s
 
       const checkReady = setInterval(() => {
         if (this.ready) {
@@ -268,14 +295,34 @@ export class MCPManager {
     logger.system('mcp-manager', '[MCP Manager] Starting MCP servers...');
 
     const startPromises = [];
+    const errors = [];
 
     for (const [name, config] of Object.entries(this.config)) {
-      startPromises.push(this.startServer(name, config));
+      // Запускаємо кожен сервер окремо з error handling
+      startPromises.push(
+        this.startServer(name, config).catch((error) => {
+          logger.error('mcp-manager', `[MCP Manager] ❌ ${name} failed: ${error.message}`);
+          errors.push({ name, error: error.message });
+          return null; // Продовжуємо з іншими серверами
+        })
+      );
     }
 
     await Promise.all(startPromises);
 
-    logger.system('mcp-manager', `[MCP Manager] ✅ ${this.servers.size} servers started`);
+    const successCount = this.servers.size;
+    const failedCount = errors.length;
+
+    if (successCount === 0) {
+      logger.error('mcp-manager', '[MCP Manager] ❌ No MCP servers started successfully');
+      throw new Error('All MCP servers failed to initialize');
+    }
+
+    if (failedCount > 0) {
+      logger.warn('mcp-manager', `[MCP Manager] ⚠️ ${failedCount} server(s) failed to start: ${errors.map(e => e.name).join(', ')}`);
+    }
+
+    logger.system('mcp-manager', `[MCP Manager] ✅ ${successCount}/${successCount + failedCount} servers started`);
   }
 
   /**
