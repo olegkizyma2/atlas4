@@ -12,6 +12,17 @@ import telemetry from '../utils/telemetry.js';
 import wsManager from '../api/websocket-manager.js';
 import webIntegration from '../api/web-integration.js';
 import GlobalConfig from '../../config/global-config.js';
+import { MCPTodoManager } from '../workflow/mcp-todo-manager.js';
+import { TTSSyncManager } from '../workflow/tts-sync-manager.js';
+import {
+    BackendSelectionProcessor,
+    AtlasTodoPlanningProcessor,
+    TetyanaПlanToolsProcessor,
+    TetyanaExecuteToolsProcessor,
+    GrishaVerifyItemProcessor,
+    AtlasAdjustTodoProcessor,
+    McpFinalSummaryProcessor
+} from '../workflow/stages/index.js';
 
 /**
  * Реєструє всі core сервіси в DI контейнері
@@ -138,6 +149,135 @@ export function registerUtilityServices(container) {
 }
 
 /**
+ * Реєструє MCP workflow сервіси (Phase 4)
+ *
+ * @param {DIContainer} container - DI контейнер
+ * @returns {DIContainer}
+ */
+export function registerMCPWorkflowServices(container) {
+    // TTSSyncManager - TTS synchronization для MCP workflow
+    container.singleton('ttsSyncManager', (c) => {
+        return new TTSSyncManager({
+            logger: c.resolve('logger')
+        });
+    }, {
+        dependencies: ['logger'],
+        metadata: { category: 'workflow', priority: 60 },
+        lifecycle: {
+            onInit: async function () {
+                logger.system('startup', '[DI] TTSSyncManager initialized');
+            }
+        }
+    });
+
+    // MCPTodoManager - головний менеджер MCP TODO
+    container.singleton('mcpTodoManager', (c) => {
+        return new MCPTodoManager({
+            ttsSyncManager: c.resolve('ttsSyncManager'),
+            logger: c.resolve('logger')
+        });
+    }, {
+        dependencies: ['ttsSyncManager', 'logger'],
+        metadata: { category: 'workflow', priority: 50 },
+        lifecycle: {
+            onInit: async function () {
+                logger.system('startup', '[DI] MCPTodoManager initialized');
+            }
+        }
+    });
+
+    return container;
+}
+
+/**
+ * Реєструє MCP stage processors (Phase 4)
+ *
+ * @param {DIContainer} container - DI контейнер
+ * @returns {DIContainer}
+ */
+export function registerMCPProcessors(container) {
+    // Backend Selection Processor (Stage 0.5)
+    container.singleton('backendSelectionProcessor', (c) => {
+        return new BackendSelectionProcessor({
+            logger: c.resolve('logger')
+        });
+    }, {
+        dependencies: ['logger'],
+        metadata: { category: 'processors', priority: 40 }
+    });
+
+    // Atlas TODO Planning Processor (Stage 1-MCP)
+    container.singleton('atlasTodoPlanningProcessor', (c) => {
+        return new AtlasTodoPlanningProcessor({
+            mcpTodoManager: c.resolve('mcpTodoManager'),
+            logger: c.resolve('logger')
+        });
+    }, {
+        dependencies: ['mcpTodoManager', 'logger'],
+        metadata: { category: 'processors', priority: 40 }
+    });
+
+    // Tetyana Plan Tools Processor (Stage 2.1-MCP)
+    container.singleton('tetyanaПlanToolsProcessor', (c) => {
+        return new TetyanaПlanToolsProcessor({
+            mcpTodoManager: c.resolve('mcpTodoManager'),
+            logger: c.resolve('logger')
+        });
+    }, {
+        dependencies: ['mcpTodoManager', 'logger'],
+        metadata: { category: 'processors', priority: 40 }
+    });
+
+    // Tetyana Execute Tools Processor (Stage 2.2-MCP)
+    container.singleton('tetyanaExecuteToolsProcessor', (c) => {
+        return new TetyanaExecuteToolsProcessor({
+            mcpTodoManager: c.resolve('mcpTodoManager'),
+            logger: c.resolve('logger')
+        });
+    }, {
+        dependencies: ['mcpTodoManager', 'logger'],
+        metadata: { category: 'processors', priority: 40 }
+    });
+
+    // Grisha Verify Item Processor (Stage 2.3-MCP)
+    container.singleton('grishaVerifyItemProcessor', (c) => {
+        return new GrishaVerifyItemProcessor({
+            mcpTodoManager: c.resolve('mcpTodoManager'),
+            logger: c.resolve('logger')
+        });
+    }, {
+        dependencies: ['mcpTodoManager', 'logger'],
+        metadata: { category: 'processors', priority: 40 }
+    });
+
+    // Atlas Adjust TODO Processor (Stage 3-MCP)
+    container.singleton('atlasAdjustTodoProcessor', (c) => {
+        return new AtlasAdjustTodoProcessor({
+            mcpTodoManager: c.resolve('mcpTodoManager'),
+            logger: c.resolve('logger')
+        });
+    }, {
+        dependencies: ['mcpTodoManager', 'logger'],
+        metadata: { category: 'processors', priority: 40 }
+    });
+
+    // MCP Final Summary Processor (Stage 8-MCP)
+    container.singleton('mcpFinalSummaryProcessor', (c) => {
+        return new McpFinalSummaryProcessor({
+            mcpTodoManager: c.resolve('mcpTodoManager'),
+            logger: c.resolve('logger')
+        });
+    }, {
+        dependencies: ['mcpTodoManager', 'logger'],
+        metadata: { category: 'processors', priority: 40 }
+    });
+
+    logger.system('startup', '[DI] Registered 7 MCP stage processors');
+
+    return container;
+}
+
+/**
  * Повна реєстрація всіх сервісів
  *
  * @param {DIContainer} container - DI контейнер
@@ -150,6 +290,8 @@ export function registerAllServices(container) {
     registerApiServices(container);
     registerStateServices(container);
     registerUtilityServices(container);
+    registerMCPWorkflowServices(container);
+    registerMCPProcessors(container);
 
     logger.system('startup', `[DI] Registered ${container.getServices().length} services`, {
         services: container.getServices()

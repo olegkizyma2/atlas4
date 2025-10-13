@@ -6,13 +6,24 @@
  * @date 2025-10-13
  */
 
-export { BackendSelectionProcessor } from './backend-selection-processor.js';
-export { AtlasTodoPlanningProcessor } from './atlas-todo-planning-processor.js';
-export { TetyanaПlanToolsProcessor } from './tetyana-plan-tools-processor.js';
-export { TetyanaExecuteToolsProcessor } from './tetyana-execute-tools-processor.js';
-export { GrishaVerifyItemProcessor } from './grisha-verify-item-processor.js';
-export { AtlasAdjustTodoProcessor } from './atlas-adjust-todo-processor.js';
-export { McpFinalSummaryProcessor } from './mcp-final-summary-processor.js';
+import { BackendSelectionProcessor } from './backend-selection-processor.js';
+import { AtlasTodoPlanningProcessor } from './atlas-todo-planning-processor.js';
+import { TetyanaПlanToolsProcessor } from './tetyana-plan-tools-processor.js';
+import { TetyanaExecuteToolsProcessor } from './tetyana-execute-tools-processor.js';
+import { GrishaVerifyItemProcessor } from './grisha-verify-item-processor.js';
+import { AtlasAdjustTodoProcessor } from './atlas-adjust-todo-processor.js';
+import { McpFinalSummaryProcessor } from './mcp-final-summary-processor.js';
+
+// Re-export individual classes
+export {
+    BackendSelectionProcessor,
+    AtlasTodoPlanningProcessor,
+    TetyanaПlanToolsProcessor,
+    TetyanaExecuteToolsProcessor,
+    GrishaVerifyItemProcessor,
+    AtlasAdjustTodoProcessor,
+    McpFinalSummaryProcessor
+};
 
 /**
  * MCP Processors collection

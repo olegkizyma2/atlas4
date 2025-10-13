@@ -89,9 +89,13 @@ export class Application {
         // Створюємо Express app
         this.app = createApp();
 
-        // Налаштовуємо routes
+        // Налаштовуємо routes (передаємо DI container для MCP workflow)
         setupHealthRoutes(this.app, { configInitialized: this.configInitialized, networkConfig: this.networkConfig });
-        setupChatRoutes(this.app, { sessions: this.sessions, networkConfig: this.networkConfig });
+        setupChatRoutes(this.app, { 
+            sessions: this.sessions, 
+            networkConfig: this.networkConfig,
+            container: this.container  // ✅ NEW: Pass DI container for MCP workflow
+        });
         setupWebRoutes(this.app);
 
         // Налаштовуємо обробку помилок

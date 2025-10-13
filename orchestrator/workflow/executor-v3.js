@@ -19,6 +19,17 @@ import SystemStageProcessor from './stages/system-stage-processor.js';
 import AgentStageProcessor from './stages/agent-stage-processor.js';
 import WorkflowConditions from './conditions.js';
 
+// MCP Stage Processors (Phase 4)
+import {
+    BackendSelectionProcessor,
+    AtlasTodoPlanningProcessor,
+    TetyanaПlanToolsProcessor,
+    TetyanaExecuteToolsProcessor,
+    GrishaVerifyItemProcessor,
+    AtlasAdjustTodoProcessor,
+    McpFinalSummaryProcessor
+} from './stages/index.js';
+
 // Session tracking for preventing duplicates
 const activeAgentSessions = new Set();
 
@@ -93,6 +104,319 @@ function extractModeFromResponse(content) {
 // ============================================================================
 // MAIN WORKFLOW FUNCTIONS
 // ============================================================================
+
+/**
+ * MCP DYNAMIC TODO WORKFLOW EXECUTOR (Phase 4)
+ * 
+ * Executes user requests through MCP TODO workflow:
+ * 1. Plan TODO list (Atlas)
+ * 2. For each item: Plan → Execute → Verify → Adjust (if needed)
+ * 3. Generate final summary
+ * 
+ * @param {string} userMessage - User request
+ * @param {Object} session - Session object
+ * @param {Object} res - Response stream
+ * @param {Object} container - DI Container for resolving processors
+ * @returns {Promise<Object>} Final summary result
+ */
+async function executeMCPWorkflow(userMessage, session, res, container) {
+  logger.workflow('init', 'mcp', 'Starting MCP Dynamic TODO Workflow', {
+    sessionId: session.id,
+    userMessage: userMessage.substring(0, 100)
+  });
+
+  const workflowStart = Date.now();
+
+  try {
+    // Resolve processors from DI Container
+    const todoProcessor = container.resolve('atlasTodoPlanningProcessor');
+    const planProcessor = container.resolve('tetyanaПlanToolsProcessor');
+    const executeProcessor = container.resolve('tetyanaExecuteToolsProcessor');
+    const verifyProcessor = container.resolve('grishaVerifyItemProcessor');
+    const adjustProcessor = container.resolve('atlasAdjustTodoProcessor');
+    const summaryProcessor = container.resolve('mcpFinalSummaryProcessor');
+
+    // Stage 1-MCP: Atlas TODO Planning
+    logger.workflow('stage', 'atlas', 'Stage 1-MCP: TODO Planning', { sessionId: session.id });
+    
+    const todoResult = await todoProcessor.execute({
+      userMessage,
+      session,
+      res
+    });
+
+    if (!todoResult.success) {
+      throw new Error(`TODO planning failed: ${todoResult.error || 'Unknown error'}`);
+    }
+
+    const todo = todoResult.todo;
+    logger.info(`TODO created with ${todo.items.length} items`, {
+      sessionId: session.id,
+      mode: todo.mode
+    });
+
+    // Send TODO plan to frontend
+    if (res.writable && !res.writableEnded) {
+      res.write(`data: ${JSON.stringify({
+        type: 'mcp_todo_created',
+        data: {
+          summary: todoResult.summary,
+          itemCount: todo.items.length,
+          mode: todo.mode
+        }
+      })}\n\n`);
+    }
+
+    // Execute TODO items one by one
+    for (let i = 0; i < todo.items.length; i++) {
+      const item = todo.items[i];
+      logger.info(`Processing TODO item ${i + 1}/${todo.items.length}: ${item.action}`, {
+        sessionId: session.id,
+        itemId: item.id
+      });
+
+      let attempt = 1;
+      const maxAttempts = item.max_attempts || 3;
+
+      while (attempt <= maxAttempts) {
+        logger.info(`Item ${item.id}: Attempt ${attempt}/${maxAttempts}`, {
+          sessionId: session.id
+        });
+
+        try {
+          // Stage 2.1-MCP: Tetyana Plan Tools
+          logger.workflow('stage', 'tetyana', `Stage 2.1-MCP: Planning tools for item ${item.id}`, {
+            sessionId: session.id
+          });
+
+          const planResult = await planProcessor.execute({
+            currentItem: item,
+            todo,
+            session,
+            res
+          });
+
+          if (!planResult.success) {
+            logger.warn(`Tool planning failed for item ${item.id}: ${planResult.error}`, {
+              sessionId: session.id
+            });
+            attempt++;
+            continue;
+          }
+
+          // Stage 2.2-MCP: Tetyana Execute Tools
+          logger.workflow('stage', 'tetyana', `Stage 2.2-MCP: Executing tools for item ${item.id}`, {
+            sessionId: session.id
+          });
+
+          const execResult = await executeProcessor.execute({
+            currentItem: item,
+            plan: planResult.plan,
+            todo,
+            session,
+            res
+          });
+
+          // Send execution update to frontend
+          if (res.writable && !res.writableEnded) {
+            res.write(`data: ${JSON.stringify({
+              type: 'mcp_item_executed',
+              data: {
+                itemId: item.id,
+                action: item.action,
+                success: execResult.success,
+                summary: execResult.summary
+              }
+            })}\n\n`);
+          }
+
+          // Stage 2.3-MCP: Grisha Verify Item
+          logger.workflow('stage', 'grisha', `Stage 2.3-MCP: Verifying item ${item.id}`, {
+            sessionId: session.id
+          });
+
+          const verifyResult = await verifyProcessor.execute({
+            currentItem: item,
+            execution: execResult.execution,
+            todo,
+            session,
+            res
+          });
+
+          // Send verification update to frontend
+          if (res.writable && !res.writableEnded) {
+            res.write(`data: ${JSON.stringify({
+              type: 'mcp_item_verified',
+              data: {
+                itemId: item.id,
+                verified: verifyResult.verified,
+                confidence: verifyResult.metadata?.confidence || 0,
+                summary: verifyResult.summary
+              }
+            })}\n\n`);
+          }
+
+          if (verifyResult.verified) {
+            // Success! Mark as completed
+            item.status = 'completed';
+            item.verification = verifyResult.verification;
+            item.attempt = attempt;
+
+            logger.info(`Item ${item.id} completed successfully`, {
+              sessionId: session.id,
+              attempts: attempt
+            });
+
+            break; // Exit retry loop
+          }
+
+          // Verification failed - need adjustment
+          logger.workflow('stage', 'atlas', `Stage 3-MCP: Adjusting TODO item ${item.id}`, {
+            sessionId: session.id
+          });
+
+          const adjustResult = await adjustProcessor.execute({
+            currentItem: item,
+            verification: verifyResult.verification,
+            todo,
+            attemptNumber: attempt,
+            session,
+            res
+          });
+
+          if (adjustResult.strategy === 'skip') {
+            item.status = 'skipped';
+            item.skip_reason = adjustResult.reason;
+
+            logger.warn(`Item ${item.id} skipped: ${adjustResult.reason}`, {
+              sessionId: session.id
+            });
+
+            // Send skip update to frontend
+            if (res.writable && !res.writableEnded) {
+              res.write(`data: ${JSON.stringify({
+                type: 'mcp_item_skipped',
+                data: {
+                  itemId: item.id,
+                  reason: adjustResult.reason
+                }
+              })}\n\n`);
+            }
+
+            break; // Exit retry loop
+          }
+
+          // Apply adjustment and retry
+          logger.info(`Item ${item.id} adjusted with strategy: ${adjustResult.strategy}`, {
+            sessionId: session.id
+          });
+
+          attempt++;
+
+        } catch (itemError) {
+          logger.error(`Item ${item.id} execution error: ${itemError.message}`, {
+            sessionId: session.id,
+            attempt,
+            error: itemError.message
+          });
+
+          attempt++;
+
+          if (attempt > maxAttempts) {
+            item.status = 'failed';
+            item.error = itemError.message;
+          }
+        }
+      }
+
+      // Max attempts reached without success
+      if (item.status !== 'completed' && item.status !== 'skipped') {
+        item.status = 'failed';
+        item.error = item.error || 'Max attempts reached';
+
+        logger.warn(`Item ${item.id} failed after ${maxAttempts} attempts`, {
+          sessionId: session.id
+        });
+
+        // Send failure update to frontend
+        if (res.writable && !res.writableEnded) {
+          res.write(`data: ${JSON.stringify({
+            type: 'mcp_item_failed',
+            data: {
+              itemId: item.id,
+              attempts: maxAttempts,
+              error: item.error
+            }
+          })}\n\n`);
+        }
+      }
+    }
+
+    // Stage 8-MCP: Final Summary
+    logger.workflow('stage', 'system', 'Stage 8-MCP: Generating final summary', {
+      sessionId: session.id
+    });
+
+    const summaryResult = await summaryProcessor.execute({
+      todo,
+      session,
+      res
+    });
+
+    // Send final summary to frontend
+    if (res.writable && !res.writableEnded) {
+      res.write(`data: ${JSON.stringify({
+        type: 'mcp_workflow_complete',
+        data: {
+          success: summaryResult.success,
+          summary: summaryResult.summary,
+          metrics: summaryResult.metadata?.metrics || {},
+          duration: Date.now() - workflowStart
+        }
+      })}\n\n`);
+    }
+
+    // Add summary to session history
+    session.history.push({
+      role: 'assistant',
+      content: summaryResult.summary,
+      agent: 'system',
+      timestamp: Date.now(),
+      metadata: {
+        workflow: 'mcp',
+        metrics: summaryResult.metadata?.metrics
+      }
+    });
+
+    logger.workflow('complete', 'mcp', 'MCP workflow completed', {
+      sessionId: session.id,
+      duration: Date.now() - workflowStart,
+      metrics: summaryResult.metadata?.metrics
+    });
+
+    return summaryResult;
+
+  } catch (error) {
+    logger.error(`MCP workflow failed: ${error.message}`, {
+      sessionId: session.id,
+      error: error.message,
+      stack: error.stack
+    });
+
+    // Send error to frontend
+    if (res && res.writable && !res.writableEnded) {
+      res.write(`data: ${JSON.stringify({
+        type: 'mcp_workflow_error',
+        data: {
+          error: error.message,
+          sessionId: session.id
+        }
+      })}\n\n`);
+    }
+
+    throw error;
+  }
+}
 
 /**
  * MAIN STEP-BY-STEP WORKFLOW EXECUTOR
@@ -245,11 +569,75 @@ async function executeWorkflowStages(userMessage, session, res, allStages, workf
       if (mode === 'chat') {
         return await handleChatRoute(userMessage, session, res, allStages);
       }
+
+      // Task mode selected - proceed to backend selection
+      logger.info(`Task mode selected, proceeding to backend selection`, { sessionId: session.id });
     }
   }
 
-  // Continue with task workflow stages
-  return await executeTaskWorkflow(userMessage, session, res, allStages, workflowConfig);
+  // Stage 0.5: Backend Selection (MCP vs Goose routing)
+  // This determines whether to use MCP Dynamic TODO workflow or traditional Goose workflow
+  try {
+    // Get DI Container from session (passed from route handler)
+    const container = session.container;
+    
+    if (!container) {
+      logger.warn('DI Container not available in session, using Goose workflow');
+      return await executeTaskWorkflow(userMessage, session, res, allStages, workflowConfig);
+    }
+
+    const backendProcessor = container.resolve('backendSelectionProcessor');
+    
+    logger.workflow('stage', 'system', 'Stage 0.5: Backend Selection', { sessionId: session.id });
+    
+    const backendResult = await backendProcessor.execute({
+      userMessage,
+      session,
+      res
+    });
+
+    if (!backendResult.success) {
+      logger.warn('Backend selection failed, defaulting to Goose workflow');
+      return await executeTaskWorkflow(userMessage, session, res, allStages, workflowConfig);
+    }
+
+    const selectedBackend = backendResult.backend; // 'goose' | 'mcp'
+    
+    logger.info(`Backend selected: ${selectedBackend}`, {
+      sessionId: session.id,
+      reasoning: backendResult.metadata?.reasoning
+    });
+
+    // Send backend selection to frontend
+    if (res.writable && !res.writableEnded) {
+      res.write(`data: ${JSON.stringify({
+        type: 'backend_selected',
+        data: {
+          backend: selectedBackend,
+          reasoning: backendResult.summary
+        }
+      })}\n\n`);
+    }
+
+    // Route based on selected backend
+    if (selectedBackend === 'mcp') {
+      logger.info('Routing to MCP Dynamic TODO Workflow', { sessionId: session.id });
+      return await executeMCPWorkflow(userMessage, session, res, container);
+    } else {
+      logger.info('Routing to traditional Goose Workflow', { sessionId: session.id });
+      return await executeTaskWorkflow(userMessage, session, res, allStages, workflowConfig);
+    }
+
+  } catch (backendError) {
+    logger.error(`Backend selection error: ${backendError.message}`, {
+      sessionId: session.id,
+      error: backendError.message
+    });
+    
+    // Fallback to Goose workflow on backend selection error
+    logger.warn('Falling back to Goose workflow due to backend selection error');
+    return await executeTaskWorkflow(userMessage, session, res, allStages, workflowConfig);
+  }
 }
 
 /**
