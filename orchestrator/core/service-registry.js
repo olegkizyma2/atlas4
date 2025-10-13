@@ -157,10 +157,11 @@ export function registerUtilityServices(container) {
 export function registerMCPWorkflowServices(container) {
 
     // MCPManager - керування MCP servers
-    container.singleton('mcpManager', (c) => {
+    container.singleton('mcpManager', async (c) => {
         // Конфігурація серверів з глобального config
         const serversConfig = c.resolve('config').AI_BACKEND_CONFIG?.mcpServers || {};
-        const { MCPManager } = require('../ai/mcp-manager.js');
+        const module = await import('../ai/mcp-manager.js');
+        const MCPManager = module.MCPManager;
         return new MCPManager(serversConfig);
     }, {
         dependencies: ['config'],
