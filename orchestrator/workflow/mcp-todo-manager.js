@@ -129,7 +129,7 @@ export class MCPTodoManager {
                         { mode: 'detailed', duration: 2500 }
                     );
                 } catch (ttsError) {
-                    this.logger.warning('mcp-todo', `[TODO] TTS feedback failed: ${ttsError.message}`);
+                    this.logger.warn('mcp-todo', `[TODO] TTS feedback failed: ${ttsError.message}`);
                 }
             }
 
@@ -168,7 +168,7 @@ export class MCPTodoManager {
 
                 // Check dependencies
                 if (!this._checkDependencies(item, todo)) {
-                    this.logger.warning('mcp-todo', `[TODO] Item ${item.id} skipped - dependencies not met`);
+                    this.logger.warn('mcp-todo', `[TODO] Item ${item.id} skipped - dependencies not met`);
                     item.status = 'skipped';
                     continue;
                 }
@@ -255,7 +255,7 @@ export class MCPTodoManager {
                 }
 
                 // Verification failed
-                this.logger.warning('mcp-todo', `[TODO] Item ${item.id} verification failed: ${verification.reason}`);
+                this.logger.warn('mcp-todo', `[TODO] Item ${item.id} verification failed: ${verification.reason}`);
                 lastError = verification.reason;
 
                 // Stage 3: Adjust TODO (if attempts remain)
@@ -467,7 +467,7 @@ Attempt: ${attempt}/${item.max_attempts}
             const depItem = todo.items.find(i => i.id === depId);
             
             if (!depItem || depItem.status !== 'completed') {
-                this.logger.warning('mcp-todo', `[TODO] Dependency ${depId} not completed for item ${item.id}`);
+                this.logger.warn('mcp-todo', `[TODO] Dependency ${depId} not completed for item ${item.id}`);
                 return false;
             }
         }
@@ -604,7 +604,7 @@ Context: ${JSON.stringify(context, null, 2)}
         }
 
         if (todo.mode === 'standard' && todo.items.length > 3) {
-            this.logger.warning('mcp-todo', `[TODO] Standard mode has ${todo.items.length} items (recommended 1-3)`);
+            this.logger.warn('mcp-todo', `[TODO] Standard mode has ${todo.items.length} items (recommended 1-3)`);
         }
 
         if (todo.mode === 'extended' && todo.items.length > 10) {
@@ -693,7 +693,7 @@ Context: ${JSON.stringify(context, null, 2)}
             try {
                 await this.tts.speak(phrase, options);
             } catch (ttsError) {
-                this.logger.warning('mcp-todo', `[TODO] TTS failed: ${ttsError.message}`);
+                this.logger.warn('mcp-todo', `[TODO] TTS failed: ${ttsError.message}`);
             }
         }
         // Silently skip if TTS not available

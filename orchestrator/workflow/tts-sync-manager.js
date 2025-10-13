@@ -172,7 +172,7 @@ export class TTSSyncManager {
         while (this.isProcessing || this._hasStageItemsInQueue(currentStage)) {
             // Check timeout
             if (Date.now() - startTime > timeout) {
-                this.logger.warning('tts-sync', `[TTS-SYNC] ⚠️ Stage completion wait timeout after ${timeout}ms`);
+                this.logger.warn('tts-sync', `[TTS-SYNC] ⚠️ Stage completion wait timeout after ${timeout}ms`);
                 break;
             }
 
@@ -251,7 +251,7 @@ export class TTSSyncManager {
         // Enforce max queue size (remove lowest priority items)
         while (this.queue.length > this.config.maxQueueSize) {
             const removed = this.queue.pop();
-            this.logger.warning('tts-sync', `[TTS-SYNC] ⚠️ Queue overflow, removed: "${removed.phrase}"`);
+            this.logger.warn('tts-sync', `[TTS-SYNC] ⚠️ Queue overflow, removed: "${removed.phrase}"`);
             if (removed.reject) {
                 removed.reject(new Error('Queue overflow'));
             }
