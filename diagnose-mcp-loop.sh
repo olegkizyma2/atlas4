@@ -59,7 +59,13 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "⚠️  Errors and Warnings"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-grep -E "Failed to parse|Warning.*tool|error.*item|attempt.*error" "$LOG_FILE" | tail -20
+grep -E "Failed to parse|Warning.*tool|error.*item|attempt.*error|ERROR.*mcp-todo" "$LOG_FILE" | tail -30
+echo ""
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "💥 Full Error Stack Traces"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+grep -A 5 "Error stack:" "$LOG_FILE" | tail -40
 echo ""
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -72,14 +78,19 @@ else
     echo "$STAGE22_LINES"
 fi
 echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🌐 API Connectivity Check"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+grep -E "ECONNREFUSED|ETIMEDOUT|Network|localhost:4000|Failed to plan tools" "$LOG_FILE" | tail -10
+echo ""
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "🎯 Root Cause Analysis"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # Check if tool_calls array is empty
-EMPTY_TOOLS=$(grep -c "tool_calls.*\[\]" "$LOG_FILE" 2>/dev/null || echo "0")
-if [ "$EMPTY_TOOLS" -gt 0 ]; then
+EMPTY_TOOLS=$(grep -c "tool_calls.*\[\]" "$LOG_FILE" 2>/dev/null | tr -d ' \n' || echo "0")
+if [ ! -z "$EMPTY_TOOLS" ] && [ "$EMPTY_TOOLS" != "0" ]; then
     echo "🔴 ISSUE: LLM returns EMPTY tool_calls array ($EMPTY_TOOLS times)"
     echo "   → Tetyana can't plan tools"
     echo "   → Throws error: 'No tool calls generated'"
