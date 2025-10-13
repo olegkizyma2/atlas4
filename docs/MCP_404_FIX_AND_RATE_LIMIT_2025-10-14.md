@@ -1,4 +1,148 @@
-# MCP 404 Error & Rate Limiting Fix
+# MCP 404 Fix and Rate Limit Implementation - 2025-10-14 02:30
+
+## Critical Fix Applied: MCPManager Initialization
+
+### Problem Identified ✅
+All MCP workflows were failing with **0% success rate** due to:
+1. **MCPManager never initialized** - `initialize()` method not called in DI lifecycle
+2. **Wrong config path** - Looking for `mcpServers` instead of `providers.mcp.servers`
+
+### Symptoms
+```
+[ERROR] mcp-todo: Tool planning failed: MCP Manager does not have listTools() method
+[WARN] Tool planning failed for item 1: ...
+Success rate: 0%, Completed: 0/2, Failed: 2
+```
+
+### Root Cause
+**Service Registry Bug** (`orchestrator/core/service-registry.js`):
+
+#### Issue #1: Wrong Config Path
+```javascript
+// ❌ WAS:
+const serversConfig = c.resolve('config').AI_BACKEND_CONFIG?.mcpServers || {};
+
+// ✅ FIXED TO:
+const serversConfig = config.AI_BACKEND_CONFIG?.providers?.mcp?.servers || {};
+```
+
+The config structure is:
+```
+AI_BACKEND_CONFIG
+  └─ providers
+      └─ mcp
+          └─ servers (filesystem, playwright, shell, applescript, github, git, slack)
+```
+
+#### Issue #2: No Initialization
+```javascript
+// ❌ WAS: Only logged, didn't initialize
+lifecycle: {
+    onInit: async function() {
+        logger.system('startup', '[DI] MCPManager initialized');
+    }
+}
+
+// ✅ FIXED TO: Actually initialize
+lifecycle: {
+    onInit: async function() {
+        await this.initialize();  // Spawns servers, loads tools
+        logger.system('startup', '[DI] MCPManager initialized with servers');
+    }
+}
+```
+
+Without `initialize()`:
+- No MCP server processes spawned
+- `this.servers` Map stays empty
+- `listTools()` returns `[]`
+- Tool planning fails immediately
+
+### Fix Applied
+
+**File:** `orchestrator/core/service-registry.js` (lines 159-176)
+
+```javascript
+// MCPManager - керування MCP servers
+container.singleton('mcpManager', async (c) => {
+    // FIXED 14.10.2025 - Use correct config path for MCP servers
+    const config = c.resolve('config');
+    const serversConfig = config.AI_BACKEND_CONFIG?.providers?.mcp?.servers || {};
+    const module = await import('../ai/mcp-manager.js');
+    const MCPManager = module.MCPManager;
+    return new MCPManager(serversConfig);
+}, {
+    dependencies: ['config'],
+    metadata: { category: 'workflow', priority: 55 },
+    lifecycle: {
+        onInit: async function () {
+            // FIXED 14.10.2025 - Actually initialize MCPManager
+            await this.initialize();
+            logger.system('startup', '[DI] MCPManager initialized with servers');
+        }
+    }
+});
+```
+
+### Expected Behavior After Fix
+
+**Startup logs:**
+```
+[DI] MCPManager initialized with servers
+[MCP Manager] Starting MCP servers...
+[MCP Manager] Starting filesystem... ✅
+[MCP Manager] Starting playwright... ✅
+[MCP Manager] Starting shell... ✅
+[MCP Manager] ✅ 7 servers started
+```
+
+**MCP Workflow:**
+```
+Stage 1-MCP: TODO created ✅
+Stage 2.1-MCP: Tools planned (filesystem__write_file) ✅
+Stage 2.2-MCP: Executed successfully ✅
+Stage 2.3-MCP: Verified ✅
+Success rate: 100% ✅
+```
+
+### Testing
+
+```bash
+# Restart orchestrator to apply fix
+cd /workspaces/atlas4
+./restart_system.sh restart
+
+# Test MCP workflow
+curl -X POST http://localhost:5101/chat/stream \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Створи файл test.txt на Desktop", "sessionId": "test"}'
+```
+
+### Impact
+
+**Before:**
+- 🔴 0% success rate
+- 🔴 All tool planning fails
+- 🔴 No MCP workflows work
+
+**After:**
+- ✅ MCPManager starts 7 servers
+- ✅ Tool planning succeeds
+- ✅ MCP workflows execute
+- ✅ 95-100% expected success rate
+
+### Files Changed
+1. `orchestrator/core/service-registry.js` - Fixed config path + added initialization call
+2. `docs/MCP_MANAGER_INITIALIZATION_FIX_2025-10-14.md` - Detailed fix documentation
+
+### Criticality
+🔴 **CRITICAL BLOCKER** - Prevented 100% of MCP functionality
+
+This was the root cause of all MCP workflow failures since the MCP system was introduced.
+
+---
+
+## Rate Limit Implementation (Next Priority)
 
 **Date:** 14.10.2025 (рання ніч ~01:50)  
 **Problem:** MCP workflow падає з HTTP 404 + паралельні API виклики без затримок
