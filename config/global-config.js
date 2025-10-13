@@ -159,18 +159,49 @@ export const AI_BACKEND_CONFIG = {
           }
         },
         
-        computercontroller: {
-          command: 'npx',
-          args: ['-y', '@anthropic/computer-use'],
-          env: {}
-        },
-        
         vscode: {
           command: 'node',
           args: ['./node_modules/@modelcontextprotocol/server-vscode/dist/index.js'],
           env: {
             VSCODE_WORKSPACE: process.env.VSCODE_WORKSPACE || process.cwd()
           }
+        },
+        
+        shell: {
+          command: 'npx',
+          args: ['-y', 'super-shell-mcp'],
+          env: {
+            SHELL: process.env.SHELL || '/bin/zsh'
+          }
+        },
+        
+        applescript: {
+          command: 'npx',
+          args: ['-y', '@mseep/applescript-mcp'],
+          env: {}
+        },
+        
+        github: {
+          command: 'npx',
+          args: ['-y', '@wipiano/github-mcp-lightweight'],
+          env: {
+            GITHUB_TOKEN: process.env.GITHUB_TOKEN || ''
+          }
+        },
+        
+        git: {
+          command: 'npx',
+          args: ['-y', '@cyanheads/git-mcp-server'],
+          env: {
+            GIT_AUTHOR_NAME: process.env.GIT_AUTHOR_NAME || 'ATLAS',
+            GIT_AUTHOR_EMAIL: process.env.GIT_AUTHOR_EMAIL || 'atlas@example.com'
+          }
+        },
+        
+        memory: {
+          command: 'npx',
+          args: ['-y', '@modelcontextprotocol/server-memory'],
+          env: {}
         }
       },
       
@@ -183,7 +214,18 @@ export const AI_BACKEND_CONFIG = {
       },
       
       // Коли використовувати
-      useFor: ['file_operations', 'browser_automation', 'screenshots', 'code_editing']
+      useFor: [
+        'file_operations',      // filesystem
+        'browser_automation',   // playwright
+        'screenshots',          // playwright
+        'code_editing',         // vscode
+        'web_scraping',         // playwright
+        'terminal_commands',    // shell
+        'macos_automation',     // applescript
+        'github_api',           // github
+        'git_operations',       // git
+        'memory_storage'        // memory
+      ]
     }
   },
   
@@ -191,12 +233,38 @@ export const AI_BACKEND_CONFIG = {
   routing: {
     // Якщо prompt містить ці ключові слова → використовувати MCP
     mcpKeywords: [
+      // Файли
       'створи файл', 'create file', 'save file',
+      'файл', 'file', 'directory', 'папка',
+      
+      // Браузер
       'відкрий браузер', 'open browser',
       'скріншот', 'screenshot',
-      'desktop', 'файл', 'file',
+      'web scraping', 'scrape',
+      
+      // VSCode
       'відкрий файл', 'open file', 'edit file',
-      'vscode', 'code editor', 'редагувати код'
+      'vscode', 'code editor', 'редагувати код',
+      
+      // Terminal
+      'виконай команду', 'run command', 'terminal',
+      'npm', 'brew', 'git clone', 'install',
+      
+      // macOS
+      'відкрий програму', 'open app', 'launch',
+      'applescript', 'finder', 'safari', 'chrome',
+      
+      // GitHub
+      'github issue', 'pull request', 'pr',
+      'create issue', 'list issues',
+      
+      // Git
+      'git commit', 'git push', 'git pull',
+      'branch', 'merge', 'checkout',
+      
+      // Memory
+      'запамʼятай', 'remember', 'save context',
+      'що ти пам\'ятаєш', 'recall'
     ],
     
     // Якщо prompt містить ці → Goose

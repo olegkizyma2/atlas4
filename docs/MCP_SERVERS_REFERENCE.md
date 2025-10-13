@@ -1,6 +1,6 @@
 # MCP Servers Reference - ATLAS System
 
-**Версія:** 1.1.0  
+**Версія:** 2.0.0  
 **Дата:** 2025-10-13  
 **Конфігурація:** `config/global-config.js` → `AI_BACKEND_CONFIG.providers.mcp.servers`
 
@@ -8,9 +8,22 @@
 
 ## 📦 Список MCP Серверів
 
-ATLAS використовує **4 MCP сервери** для виконання завдань:
+ATLAS використовує **8 MCP серверів** для повноцінної роботи на macOS:
 
-### 1. **Filesystem Server** 🗂️
+| # | Сервер | Package | Призначення |
+|---|--------|---------|-------------|
+| 1 | **Filesystem** | `@modelcontextprotocol/server-filesystem` | Файли та директорії |
+| 2 | **Playwright** | `@executeautomation/playwright-mcp-server` | Браузер + скріншоти |
+| 3 | **VSCode** | `@modelcontextprotocol/server-vscode` | Редагування коду |
+| 4 | **Super Shell** | `super-shell-mcp` | Terminal команди |
+| 5 | **AppleScript** | `@mseep/applescript-mcp` | macOS автоматизація |
+| 6 | **GitHub** | `@wipiano/github-mcp-lightweight` | GitHub API |
+| 7 | **Git** | `@cyanheads/git-mcp-server` | Git операції |
+| 8 | **Memory** | `@modelcontextprotocol/server-memory` | Тривала пам'ять |
+
+---
+
+## 1. **Filesystem Server** 🗂️
 
 **Package:** `@modelcontextprotocol/server-filesystem`
 
@@ -86,42 +99,7 @@ npx -y @executeautomation/playwright-mcp-server
 
 ---
 
-### 3. **Computer Use (Anthropic)** 🖥️
-
-**Package:** `@anthropic/computer-use`
-
-**Функції:**
-- Скріншоти екрану (`screenshot`)
-- Емуляція клавіатури (`keyboard.type`, `keyboard.press`)
-- Емуляція миші (`mouse.click`, `mouse.move`)
-- Desktop automation
-- Отримання розміру екрану
-- Координати курсора
-
-**Налаштування:**
-```javascript
-env: {}  // Використовує default settings
-```
-
-**Команда запуску:**
-```bash
-npx -y @anthropic/computer-use
-```
-
-**Use Cases:**
-- ✅ "Зроби скріншот екрану"
-- ✅ "Натисни клавішу Enter"
-- ✅ "Переміщай мишу до координат (100, 200)"
-- ✅ "Натисни на кнопку на координатах (500, 300)"
-
-**Обмеження:**
-- ⚠️ Потребує accessibility permissions на macOS
-- ⚠️ Може конфліктувати з іншими desktop automation tools
-- ⚠️ Координати залежать від розміру екрану
-
----
-
-### 4. **VSCode MCP Server** 💻
+## 3. **VSCode MCP Server** �
 
 **Package:** `@modelcontextprotocol/server-vscode`
 
@@ -154,6 +132,9 @@ node ./node_modules/@modelcontextprotocol/server-vscode/dist/index.js
 - ✅ "Виконай команду 'Format Document'"
 - ✅ "Додай breakpoint на лінію 42 в index.js"
 
+**Keywords для роутингу:**
+- `vscode`, `code editor`, `відкрий файл`, `редагувати код`
+
 **Обмеження:**
 - ⚠️ Потребує встановленого VSCode
 - ⚠️ Працює тільки з відкритим workspace
@@ -161,43 +142,270 @@ node ./node_modules/@modelcontextprotocol/server-vscode/dist/index.js
 
 ---
 
+## 4. **Super Shell MCP Server** 🔧
+
+**Package:** `super-shell-mcp`
+
+**Функції:**
+- Виконання Terminal команд (`shell.exec`)
+- npm/yarn/pnpm команди
+- brew (Homebrew) операції
+- Git CLI команди
+- Системні команди (ls, cd, mkdir, rm)
+- Pipe та redirects
+- Background processes
+- Підтримка zsh, bash, powershell, cmd
+
+**Налаштування:**
+```javascript
+env: {
+  SHELL: process.env.SHELL || '/bin/zsh'
+}
+```
+
+**Команда запуску:**
+```bash
+npx -y super-shell-mcp
+```
+
+**Use Cases:**
+- ✅ "Виконай npm install express"
+- ✅ "Встанови пакет через brew install wget"
+- ✅ "Запусти git status"
+- ✅ "Створи директорію mkdir ~/Projects/NewApp"
+- ✅ "Виконай ls -la ~/Documents"
+
+**Keywords для роутингу:**
+- `виконай команду`, `terminal`, `npm`, `brew`, `install`, `run command`
+
+**Обмеження:**
+- ⚠️ Виконується з правами поточного користувача
+- ⚠️ Деякі команди потребують sudo
+- ⚠️ Background processes потрібно явно kill
+
+---
+
+## 5. **AppleScript MCP Server** 🍎
+
+**Package:** `@mseep/applescript-mcp`
+
+**Функції:**
+- Запуск macOS застосунків (`tell application`)
+- Контроль UI елементів (`System Events`)
+- Системні налаштування
+- Finder операції
+- Keyboard shortcuts емуляція
+- Відкривання файлів у програмах
+- Notification Center
+- Spotify/Music/iTunes control
+
+**Налаштування:**
+```javascript
+env: {}  // Використовує macOS default AppleScript engine
+```
+
+**Команда запуску:**
+```bash
+npx -y @mseep/applescript-mcp
+```
+
+**Use Cases:**
+- ✅ "Відкрий Safari"
+- ✅ "Активуй Chrome і відкрий нову вкладку"
+- ✅ "Відкрий папку Documents в Finder"
+- ✅ "Запусти Calculator"
+- ✅ "Встанови гучність на 50%"
+
+**Keywords для роутингу:**
+- `відкрий програму`, `launch`, `applescript`, `finder`, `safari`, `chrome`, `open app`
+
+**Обмеження:**
+- ⚠️ Працює ТІЛЬКИ на macOS
+- ⚠️ Потребує accessibility permissions
+- ⚠️ Деякі програми можуть не підтримувати AppleScript
+
+---
+
+## 6. **GitHub Lightweight MCP Server** 📦
+
+**Package:** `@wipiano/github-mcp-lightweight`
+
+**Функції:**
+- Список issues (`list_repository_issues`)
+- Пошук issues (`search_issues`)
+- Список pull requests (`list_pull_requests`)
+- Пошук PR (`search_pull_requests`)
+- Легкі responses (90% менше даних)
+- Підтримка фільтрів (state, labels, assignee)
+
+**Налаштування:**
+```javascript
+env: {
+  GITHUB_TOKEN: process.env.GITHUB_TOKEN || ''  // Опціонально для приватних repos
+}
+```
+
+**Команда запуску:**
+```bash
+npx -y @wipiano/github-mcp-lightweight
+```
+
+**Use Cases:**
+- ✅ "Покажи всі відкриті issues в repo owner/project"
+- ✅ "Знайди pull requests з label 'bug'"
+- ✅ "Список PR що чекають на review"
+- ✅ "Пошук issues з тегом 'enhancement'"
+
+**Keywords для роутингу:**
+- `github issue`, `pull request`, `pr`, `create issue`, `list issues`
+
+**Обмеження:**
+- ⚠️ Lightweight = тільки id, url, title, body (без metadata)
+- ⚠️ Потребує GITHUB_TOKEN для приватних repos
+- ⚠️ Read-only (не може створювати issues/PRs)
+
+---
+
+## 7. **Git MCP Server** 🌿
+
+**Package:** `@cyanheads/git-mcp-server`
+
+**Функції:**
+- commit, push, pull, fetch
+- branch, checkout, merge, rebase
+- stash, pop, apply
+- diff, log, status, blame
+- cherry-pick, reset, revert
+- tag, remote operations
+- worktree management
+- 29 Git операцій + secure execution
+
+**Налаштування:**
+```javascript
+env: {
+  GIT_AUTHOR_NAME: process.env.GIT_AUTHOR_NAME || 'ATLAS',
+  GIT_AUTHOR_EMAIL: process.env.GIT_AUTHOR_EMAIL || 'atlas@example.com'
+}
+```
+
+**Команда запуску:**
+```bash
+npx -y @cyanheads/git-mcp-server
+```
+
+**Use Cases:**
+- ✅ "Зроби commit з повідомленням 'Fix bug'"
+- ✅ "Push змін на remote origin"
+- ✅ "Створи нову гілку feature/new-ui"
+- ✅ "Merge гілку develop в main"
+- ✅ "Покажи diff останнього commit"
+
+**Keywords для роутингу:**
+- `git commit`, `git push`, `git pull`, `branch`, `merge`, `checkout`
+
+**Обмеження:**
+- ⚠️ Працює тільки в Git repository
+- ⚠️ Деякі операції потребують чистого working tree
+- ⚠️ Merge conflicts потребують ручного вирішення
+
+---
+
+## 8. **Memory MCP Server** 🧠
+
+**Package:** `@modelcontextprotocol/server-memory`
+
+**Функції:**
+- Збереження контексту між сесіями (`memory.save`)
+- Завантаження збереженого контексту (`memory.load`)
+- Пошук у пам'яті (`memory.search`)
+- Видалення з пам'яті (`memory.delete`)
+- Тимчасова та постійна пам'ять
+- Key-value storage
+- Metadata для пошуку
+
+**Налаштування:**
+```javascript
+env: {}  // Використовує default storage path
+```
+
+**Команда запуску:**
+```bash
+npx -y @modelcontextprotocol/server-memory
+```
+
+**Use Cases:**
+- ✅ "Запам'ятай що я працюю над проектом ATLAS"
+- ✅ "Що ти пам'ятаєш про мої preference?"
+- ✅ "Збережи контекст останньої розмови"
+- ✅ "Видали старі записи про проект X"
+
+**Keywords для роутингу:**
+- `запам'ятай`, `remember`, `save context`, `що ти пам'ятаєш`, `recall`
+
+**Обмеження:**
+- ⚠️ Storage розмір обмежений диском
+- ⚠️ Не зашифровано (не для sensitive data)
+- ⚠️ Не синхронізується між пристроями
+
+---
+
 ## 🔧 Встановлення
 
-### Всі 4 сервери одночасно:
+### Всі 8 серверів одночасно:
 
 ```bash
 npm install -g @modelcontextprotocol/server-filesystem \
                @executeautomation/playwright-mcp-server \
-               @anthropic/computer-use \
-               @modelcontextprotocol/server-vscode
+               @modelcontextprotocol/server-vscode \
+               super-shell-mcp \
+               @mseep/applescript-mcp \
+               @wipiano/github-mcp-lightweight \
+               @cyanheads/git-mcp-server \
+               @modelcontextprotocol/server-memory
 ```
 
 ### Окремо:
 
 ```bash
-# Filesystem
+# 1. Filesystem
 npm install -g @modelcontextprotocol/server-filesystem
 
-# Playwright
+# 2. Playwright
 npm install -g @executeautomation/playwright-mcp-server
 
-# Computer Use
-npm install -g @anthropic/computer-use
-
-# VSCode
+# 3. VSCode
 npm install -g @modelcontextprotocol/server-vscode
+
+# 4. Super Shell
+npm install -g super-shell-mcp
+
+# 5. AppleScript
+npm install -g @mseep/applescript-mcp
+
+# 6. GitHub
+npm install -g @wipiano/github-mcp-lightweight
+
+# 7. Git
+npm install -g @cyanheads/git-mcp-server
+
+# 8. Memory
+npm install -g @modelcontextprotocol/server-memory
 ```
 
 ### Перевірка встановлення:
 
 ```bash
-npm list -g | grep -E "filesystem|playwright|computer-use|server-vscode"
+npm list -g | grep -E "filesystem|playwright|vscode|super-shell|applescript|github-mcp-lightweight|git-mcp-server|server-memory"
 
-# Очікується 4 пакети:
+# Очікується 8 пакетів:
 # ├── @modelcontextprotocol/server-filesystem@x.x.x
 # ├── @executeautomation/playwright-mcp-server@x.x.x
-# ├── @anthropic/computer-use@x.x.x
 # ├── @modelcontextprotocol/server-vscode@x.x.x
+# ├── super-shell-mcp@x.x.x
+# ├── @mseep/applescript-mcp@x.x.x
+# ├── @wipiano/github-mcp-lightweight@x.x.x
+# ├── @cyanheads/git-mcp-server@x.x.x
+# ├── @modelcontextprotocol/server-memory@x.x.x
 ```
 
 ---
@@ -432,11 +640,15 @@ await mcpManager.stopServer('filesystem');
 - [Model Context Protocol Spec](https://modelcontextprotocol.io/)
 - [Filesystem Server](https://github.com/modelcontextprotocol/server-filesystem)
 - [Playwright MCP](https://github.com/executeautomation/playwright-mcp-server)
-- [Anthropic Computer Use](https://github.com/anthropics/anthropic-quickstarts)
 - [VSCode MCP Server](https://github.com/modelcontextprotocol/server-vscode)
+- [Super Shell MCP](https://www.npmjs.com/package/super-shell-mcp)
+- [AppleScript MCP](https://github.com/skydeckai/mseep)
+- [GitHub Lightweight MCP](https://github.com/wipiano/github-mcp-lw)
+- [Git MCP Server](https://github.com/cyanheads/git-mcp-server)
+- [Memory Server](https://github.com/modelcontextprotocol/server-memory)
 
 **ATLAS документація:**
-- `docs/MCP_TODO_SYSTEM_SETUP_GUIDE.md` - Setup інструкції
+- `docs/MCP_TODO_SYSTEM_SETUP_GUIDE.md` - Setup інструкції (8 серверів)
 - `docs/AI_BACKEND_MODULAR_SYSTEM.md` - Архітектура backends
 - `config/global-config.js` - Конфігурація MCP серверів
 
@@ -448,5 +660,5 @@ await mcpManager.stopServer('filesystem');
 ---
 
 **Дата оновлення:** 2025-10-13  
-**Версія документа:** 1.1.0 (додано VSCode server)  
-**Статус:** Complete Reference ✅
+**Версія документа:** 2.0.0 (додано 5 нових серверів: shell, applescript, github, git, memory)  
+**Статус:** Complete Reference ✅ (8/8 серверів задокументовано)
