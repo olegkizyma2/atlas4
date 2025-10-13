@@ -5,10 +5,14 @@
  * 
  * @version 4.0.0
  * @date 2025-10-13
+ * UPDATED 14.10.2025 - Added MCP_MODEL_CONFIG support for per-stage models
  */
 
 import logger from '../utils/logger.js';
 import axios from 'axios';
+import GlobalConfig from '../../config/global-config.js';
+
+const { MCP_MODEL_CONFIG } = GlobalConfig;
 
 /**
  * @typedef {Object} TodoItem
@@ -96,21 +100,16 @@ export class MCPTodoManager {
                 .replace('{{context}}', JSON.stringify(context, null, 2));
             
             // FIXED 13.10.2025 - Use FULL prompt with JSON schema and examples
-            const apiResponse = await axios.post('http://localhost:4000/v1/chat/completions', {
-                model: 'openai/gpt-4o',
+            // FIXED 14.10.2025 - Use MCP_MODEL_CONFIG for per-stage models
+            const modelConfig = MCP_MODEL_CONFIG.getStageConfig('todo_planning');
+            const apiResponse = await axios.post(MCP_MODEL_CONFIG.apiEndpoint, {
+                model: modelConfig.model,
                 messages: [
-                    {
-                        role: 'system',
-                        content: todoPrompt.systemPrompt // Full detailed prompt with schema
-                    },
-                    {
-                        role: 'user',
-                        content: userMessage
-                    }
+                    { role: 'system', content: todoPrompt.systemPrompt },
+                    { role: 'user', content: userMessage }
                 ],
-                temperature: 0.3,
-                max_tokens: 2000
-            }, {
+                temperature: modelConfig.temperature,
+                max_tokens: modelConfig.max_tokens,
                 headers: { 'Content-Type': 'application/json' },
                 timeout: 30000
             });
@@ -335,12 +334,14 @@ Previous items: ${JSON.stringify(todo.items.slice(0, item.id - 1).map(i => ({ id
 `;
 
             // FIXED 13.10.2025 - Use correct API call format
+            // FIXED 14.10.2025 - Use MCP_MODEL_CONFIG for per-stage models
             let apiResponse;
             try {
-                this.logger.system('mcp-todo', `[TODO] Calling LLM API at http://localhost:4000...`);
+                const modelConfig = MCP_MODEL_CONFIG.getStageConfig('plan_tools');
+                this.logger.system('mcp-todo', `[TODO] Calling LLM API at ${MCP_MODEL_CONFIG.apiEndpoint}...`);
 
-                apiResponse = await axios.post('http://localhost:4000/v1/chat/completions', {
-                    model: 'openai/gpt-4o-mini',
+                apiResponse = await axios.post(MCP_MODEL_CONFIG.apiEndpoint, {
+                    model: modelConfig.model,
                     messages: [
                         {
                             role: 'system',
@@ -351,8 +352,8 @@ Previous items: ${JSON.stringify(todo.items.slice(0, item.id - 1).map(i => ({ id
                             content: userMessage
                         }
                     ],
-                    temperature: 0.2,
-                    max_tokens: 1000
+                    temperature: modelConfig.temperature,
+                    max_tokens: modelConfig.max_tokens
                 }, {
                     headers: { 'Content-Type': 'application/json' },
                     timeout: 15000
@@ -483,8 +484,10 @@ Execution Results: ${JSON.stringify(execution.results, null, 2)}
 `;
 
             // FIXED 13.10.2025 - Use correct API call format
-            const apiResponse = await axios.post('http://localhost:4000/v1/chat/completions', {
-                model: 'openai/gpt-4o-mini',
+            // FIXED 14.10.2025 - Use MCP_MODEL_CONFIG for per-stage models
+            const modelConfig = MCP_MODEL_CONFIG.getStageConfig('verify_item');
+            const apiResponse = await axios.post(MCP_MODEL_CONFIG.apiEndpoint, {
+                model: modelConfig.model,
                 messages: [
                     {
                         role: 'system',
@@ -495,8 +498,8 @@ Execution Results: ${JSON.stringify(execution.results, null, 2)}
                         content: userMessage
                     }
                 ],
-                temperature: 0.1,
-                max_tokens: 800
+                temperature: modelConfig.temperature,
+                max_tokens: modelConfig.max_tokens
             }, {
                 headers: { 'Content-Type': 'application/json' },
                 timeout: 15000
@@ -542,8 +545,10 @@ Attempt: ${attempt}/${item.max_attempts}
 `;
 
             // FIXED 13.10.2025 - Use correct API call format
-            const apiResponse = await axios.post('http://localhost:4000/v1/chat/completions', {
-                model: 'openai/gpt-4o',
+            // FIXED 14.10.2025 - Use MCP_MODEL_CONFIG for per-stage models
+            const modelConfig = MCP_MODEL_CONFIG.getStageConfig('adjust_todo');
+            const apiResponse = await axios.post(MCP_MODEL_CONFIG.apiEndpoint, {
+                model: modelConfig.model,
                 messages: [
                     {
                         role: 'system',
@@ -554,8 +559,8 @@ Attempt: ${attempt}/${item.max_attempts}
                         content: userMessage
                     }
                 ],
-                temperature: 0.3,
-                max_tokens: 1000
+                temperature: modelConfig.temperature,
+                max_tokens: modelConfig.max_tokens
             }, {
                 headers: { 'Content-Type': 'application/json' },
                 timeout: 15000
@@ -632,16 +637,18 @@ Results: ${JSON.stringify(todo.items.map(i => ({
 `;
 
         // Use axios POST to local LLM endpoint for consistent response structure
+        // FIXED 14.10.2025 - Use MCP_MODEL_CONFIG for per-stage models
         let llmText = '';
         try {
-            const apiResponse = await axios.post('http://localhost:4000/v1/chat/completions', {
-                model: 'openai/gpt-4o-mini',
+            const modelConfig = MCP_MODEL_CONFIG.getStageConfig('final_summary');
+            const apiResponse = await axios.post(MCP_MODEL_CONFIG.apiEndpoint, {
+                model: modelConfig.model,
                 messages: [
                     { role: 'system', content: 'MCP_FINAL_SUMMARY' },
                     { role: 'user', content: prompt }
                 ],
-                temperature: 0.2,
-                max_tokens: 1500
+                temperature: modelConfig.temperature,
+                max_tokens: modelConfig.max_tokens
             }, {
                 headers: { 'Content-Type': 'application/json' },
                 timeout: 20000
