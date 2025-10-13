@@ -13,73 +13,75 @@ if [ ! -f "$LOG_FILE" ]; then
     exit 1
 fi
 
-echo "📊 Last test session analysis..."
+echo "📊 Analyzing last 2 minutes of logs..."
 echo ""
 
-# Get session ID from last test
-SESSION_ID=$(tail -500 "$LOG_FILE" | grep "test_json_fix" | tail -1 | grep -oE "test_json_fix_[0-9]+" | head -1)
-
-if [ -z "$SESSION_ID" ]; then
-    echo "⚠️  No test session found, analyzing last TODO workflow..."
-    SESSION_MARKER="TODO"
-else
-    echo "🔑 Found session: $SESSION_ID"
-    SESSION_MARKER="$SESSION_ID"
-fi
+# Get last 200 lines (approximately last 2 minutes)
+RECENT_LOGS=$(tail -200 "$LOG_FILE")
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "📋 TODO Creation"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-grep -E "Created.*TODO|TODO.*items" "$LOG_FILE" | tail -5
+echo "$RECENT_LOGS" | grep -E "Created.*TODO|TODO.*items" | tail -5
 echo ""
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "🔄 Stage 2.1 Executions (should be 1 per item)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-STAGE21_LINES=$(grep -n "Planning tools for item" "$LOG_FILE" | tail -10)
+STAGE21_LINES=$(echo "$RECENT_LOGS" | grep -n "Planning tools for item")
 echo "$STAGE21_LINES"
 echo ""
-STAGE21_COUNT=$(echo "$STAGE21_LINES" | wc -l | tr -d ' ')
+STAGE21_COUNT=$(echo "$STAGE21_LINES" | wc -l | tr -d ' \n')
 echo "Total Stage 2.1 calls: $STAGE21_COUNT"
+echo ""
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🤖 LLM API Calls"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "$RECENT_LOGS" | grep -E "Calling LLM API|LLM API responded|LLM API call failed" | tail -20
 echo ""
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "🤖 LLM Responses (what Tetyana receives)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-grep -A 3 "Raw LLM response" "$LOG_FILE" | tail -20
+echo "$RECENT_LOGS" | grep -A 3 "Full LLM response" | tail -20
 echo ""
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "📦 Parsed Plans (after JSON parsing)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-grep -A 10 "Parsed plan:" "$LOG_FILE" | tail -30
+echo "$RECENT_LOGS" | grep -A 10 "Parsed plan:" | tail -30
 echo ""
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "⚠️  Errors and Warnings"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-grep -E "Failed to parse|Warning.*tool|error.*item|attempt.*error|ERROR.*mcp-todo" "$LOG_FILE" | tail -30
+echo "$RECENT_LOGS" | grep -E "Failed to parse|Warning.*tool|error.*item|attempt.*error|ERROR.*mcp-todo" | tail -30
 echo ""
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "💥 Full Error Stack Traces"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-grep -A 5 "Error stack:" "$LOG_FILE" | tail -40
+echo "$RECENT_LOGS" | grep -A 5 "Error stack:" | tail -40
 echo ""
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "🔧 Stage 2.2 Executions (actual tool runs)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-STAGE22_LINES=$(grep -E "Executing.*tool calls|STAGE-2\.2" "$LOG_FILE" | tail -10)
+STAGE22_LINES=$(echo "$RECENT_LOGS" | grep -E "Executing.*tool calls|STAGE-2\.2")
 if [ -z "$STAGE22_LINES" ]; then
     echo "❌ No Stage 2.2 executions found (workflow stuck in planning!)"
 else
     echo "$STAGE22_LINES"
 fi
 echo ""
+
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "🌐 API Connectivity Check"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "$RECENT_LOGS" | grep -E "ECONNREFUSED|ETIMEDOUT|Network|localhost:4000|Failed to plan tools" | tail -10
+echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 grep -E "ECONNREFUSED|ETIMEDOUT|Network|localhost:4000|Failed to plan tools" "$LOG_FILE" | tail -10
 echo ""
