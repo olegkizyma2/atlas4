@@ -1,6 +1,6 @@
 # ATLAS v4.0 - Adaptive Task and Learning Assistant System
 
-**LAST UPDATED:** 13 жовтня 2025 - Рання ніч ~05:15 (Phase 4: Integration COMPLETED - All 3 Tasks Done!)
+**LAST UPDATED:** 13 жовтня 2025 - Вечір ~20:20 (ENV Loading Fix - AI Backend конфігурація працює!)
 
 ---
 
@@ -323,6 +323,46 @@ ATLAS is an intelligent multi-agent orchestration system with Flask web frontend
 ---
 
 ## 🎯 КЛЮЧОВІ ОСОБЛИВОСТІ СИСТЕМИ
+
+### ✅ ENV Loading Fix (FIXED 13.10.2025 - вечір ~20:15)
+- **Проблема:** Orchestrator НЕ завантажував `.env` файл → всі ENV змінні ігнорувались
+- **Симптом:** `AI_BACKEND_MODE=mcp` в .env, але система використовувала `mode: hybrid` (default)
+- **Логи:** `[STAGE-0.5] Configured mode: hybrid` замість `mcp` → Goose замість MCP виконував завдання
+- **Корінь:** Phase 4 refactoring (TODO-ORCH-001) створив `application.js`, але НЕ додав `dotenv.config()`
+- **Рішення:** Додано завантаження .env ПЕРШИМ в `orchestrator/core/application.js`:
+  ```javascript
+  import dotenv from 'dotenv';
+  import { fileURLToPath } from 'url';
+  import { dirname, join } from 'path';
+  
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+  
+  // Load .env BEFORE all other imports (critical!)
+  dotenv.config({ path: join(__dirname, '../../.env') });
+  
+  // Now import configs (they will read correct process.env values)
+  import { DIContainer } from './di-container.js';
+  import GlobalConfig from '../../config/global-config.js';
+  ```
+- **Виправлено:** `orchestrator/core/application.js` (~15 LOC додано на початок файлу)
+- **Результат:** 
+  - ✅ Система тепер читає `.env` правильно
+  - ✅ `AI_BACKEND_MODE=mcp` → Backend Selection обирає MCP
+  - ✅ User конфігурація respected, НЕ ігнорується
+  - ✅ All ENV variables доступні через `process.env.*`
+- **Критично:** 
+  - **ЗАВЖДИ** завантажуйте .env ПЕРШИМ (перед усіма imports!)
+  - **Ієрархія:** server.js → application.js (dotenv.config) → global-config.js (читає process.env)
+  - **Path:** `join(__dirname, '../../.env')` - правильний шлях з `orchestrator/core/`
+  - **НЕ забувайте** при refactoring - dotenv критичний для production
+- **Тестування:**
+  ```bash
+  # Перевірити що .env завантажується
+  tail -f logs/orchestrator.log | grep "Configured mode"
+  # Має показати: [STAGE-0.5] Configured mode: mcp (якщо AI_BACKEND_MODE=mcp)
+  ```
+- **Детально:** `docs/ENV_LOADING_FIX_2025-10-13.md`
 
 ### ✅ AI Backend Modular System (CREATED 13.10.2025 - день ~19:00)
 - **Новий компонент:** Модульна система для переключення між Goose та прямими MCP серверами
