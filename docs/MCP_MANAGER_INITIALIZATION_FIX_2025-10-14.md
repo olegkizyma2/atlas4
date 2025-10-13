@@ -60,56 +60,39 @@ The method EXISTS (`Type: function`) but returns empty array because MCPManager 
 6. Workflow completes with 0% success
 ```
 
-### The Fix
+### The Fix (CORRECTED - 2nd Attempt)
 
 **File:** `orchestrator/core/service-registry.js`
 
-**Two Critical Issues Fixed:**
+**Issue Found:** The first fix attempt failed because the factory was `async`, which returns a Promise instead of the actual MCPManager instance. When `onInit` tried to call `this.initialize()`, `this` was a Promise, not a MCPManager!
 
-#### Issue #1: Wrong Config Path
+**Root Problems:**
+1. **Wrong config path:** `mcpServers` → should be `providers.mcp.servers`
+2. **Async factory:** Returns Promise, not instance → `this` in lifecycle hooks is wrong
+3. **No initialization call:** Even if it worked, no `initialize()` call
+
+**Complete Fix:**
+
+#### Step 1: Import MCPManager at Top
 ```javascript
-// ❌ WRONG - mcpServers doesn't exist
-const serversConfig = c.resolve('config').AI_BACKEND_CONFIG?.mcpServers || {};
-
-// ✅ CORRECT - Use providers.mcp.servers
-const config = c.resolve('config');
-const serversConfig = config.AI_BACKEND_CONFIG?.providers?.mcp?.servers || {};
+// Add to imports section
+import { MCPManager } from '../ai/mcp-manager.js';
 ```
 
-#### Issue #2: No Initialization Call
+#### Step 2: Create Instance Synchronously
 ```javascript
-// ❌ WRONG - Only logs, doesn't initialize
-lifecycle: {
-    onInit: async function () {
-        logger.system('startup', '[DI] MCPManager initialized');
-    }
-}
-
-// ✅ CORRECT - Actually call initialize()
-lifecycle: {
-    onInit: async function () {
-        await this.initialize();
-        logger.system('startup', '[DI] MCPManager initialized with servers');
-    }
-}
-```
-
-**Complete Fixed Code:**
-```javascript
-// MCPManager - керування MCP servers
-container.singleton('mcpManager', async (c) => {
-    // FIXED 14.10.2025 - Use correct config path for MCP servers
+container.singleton('mcpManager', (c) => {  // NOT async!
     const config = c.resolve('config');
     const serversConfig = config.AI_BACKEND_CONFIG?.providers?.mcp?.servers || {};
-    const module = await import('../ai/mcp-manager.js');
-    const MCPManager = module.MCPManager;
+    
+    // Create instance (doesn't start servers yet)
     return new MCPManager(serversConfig);
 }, {
     dependencies: ['config'],
     metadata: { category: 'workflow', priority: 55 },
     lifecycle: {
         onInit: async function () {
-            // FIXED 14.10.2025 - Actually initialize MCPManager
+            // this = actual MCPManager instance (not Promise)
             await this.initialize();
             logger.system('startup', '[DI] MCPManager initialized with servers');
         }
