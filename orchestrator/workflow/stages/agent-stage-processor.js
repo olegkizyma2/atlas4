@@ -110,7 +110,14 @@ export default class AgentStageProcessor {
       for (const msg of recentHistory) {
         if (msg.role === 'user' || msg.role === 'assistant') {
           // Clean up assistant messages - remove agent signatures
+          // FIXED 13.10.2025 - Handle content as object or string
           let content = msg.content;
+          if (typeof content === 'object' && content !== null) {
+            content = JSON.stringify(content);
+          } else if (typeof content !== 'string') {
+            content = String(content || '');
+          }
+          
           if (msg.role === 'assistant') {
             content = content.replace(/^\[.*?\]\s*/, '').trim();
           }
@@ -132,7 +139,14 @@ export default class AgentStageProcessor {
         .slice(-5); // Last 5 messages
 
       for (const msg of relevantHistory) {
+        // FIXED 13.10.2025 - Handle content as object or string
         let content = msg.content;
+        if (typeof content === 'object' && content !== null) {
+          content = JSON.stringify(content);
+        } else if (typeof content !== 'string') {
+          content = String(content || '');
+        }
+        
         if (msg.role === 'assistant') {
           content = content.replace(/^\[.*?\]\s*/, '').trim();
         }
