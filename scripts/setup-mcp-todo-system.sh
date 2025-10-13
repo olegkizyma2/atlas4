@@ -156,36 +156,44 @@ update_env_var() {
 # Вибір режиму користувачем
 echo ""
 log_info "Виберіть режим AI Backend:"
-echo "  1) mcp       - Тільки MCP (швидко, без Goose)"
+echo "  1) mcp       - Тільки MCP (швидко, без Goose) 🚀"
 echo "  2) goose     - Тільки Goose Desktop"
-echo "  3) hybrid    - Автоматичний вибір (рекомендовано)"
+echo "  3) hybrid    - Автоматичний вибір (складні tasks → Goose, прості → MCP)"
 echo ""
 read -p "Введіть номер (1-3, default: 1): " MODE_CHOICE
 
 case $MODE_CHOICE in
     1)
         AI_MODE="mcp"
+        AI_PRIMARY="mcp"
+        AI_FALLBACK="mcp"
+        log_info "Режим: Чистий MCP (БЕЗ Goose fallback)"
         ;;
     2)
         AI_MODE="goose"
+        AI_PRIMARY="goose"
+        AI_FALLBACK="goose"
+        log_warn "Режим: Тільки Goose (потребує Goose Desktop)"
         ;;
     3)
         AI_MODE="hybrid"
+        AI_PRIMARY="goose"
+        AI_FALLBACK="mcp"
+        log_info "Режим: Hybrid (Goose primary, MCP fallback)"
         ;;
     *)
         AI_MODE="mcp"
-        log_info "Використано default: mcp"
+        AI_PRIMARY="mcp"
+        AI_FALLBACK="mcp"
+        log_info "Використано default: Чистий MCP"
         ;;
 esac
 
 update_env_var "AI_BACKEND_MODE" "$AI_MODE"
-update_env_var "AI_BACKEND_PRIMARY" "$AI_MODE"
+update_env_var "AI_BACKEND_PRIMARY" "$AI_PRIMARY"
+update_env_var "AI_BACKEND_FALLBACK" "$AI_FALLBACK"
 
-if [ "$AI_MODE" = "hybrid" ]; then
-    update_env_var "AI_BACKEND_FALLBACK" "mcp"
-fi
-
-log_success "AI Backend Mode налаштовано: $AI_MODE"
+log_success "AI Backend Mode налаштовано: $AI_MODE (primary: $AI_PRIMARY, fallback: $AI_FALLBACK)"
 
 # КРОК 5: Встановлення orchestrator залежностей
 echo ""
