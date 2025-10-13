@@ -240,6 +240,19 @@ class MCPServer {
  */
 export class MCPManager {
   /**
+   * Повертає список всіх доступних tools з усіх MCP серверів
+   * @returns {Array<string>} Масив назв tools
+   */
+  listTools() {
+    const allTools = [];
+    for (const server of this.servers.values()) {
+      if (Array.isArray(server.tools)) {
+        allTools.push(...server.tools);
+      }
+    }
+    return allTools;
+  }
+  /**
    * @param {Object} serversConfig - Конфігурація серверів з AI_BACKEND_CONFIG
    */
   constructor(serversConfig) {
