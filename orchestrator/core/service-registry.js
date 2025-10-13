@@ -158,8 +158,11 @@ export function registerMCPWorkflowServices(container) {
 
     // MCPManager - керування MCP servers
     container.singleton('mcpManager', async (c) => {
-        // Конфігурація серверів з глобального config
-        const serversConfig = c.resolve('config').AI_BACKEND_CONFIG?.mcpServers || {};
+        // FIXED 14.10.2025 - Use correct config path for MCP servers
+        // Was: AI_BACKEND_CONFIG?.mcpServers (doesn't exist)
+        // Now: AI_BACKEND_CONFIG.providers.mcp.servers (correct)
+        const config = c.resolve('config');
+        const serversConfig = config.AI_BACKEND_CONFIG?.providers?.mcp?.servers || {};
         const module = await import('../ai/mcp-manager.js');
         const MCPManager = module.MCPManager;
         return new MCPManager(serversConfig);
@@ -168,7 +171,10 @@ export function registerMCPWorkflowServices(container) {
         metadata: { category: 'workflow', priority: 55 },
         lifecycle: {
             onInit: async function () {
-                logger.system('startup', '[DI] MCPManager initialized');
+                // FIXED 14.10.2025 - Actually initialize MCPManager (spawn servers, load tools)
+                // Without this, listTools() returns empty array and all MCP workflows fail
+                await this.initialize();
+                logger.system('startup', '[DI] MCPManager initialized with servers');
             }
         }
     });
