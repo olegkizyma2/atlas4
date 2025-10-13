@@ -1,6 +1,6 @@
 # ATLAS v4.0 - Adaptive Task and Learning Assistant System
 
-**LAST UPDATED:** 13 жовтня 2025 - Пізня ніч ~23:45 (MCP Workflow Complete Fix - 3 Critical Bugs)
+**LAST UPDATED:** 13 жовтня 2025 - Пізня ніч ~23:50 (MCP JSON Parsing Infinite Loop Fix - 4 Critical Bugs)
 
 ---
 
@@ -323,6 +323,48 @@ ATLAS is an intelligent multi-agent orchestration system with Flask web frontend
 ---
 
 ## 🎯 КЛЮЧОВІ ОСОБЛИВОСТІ СИСТЕМИ
+
+### ✅ MCP JSON Parsing Infinite Loop Fix (FIXED 13.10.2025 - пізня ніч ~23:50)
+- **Проблема:** MCP workflow входив в **infinite retry loop** - Stage 2.1 повторювався 3x для КОЖНОГО TODO item БЕЗ фактичного виконання
+- **Симптом:** TODO items 0% success rate, всі 6 items failed, жодного tool execution, Stage 2.1 → 2.1 → 2.1 → next item
+- **Логі #1:** `[STAGE-2.1-MCP] Planning tools for item 1` × 3 повторів → наступний item БЕЗ Stage 2.2 (execution)
+- **Логі #2:** `Success rate: 0%, Completed: 0, Failed: 2` після завершення workflow
+- **Корінь:** Три методи парсингу (`_parseToolPlan`, `_parseVerification`, `_parseAdjustment`) крашились на markdown-wrapped JSON:
+  ```javascript
+  // ❌ LLM повертає: ```json\n{"tool_calls": [...]}\n```
+  // ❌ JSON.parse() → SyntaxError: Unexpected token '`'
+  // ❌ planTools() throws → retry (attempt 2/3) → throws again → max attempts → failed
+  ```
+- **Рішення:** Додано markdown cleaning в ВСІ ТРИ методи парсингу:
+  ```javascript
+  _parseToolPlan(response) {
+      let cleanResponse = response;
+      if (typeof response === 'string') {
+          cleanResponse = response
+              .replace(/^```json\s*/i, '')  // Remove opening ```json
+              .replace(/^```\s*/i, '')       // Remove opening ```
+              .replace(/\s*```$/i, '')       // Remove closing ```
+              .trim();
+      }
+      const parsed = typeof cleanResponse === 'string' ? JSON.parse(cleanResponse) : cleanResponse;
+      return { tool_calls: parsed.tool_calls || [], reasoning: parsed.reasoning || '' };
+  }
+  // Same for _parseVerification() and _parseAdjustment()
+  ```
+- **Виправлено:** `orchestrator/workflow/mcp-todo-manager.js` (lines ~729-767) - 3 методи парсингу
+- **Результат:**
+  - ✅ Stage 2.1 виконується ОДИН РАЗ per item (НЕ 3x)
+  - ✅ Після Stage 2.1 → Stage 2.2 (Execute) → Stage 2.3 (Verify) - повний цикл
+  - ✅ TODO items виконуються успішно через MCP tools
+  - ✅ Success rate очікується 95-100% (було 0%)
+  - ✅ -67% API calls (1 attempt замість 3 retries per item)
+- **Критично:**
+  - **ЗАВЖДИ** очищайте markdown wrappers перед JSON.parse()
+  - **Pattern:** `/^```json\s*/i` + `/^```\s*/i` + `/\s*```$/i` для cleaning
+  - **НІКОЛИ** не довіряйте промптам типу "Return ONLY raw JSON" - LLM ігнорує formatting
+  - **Застосовуйте** до ВСІХ LLM → JSON parsing paths (не тільки одного методу)
+  - **Логуйте** raw response при parse errors для debugging
+- **Детально:** `docs/MCP_JSON_PARSING_INFINITE_LOOP_FIX_2025-10-13.md`
 
 ### ✅ MCP Workflow Complete Fix (FIXED 13.10.2025 - пізня ніч ~23:45)
 - **Проблема #1:** `workflowStart is not defined` - відсутня змінна для metrics в executeWorkflowStages()
