@@ -289,13 +289,13 @@ export class MCPManager {
 
     try {
       // Spawn process
-      const process = spawn(config.command, config.args, {
+      const childProcess = spawn(config.command, config.args, {
         env: { ...process.env, ...config.env },
         stdio: ['pipe', 'pipe', 'pipe']
       });
 
       // Створити MCP server wrapper
-      const server = new MCPServer(name, config, process);
+      const server = new MCPServer(name, config, childProcess);
       
       // Ініціалізувати (handshake)
       await server.initialize();
