@@ -390,15 +390,23 @@ Previous items: ${JSON.stringify(todo.items.slice(0, item.id - 1).map(i => ({ id
                 });
 
             } catch (error) {
-                this.logger.error('mcp-todo', `[TODO] Tool ${toolCall.tool} failed: ${error.message}`);
-                
+                // Enhanced diagnostics: include stack and toolCall metadata
+                this.logger.error('mcp-todo', `[TODO] Tool ${toolCall.tool} failed: ${error.message}`, {
+                    toolCall,
+                    server: toolCall.server,
+                    itemId: item.id,
+                    stack: error.stack
+                });
+
                 results.push({
                     tool: toolCall.tool,
                     server: toolCall.server,
                     success: false,
-                    error: error.message
+                    error: error.message,
+                    stack: error.stack || null,
+                    metadata: toolCall
                 });
-                
+
                 allSuccessful = false;
             }
         }
@@ -586,12 +594,28 @@ Results: ${JSON.stringify(todo.items.map(i => ({
 Створи підсумковий звіт виконання.
 `;
 
-        const response = await this.llmClient.generate({
-            systemPrompt: 'MCP_FINAL_SUMMARY',
-            userMessage: prompt,
-            temperature: 0.2,
-            maxTokens: 1500
-        });
+        // Use axios POST to local LLM endpoint for consistent response structure
+        let llmText = '';
+        try {
+            const apiResponse = await axios.post('http://localhost:4000/v1/chat/completions', {
+                model: 'openai/gpt-4o-mini',
+                messages: [
+                    { role: 'system', content: 'MCP_FINAL_SUMMARY' },
+                    { role: 'user', content: prompt }
+                ],
+                temperature: 0.2,
+                max_tokens: 1500
+            }, {
+                headers: { 'Content-Type': 'application/json' },
+                timeout: 20000
+            });
+
+            llmText = apiResponse.data?.choices?.[0]?.message?.content || '';
+        } catch (err) {
+            this.logger.warn('mcp-todo', `[TODO] LLM summary generation failed: ${err.message}`, { stack: err.stack });
+            // Fallback: create a minimal summary based on counts
+            llmText = `Summary generation failed: ${err.message}. Completed ${completedItems.length}/${todo.items.length} items.`;
+        }
 
         const summary = {
             success_rate: successRate,
@@ -599,7 +623,7 @@ Results: ${JSON.stringify(todo.items.map(i => ({
             failed_items: failedItems.length,
             skipped_items: skippedItems.length,
             total_attempts: todo.execution.total_attempts,
-            summary: response,
+            summary: llmText,
             key_results: completedItems.map(i => ({
                 action: i.action,
                 results: i.execution_results
