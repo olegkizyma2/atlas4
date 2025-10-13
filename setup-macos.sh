@@ -718,6 +718,8 @@ configure_system() {
     local whisper_device_value="${WHISPER_DEVICE:-metal}"
     local use_metal_value="${USE_METAL_GPU:-true}"
     local whisper_disable_gpu_value="${WHISPER_CPP_DISABLE_GPU:-false}"
+    local whisper_bin_default="$REPO_ROOT/third_party/whisper.cpp.upstream/build/bin/whisper-cli"
+    local whisper_bin_value="${WHISPER_CPP_BIN:-$whisper_bin_default}"
     local cpu_cores
     cpu_cores=$(sysctl -n hw.ncpu 2>/dev/null || echo "6")
     if ! [[ "$cpu_cores" =~ ^[0-9]+$ ]] || [ "$cpu_cores" -lt 1 ]; then
@@ -750,6 +752,7 @@ TTS_PORT=3001
 WHISPER_BACKEND=cpp
 WHISPER_DEVICE=${whisper_device_value}
 WHISPER_PORT=3002
+WHISPER_CPP_BIN=${whisper_bin_value}
 WHISPER_CPP_MODEL=$MODELS_DIR/whisper/ggml-large-v3.bin
 WHISPER_CPP_NGL=20
 WHISPER_CPP_THREADS=${whisper_threads_value}
@@ -946,6 +949,58 @@ test_installation() {
 }
 
 # =============================================================================
+# Фінальне налаштування Goose (опційно)
+# =============================================================================
+
+run_goose_configure() {
+    log_step "КРОК 17: Фінальне налаштування Goose"
+
+    local goose_exec=""
+
+    if [ -n "$GOOSE_BIN" ] && [ -x "$GOOSE_BIN" ]; then
+        goose_exec="$GOOSE_BIN"
+    elif [ -n "$GOOSE_BIN" ] && command -v "$GOOSE_BIN" >/dev/null 2>&1; then
+        goose_exec="$(command -v "$GOOSE_BIN")"
+    elif command -v goose >/dev/null 2>&1; then
+        goose_exec="$(command -v goose)"
+    fi
+
+    if [ -z "$goose_exec" ]; then
+        log_warn "Goose binary не знайдено у PATH або за вказаним шляхом — пропускаємо configure"
+        return 0
+    fi
+
+    local goose_config="$HOME/.config/goose/config.yaml"
+    local should_run="yes"
+
+    if [ -f "$goose_config" ] && ! grep -q '\${GITHUB_TOKEN}' "$goose_config" 2>/dev/null; then
+        log_info "Goose вже має налаштований config. Якщо потрібно змінити налаштування, запустіть 'goose configure' вручну."
+        should_run="no"
+    fi
+
+    if [ "$should_run" = "yes" ]; then
+        if [ -t 0 ] && [ -t 1 ]; then
+            echo ""
+            read -r -p "Запустити goose configure зараз? [Y/n] " answer
+            if [[ "$answer" =~ ^([nN](o)?)$ ]]; then
+                log_info "Користувач пропустив автоматичний запуск goose configure"
+                return 0
+            fi
+        else
+            log_info "Неінтерактивний режим — goose configure можна виконати вручну після завершення"
+            return 0
+        fi
+
+        log_info "Запуск goose configure..."
+        if "$goose_exec" configure; then
+            log_success "Goose configure завершено"
+        else
+            log_warn "goose configure завершився з помилкою або був перерваний. Ви можете повторити вручну: $goose_exec configure"
+        fi
+    fi
+}
+
+# =============================================================================
 # Фінальні інструкції
 # =============================================================================
 
@@ -995,6 +1050,8 @@ print_final_instructions() {
         echo -e "   Goose потребує налаштування перед першим запуском:"
         echo -e "   ${WHITE}${GOOSE_BIN} configure${NC}"
         echo ""
+    else
+        echo -e "${CYAN}ℹ️  Goose:${NC} якщо потрібно змінити постачальника моделей, запустіть 'goose configure'."
     fi
     
     echo -e "${GREEN}✨ Система готова до роботи!${NC}"
@@ -1029,6 +1086,7 @@ main() {
     configure_system
     configure_goose
     test_installation
+    run_goose_configure
     
     # Фінальні інструкції
     print_final_instructions

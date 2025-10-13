@@ -26,7 +26,7 @@
 - Увімкнули `set -o pipefail`, щоб pipeline враховували реальний статус помилки.
 - Переписали завантаження моделі на використання тимчасового файлу та явну перевірку розміру після переміщення.
 - Додали fallback на `curl` / `wget` із видаленням частково завантажених файлів.
-- Динамічно визначаємо `WHISPER_CPP_THREADS` (кількість ядер macOS) та поважаємо попередньо встановлені `GOOSE_BIN`, `TTS_DEVICE`, `WHISPER_DEVICE`, `WHISPER_CPP_DISABLE_GPU`.
+- Динамічно визначаємо `WHISPER_CPP_THREADS` (кількість ядер macOS), задаємо дефолтний `WHISPER_CPP_BIN` на зібраний `third_party/whisper.cpp.upstream/build/bin/whisper-cli` та поважаємо попередньо встановлені `GOOSE_BIN`, `TTS_DEVICE`, `WHISPER_DEVICE`, `WHISPER_CPP_DISABLE_GPU`.
 
 ## Виправлено
 - `setup-macos.sh`
