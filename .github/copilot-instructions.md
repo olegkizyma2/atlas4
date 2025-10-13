@@ -1,6 +1,6 @@
 # ATLAS v4.0 - Adaptive Task and Learning Assistant System
 
-**LAST UPDATED:** 13 жовтня 2025 - Вечір ~20:20 (ENV Loading Fix - AI Backend конфігурація працює!)
+**LAST UPDATED:** 13 жовтня 2025 - Вечір ~21:30 (MCP Fallback Disable + JSON Parsing Fix)
 
 ---
 
@@ -323,6 +323,110 @@ ATLAS is an intelligent multi-agent orchestration system with Flask web frontend
 ---
 
 ## 🎯 КЛЮЧОВІ ОСОБЛИВОСТІ СИСТЕМИ
+
+### ✅ MCP Fallback Disable & JSON Parsing Fix (FIXED 13.10.2025 - вечір ~21:30)
+- **Проблема #1:** MCP Dynamic TODO Workflow падав з JSON parsing error
+- **Проблема #2:** Неможливо вимкнути fallback на Goose для тестування MCP
+- **Симптом #1:** `Failed to parse TODO response: Unexpected token '\`', "```json..."` → MCP workflow failing → fallback на Goose
+- **Симптом #2:** При будь-якій помилці MCP система робила fallback на Goose → неможливо знайти справжні баги
+- **Логі:** 
+  ```
+  [STAGE-0.5] Mode=mcp → Routing to MCP Direct
+  Routing to MCP Dynamic TODO Workflow
+  ❌ Failed to parse TODO response: Unexpected token '`'
+  ⚠️ Falling back to Goose workflow
+  ```
+- **Корінь #1:** LLM повертав JSON обгорнутий в markdown: ````json { ... }``` замість чистого JSON
+- **Корінь #2:** `JSON.parse()` не може парсити markdown code blocks
+- **Корінь #3:** Fallback був hardcoded без можливості налаштування
+- **Рішення #1:** Додано ENV змінну `AI_BACKEND_DISABLE_FALLBACK` для strict mode
+  ```javascript
+  // config/global-config.js
+  export const AI_BACKEND_CONFIG = {
+    // НОВИНКА 13.10.2025 - Дозволити/заборонити fallback на Goose
+    get disableFallback() {
+      return process.env.AI_BACKEND_DISABLE_FALLBACK === 'true';
+    },
+  };
+  ```
+- **Рішення #2:** Виправлено JSON parsing з автоматичним очищенням markdown
+  ```javascript
+  // orchestrator/workflow/mcp-todo-manager.js
+  _parseTodoResponse(response, request) {
+    let cleanResponse = response;
+    if (typeof response === 'string') {
+      // Remove ```json and ``` wrappers
+      cleanResponse = response
+        .replace(/^```json\s*/i, '')  // Remove opening ```json
+        .replace(/^```\s*/i, '')       // Remove opening ```
+        .replace(/\s*```$/i, '')       // Remove closing ```
+        .trim();
+    }
+    const parsed = JSON.parse(cleanResponse); // ✅ Тепер працює
+  }
+  ```
+- **Рішення #3:** Додано перевірку `disableFallback` в executor (2 місця: Circuit Breaker + MCP error handler)
+  ```javascript
+  // orchestrator/workflow/executor-v3.js
+  } catch (mcpError) {
+    if (GlobalConfig.AI_BACKEND_CONFIG.disableFallback) {
+      // Strict mode - throw error, NO fallback
+      throw mcpError;
+    }
+    // Safe mode - fallback на Goose
+    return await executeTaskWorkflow(...);
+  }
+  ```
+- **Рішення #4:** Оновлено промпт для LLM - явна інструкція повертати чистий JSON
+  ```javascript
+  ⚠️ CRITICAL: Return ONLY raw JSON without markdown code blocks.
+  ❌ DO NOT wrap response in \`\`\`json ... \`\`\` 
+  ✅ Return ONLY: {"mode": "...", "items": [...], ...}
+  ```
+- **Виправлено:**
+  - `config/global-config.js` - додано `disableFallback` getter
+  - `orchestrator/workflow/mcp-todo-manager.js` - виправлено JSON parsing + промпт
+  - `orchestrator/workflow/executor-v3.js` - додано fallback control (2 місця)
+  - `.env.example` - додано `AI_BACKEND_DISABLE_FALLBACK` з документацією
+- **Результат:**
+  - ✅ MCP може парсити відповіді LLM з markdown wrappers
+  - ✅ Промпт інструктує LLM віддавати чистий JSON (подвійний захист)
+  - ✅ Strict mode для тестування: `AI_BACKEND_DISABLE_FALLBACK=true`
+  - ✅ Safe mode для production: `AI_BACKEND_DISABLE_FALLBACK=false`
+  - ✅ Frontend отримує інформацію про стан fallback
+  - ✅ Circuit breaker респектує strict mode
+- **Environment Variables:**
+  ```bash
+  # Development - тестування MCP без маскування помилок
+  export AI_BACKEND_MODE=mcp
+  export AI_BACKEND_DISABLE_FALLBACK=true
+  
+  # Production - максимальна надійність з fallback
+  export AI_BACKEND_MODE=hybrid
+  export AI_BACKEND_DISABLE_FALLBACK=false
+  ```
+- **Критично:**
+  - **ЗАВЖДИ** додавайте промпт інструкцію для чистого JSON
+  - **ЗАВЖДИ** очищуйте markdown wrappers перед `JSON.parse()`
+  - **ЗАВЖДИ** респектуйте `disableFallback` в error handlers
+  - **Development** → strict mode (`true`) для виявлення багів
+  - **Production** → safe mode (`false`) для надійності
+  - **Regex pattern:** `/^```json\s*/i` + `/\s*```$/i` для очищення
+- **Тестування:**
+  ```bash
+  # Test 1: JSON parsing з markdown wrapper
+  # LLM повертає: ```json\n{"mode": "standard"}\n```
+  # Очікуване: TODO створюється успішно
+  
+  # Test 2: Strict mode
+  export AI_BACKEND_DISABLE_FALLBACK=true
+  # Спричинити помилку MCP → має throw error
+  
+  # Test 3: Safe mode
+  export AI_BACKEND_DISABLE_FALLBACK=false
+  # Спричинити помилку MCP → має fallback на Goose
+  ```
+- **Детально:** `docs/MCP_FALLBACK_DISABLE_FIX_2025-10-13.md`
 
 ### ✅ ENV Loading Fix (FIXED 13.10.2025 - вечір ~20:15)
 - **Проблема:** Orchestrator НЕ завантажував `.env` файл → всі ENV змінні ігнорувались

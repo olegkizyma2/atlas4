@@ -120,6 +120,13 @@ export const AI_BACKEND_CONFIG = {
     return process.env.AI_BACKEND_FALLBACK || 'mcp';
   },
   
+  // НОВИНКА 13.10.2025 - Дозволити/заборонити fallback на Goose
+  // Якщо true - при помилках MCP система падатиме з error (strict mode)
+  // Якщо false - при помилках MCP буде fallback на Goose (default)
+  get disableFallback() {
+    return process.env.AI_BACKEND_DISABLE_FALLBACK === 'true';
+  },
+  
   // Retry налаштування
   retry: {
     maxAttempts: 2,

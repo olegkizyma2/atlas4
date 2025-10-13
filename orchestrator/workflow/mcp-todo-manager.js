@@ -538,6 +538,10 @@ Context: ${JSON.stringify(context, null, 2)}
 
 Створи TODO список для виконання запиту.
 Режими: standard (1-3 пункти) або extended (4-10 пунктів).
+
+⚠️ CRITICAL: Return ONLY raw JSON without markdown code blocks.
+❌ DO NOT wrap response in \`\`\`json ... \`\`\` 
+✅ Return ONLY: {"mode": "...", "items": [...], ...}
 `;
     }
 
@@ -545,7 +549,18 @@ Context: ${JSON.stringify(context, null, 2)}
         // Parse LLM response into TodoList structure
         // Expected JSON format from LLM
         try {
-            const parsed = typeof response === 'string' ? JSON.parse(response) : response;
+            // FIXED 13.10.2025 - Strip markdown code blocks (```json ... ```)
+            let cleanResponse = response;
+            if (typeof response === 'string') {
+                // Remove ```json and ``` wrappers
+                cleanResponse = response
+                    .replace(/^```json\s*/i, '')  // Remove opening ```json
+                    .replace(/^```\s*/i, '')       // Remove opening ```
+                    .replace(/\s*```$/i, '')       // Remove closing ```
+                    .trim();
+            }
+            
+            const parsed = typeof cleanResponse === 'string' ? JSON.parse(cleanResponse) : cleanResponse;
             
             return {
                 id: `todo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,

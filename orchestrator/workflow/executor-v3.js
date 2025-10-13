@@ -759,6 +759,28 @@ async function executeWorkflowStages(userMessage, session, res, allStages, workf
           state: breakerState.state
         });
 
+        // НОВИНКА 13.10.2025 - Check if fallback is disabled
+        if (GlobalConfig.AI_BACKEND_CONFIG.disableFallback) {
+          logger.error('executor', '❌ Circuit breaker open and fallback is DISABLED', {
+            sessionId: session.id,
+            breakerState: breakerState.state
+          });
+
+          if (res.writable && !res.writableEnded) {
+            res.write(`data: ${JSON.stringify({
+              type: 'workflow_error',
+              data: {
+                error: 'Circuit breaker open',
+                message: `Too many MCP failures (${breakerState.failureCount}/${breakerState.threshold})`,
+                fallbackDisabled: true
+              }
+            })}\n\n`);
+            res.end();
+          }
+
+          throw new Error(`Circuit breaker ${breakerState.state} - fallback disabled`);
+        }
+
         // Send circuit breaker notification to frontend
         if (res.writable && !res.writableEnded) {
           res.write(`data: ${JSON.stringify({
@@ -810,11 +832,34 @@ async function executeWorkflowStages(userMessage, session, res, allStages, workf
         telemetry.emit('workflow.mcp.failed', {
           sessionId: session.id,
           error: mcpError.message,
-          fallbackToGoose: true,
+          fallbackToGoose: !GlobalConfig.AI_BACKEND_CONFIG.disableFallback,
           circuitBreakerState: mcpCircuitBreaker.getState()
         });
 
-        // Send error notification to frontend
+        // НОВИНКА 13.10.2025 - Check if fallback is disabled
+        if (GlobalConfig.AI_BACKEND_CONFIG.disableFallback) {
+          logger.error('executor', '❌ MCP workflow failed and fallback is DISABLED (AI_BACKEND_DISABLE_FALLBACK=true)', {
+            sessionId: session.id,
+            error: mcpError.message
+          });
+
+          // Send error to frontend without fallback
+          if (res.writable && !res.writableEnded) {
+            res.write(`data: ${JSON.stringify({
+              type: 'workflow_error',
+              data: {
+                error: 'MCP workflow failed',
+                message: mcpError.message,
+                fallbackDisabled: true
+              }
+            })}\n\n`);
+            res.end();
+          }
+
+          throw mcpError; // Re-throw to propagate error
+        }
+
+        // Send fallback notification to frontend
         if (res.writable && !res.writableEnded) {
           res.write(`data: ${JSON.stringify({
             type: 'workflow_fallback',
