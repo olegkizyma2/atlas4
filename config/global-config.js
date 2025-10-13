@@ -163,6 +163,14 @@ export const AI_BACKEND_CONFIG = {
           command: 'npx',
           args: ['-y', '@anthropic/computer-use'],
           env: {}
+        },
+        
+        vscode: {
+          command: 'node',
+          args: ['./node_modules/@modelcontextprotocol/server-vscode/dist/index.js'],
+          env: {
+            VSCODE_WORKSPACE: process.env.VSCODE_WORKSPACE || process.cwd()
+          }
         }
       },
       
@@ -175,7 +183,7 @@ export const AI_BACKEND_CONFIG = {
       },
       
       // Коли використовувати
-      useFor: ['file_operations', 'browser_automation', 'screenshots']
+      useFor: ['file_operations', 'browser_automation', 'screenshots', 'code_editing']
     }
   },
   
@@ -186,7 +194,9 @@ export const AI_BACKEND_CONFIG = {
       'створи файл', 'create file', 'save file',
       'відкрий браузер', 'open browser',
       'скріншот', 'screenshot',
-      'desktop', 'файл', 'file'
+      'desktop', 'файл', 'file',
+      'відкрий файл', 'open file', 'edit file',
+      'vscode', 'code editor', 'редагувати код'
     ],
     
     // Якщо prompt містить ці → Goose
