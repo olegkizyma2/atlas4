@@ -41,15 +41,45 @@
 
 ### Крок 1: Встановлення MCP серверів
 
+**Всі MCP сервери з config/global-config.js:**
+
 ```bash
-# Глобальні MCP packages
+# 1. Filesystem - робота з файлами та директоріями
 npm install -g @modelcontextprotocol/server-filesystem
+
+# 2. Playwright - автоматизація браузера
 npm install -g @executeautomation/playwright-mcp-server
 
-# Перевірка
+# 3. Computer Use (Anthropic) - скріншоти та desktop control
+npm install -g @anthropic/computer-use
+
+# 4. VSCode - автоматизація редактора коду
+npm install -g @modelcontextprotocol/server-vscode
+
+# Перевірка всіх чотирьох
 npm list -g @modelcontextprotocol/server-filesystem
 npm list -g @executeautomation/playwright-mcp-server
+npm list -g @anthropic/computer-use
+npm list -g @modelcontextprotocol/server-vscode
 ```
+
+**Що робить кожен сервер:**
+
+| MCP Server | Package | Функціональність |
+|------------|---------|------------------|
+| **filesystem** | `@modelcontextprotocol/server-filesystem` | Читання/запис файлів, створення директорій, операції з файловою системою |
+| **playwright** | `@executeautomation/playwright-mcp-server` | Відкривати браузер, переходити на сайти, scraping, взаємодія з веб-сторінками |
+| **computercontroller** | `@anthropic/computer-use` | Скріншоти, desktop automation, keyboard/mouse control |
+| **vscode** | `@modelcontextprotocol/server-vscode` | Відкривати файли в VSCode, редагувати код, виконувати команди редактора |
+
+**Дозволені директорії (filesystem):**
+- `/Users` - домашня директорія користувача
+- `/tmp` - тимчасові файли
+- `/Desktop` - робочий стіл
+- `/Applications` - застосунки
+
+**Налаштування (playwright):**
+- `HEADLESS: false` - браузер відкривається видимим (не в фоні)
 
 ### Крок 2: Налаштування .env
 
@@ -77,12 +107,14 @@ cd ..
 ## ✅ Перевірка встановлення
 
 ```bash
-# 1. Перевірити MCP packages
-npm list -g | grep -E "filesystem|playwright"
+# Перевірити MCP packages
+npm list -g | grep -E "filesystem|playwright|computer-use|server-vscode"
 
-# Очікуваний вивід:
-# ├── @executeautomation/playwright-mcp-server@x.x.x
+# Очікуваний вивід (4 сервери):
 # ├── @modelcontextprotocol/server-filesystem@x.x.x
+# ├── @executeautomation/playwright-mcp-server@x.x.x
+# ├── @anthropic/computer-use@x.x.x
+# ├── @modelcontextprotocol/server-vscode@x.x.x
 
 # 2. Перевірити .env
 grep AI_BACKEND .env
@@ -119,6 +151,12 @@ ls orchestrator/node_modules | head -10
 - Atlas використовує LLM для TODO Planning (Stage 1-MCP)
 - Tetyana використовує LLM для Plan Tools (Stage 2.1-MCP)
 - Grisha використовує LLM для Verify Item (Stage 2.3-MCP)
+
+**🔧 MCP Сервери що використовуються:**
+1. **filesystem** - створення/читання файлів (npx @modelcontextprotocol/server-filesystem)
+2. **playwright** - браузер automation (npx @executeautomation/playwright-mcp-server)
+3. **computercontroller** - скріншоти/desktop (npx @anthropic/computer-use)
+4. **vscode** - редагування коду в VSCode (node @modelcontextprotocol/server-vscode)
 
 ### Крок 2: Перевірити логи
 
@@ -278,11 +316,16 @@ lsof -i :4000
 **Рішення:**
 
 ```bash
+# Встановити ВСІ 4 MCP сервери
 npm install -g @modelcontextprotocol/server-filesystem
 npm install -g @executeautomation/playwright-mcp-server
+npm install -g @anthropic/computer-use
+npm install -g @modelcontextprotocol/server-vscode
 
 # Перевірити
-npm list -g | grep -E "filesystem|playwright"
+npm list -g | grep -E "filesystem|playwright|computer-use|server-vscode"
+
+# Має показати 4 пакети
 ```
 
 ### Проблема 4: Система використовує Goose замість MCP
@@ -443,7 +486,11 @@ export AI_BACKEND_MODE=hybrid
 ## ✅ Checklist для успішного setup
 
 - [ ] Node.js встановлено (v16+)
-- [ ] MCP npm packages встановлено глобально
+- [ ] **4 MCP npm packages** встановлено глобально:
+  - [ ] `@modelcontextprotocol/server-filesystem` (файли)
+  - [ ] `@executeautomation/playwright-mcp-server` (браузер)
+  - [ ] `@anthropic/computer-use` (скріншоти/desktop)
+  - [ ] `@modelcontextprotocol/server-vscode` (code editor)
 - [ ] `.env` налаштовано з `AI_BACKEND_MODE=mcp`
 - [ ] Orchestrator залежності встановлено (`npm install`)
 - [ ] Всі сервіси запущено (`./restart_system.sh start`)
@@ -456,5 +503,5 @@ export AI_BACKEND_MODE=hybrid
 ---
 
 **Дата оновлення:** 2025-10-13  
-**Версія документа:** 1.0.0  
+**Версія документа:** 1.2.0 (додано vscode server)  
 **Статус:** Production Ready ✅
