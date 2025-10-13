@@ -1,6 +1,6 @@
 # ATLAS v4.0 - Adaptive Task and Learning Assistant System
 
-**LAST UPDATED:** 13 жовтня 2025 - День ~17:30 (Goose MCP Extensions Configuration Fix)
+**LAST UPDATED:** 13 жовтня 2025 - День ~19:00 (AI Backend Modular System Created)
 
 ---
 
@@ -323,6 +323,82 @@ ATLAS is an intelligent multi-agent orchestration system with Flask web frontend
 ---
 
 ## 🎯 КЛЮЧОВІ ОСОБЛИВОСТІ СИСТЕМИ
+
+### ✅ AI Backend Modular System (CREATED 13.10.2025 - день ~19:00)
+- **Новий компонент:** Модульна система для переключення між Goose та прямими MCP серверами
+- **Мотивація:** Goose додає overhead (WebSocket session), прямі MCP швидші для простих операцій
+- **Файли створено:**
+  - `orchestrator/ai/ai-provider-interface.js` - уніфікований інтерфейс для всіх backends (417 LOC)
+  - `orchestrator/ai/backends/goose-backend.js` - обгортка над goose-client.js (118 LOC)
+  - `orchestrator/ai/backends/mcp-backend.js` - прямий доступ до MCP серверів (186 LOC)
+  - `orchestrator/ai/mcp-manager.js` - управління MCP server lifecycle (415 LOC)
+  - `orchestrator/ai/llm-client.js` - LLM для MCP reasoning (158 LOC)
+  - `docs/AI_BACKEND_MODULAR_SYSTEM.md` - повний архітектурний план
+- **Конфігурація:** 
+  - Додано `AI_BACKEND_CONFIG` в `global-config.js` з трьома режимами
+  - `mode`: 'goose' | 'mcp' | 'hybrid' (автоматичний routing)
+  - `primary`: default backend ('goose')
+  - `fallback`: резервний backend ('mcp')
+- **Архітектура:**
+  ```
+  AgentStageProcessor
+    ↓
+  AIProviderInterface (routing logic)
+    ↓
+  ┌─────────────┬────────────┐
+  Goose Backend  MCP Backend
+    ↓               ↓
+  Goose Desktop  MCP Manager → Direct MCP Servers
+  ```
+- **Режими роботи:**
+  1. **goose** - тільки Goose Desktop (як зараз)
+  2. **mcp** - тільки прямі MCP сервери + LLM reasoning
+  3. **hybrid** - автоматичний вибір на основі prompt keywords
+- **Routing Keywords:**
+  - MCP: 'створи файл', 'відкрий браузер', 'скріншот', 'desktop' → швидкі операції
+  - Goose: 'проаналізуй', 'порівняй', 'поясни', 'знайди інформацію' → складні завдання
+- **Fallback Mechanism:**
+  - Primary backend failing → автоматичний перехід на fallback
+  - Retry налаштування: maxAttempts=2, timeout=30s
+  - Graceful degradation замість crash
+- **MCP Manager:**
+  - Запускає MCP servers через stdio protocol
+  - Підтримує: filesystem, playwright, computercontroller
+  - JSON-RPC communication з tool execution
+  - Lifecycle management (initialize → ready → shutdown)
+- **LLM Client для MCP:**
+  - Tool planning: аналізує prompt → визначає які tools викликати
+  - Final response generation: tool results → текстова відповідь
+  - Використовує port 4000 API (gpt-4o-mini, T=0.3)
+- **Переваги:**
+  - ✅ **Flexibility** - легко переключити backend через env vars
+  - ✅ **Performance** - прямий MCP швидший (no WebSocket overhead)
+  - ✅ **Reliability** - auto fallback при збоях
+  - ✅ **Testability** - легко mock backends для tests
+  - ✅ **Cost optimization** - прості task → MCP (менше LLM calls)
+- **Environment Variables:**
+  ```bash
+  export AI_BACKEND_MODE=hybrid      # 'goose' | 'mcp' | 'hybrid'
+  export AI_BACKEND_PRIMARY=goose    # default backend
+  export AI_BACKEND_FALLBACK=mcp     # резервний
+  ```
+- **Integration Plan:**
+  - Phase 1: Infrastructure (AIProviderInterface, MCPManager) - 1-2 дні
+  - Phase 2: Backends (GooseBackend, MCPBackend, LLMClient) - 2-3 дні
+  - Phase 3: Integration (замінити callGooseAgent) - 1-2 дні
+  - Phase 4: Testing & Optimization - 1 день
+  - **Total:** 5-8 днів розробки
+- **Критично:**
+  - НЕ видаляти існуючий goose-client.js - він стає частиною GooseBackend
+  - MCP servers потребують npm packages глобально: `npm install -g @modelcontextprotocol/...`
+  - LLM client використовує той самий endpoint що й система (port 4000)
+  - Routing через keywords - можна розширювати без code changes
+- **Поточний статус:** ⏳ IN PLANNING
+  - Створено архітектурну документацію
+  - Створено skeleton код для всіх компонентів
+  - Додано AI_BACKEND_CONFIG в global-config.js
+  - Потрібна інтеграція в DI Container та agent-stage-processor.js
+- **Детально:** `docs/AI_BACKEND_MODULAR_SYSTEM.md`
 
 ### ✅ Goose MCP Extensions Configuration (FIXED 13.10.2025 - день ~17:30)
 - **Проблема:** Тетяна та Гриша НЕ мали доступу до реальних інструментів (developer, playwright, computercontroller) - завдання НЕ виконувались
