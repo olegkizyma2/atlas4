@@ -37,6 +37,7 @@ MODELS_DIR="$REPO_ROOT/models"
 # =============================================================================
 
 print_banner() {
+set -o pipefail
     echo ""
     echo -e "${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
     echo -e "${CYAN}║${WHITE}          ATLAS v4.0 - macOS Deployment Setup                  ${CYAN}║${NC}"
@@ -47,6 +48,7 @@ print_banner() {
 
 log_info() {
     echo -e "${GREEN}[INFO]${NC} $1"
+    local tmp_file="${model_file}.download"
 }
 
 log_warn() {
@@ -62,13 +64,37 @@ log_success() {
 }
 
 log_step() {
-    echo ""
-    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${BLUE}🔧 $1${NC}"
-    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo ""
-}
+    rm -f "$tmp_file"
 
+    if check_command curl; then
+        if curl -L --fail --progress-bar -o "$tmp_file" "$model_url"; then
+            mv "$tmp_file" "$model_file"
+        else
+            log_error "Не вдалося завантажити модель через curl"
+            rm -f "$tmp_file"
+            return 1
+        fi
+    elif check_command wget; then
+        if wget --show-progress -O "$tmp_file" "$model_url"; then
+            mv "$tmp_file" "$model_file"
+        else
+            log_error "Не вдалося завантажити модель через wget"
+            rm -f "$tmp_file"
+            return 1
+        fi
+    else
+        log_error "curl або wget не знайдено - неможливо завантажити модель"
+        return 1
+    fi
+
+    local file_size=$(stat -f%z "$model_file" 2>/dev/null || echo "0")
+    if [ "$file_size" -le 100000 ]; then
+        log_error "Завантажена модель занадто мала (можливо, помилка)"
+        rm -f "$model_file"
+        return 1
+    fi
+
+    log_success "Модель завантажена (розмір: $(($file_size / 1024)) KB)"
 check_command() {
     if command -v "$1" >/dev/null 2>&1; then
         return 0
@@ -546,19 +572,24 @@ build_whisper_cpp() {
         git pull
     fi
     
-    # Компіляція з Metal підтримкою для M1/M2/M3
+    log_info "Підготовка до компіляції Whisper.cpp..."
+    mkdir -p build
+    cd build
+
     if [ "$USE_METAL_GPU" = "true" ]; then
-        log_info "Компіляція Whisper.cpp з Metal GPU acceleration..."
-        mkdir -p build
-        cd build
-        cmake .. -DWHISPER_METAL=ON -DWHISPER_COREML=ON
-        make -j$(sysctl -n hw.ncpu)
-        log_success "Whisper.cpp скомпільовано з Metal підтримкою"
+        log_info "Компіляція Whisper.cpp з Metal GPU acceleration (Core ML вимкнено)..."
+        cmake .. -DWHISPER_METAL=ON -DWHISPER_COREML=OFF
     else
-        log_info "Компіляція Whisper.cpp (CPU режим)..."
-        make clean
-        make -j$(sysctl -n hw.ncpu)
-        log_success "Whisper.cpp скомпільовано"
+        log_info "Компіляція Whisper.cpp у CPU режимі (без Metal/Core ML)..."
+        cmake .. -DWHISPER_METAL=OFF -DWHISPER_COREML=OFF
+    fi
+
+    make -j$(sysctl -n hw.ncpu)
+
+    if [ "$USE_METAL_GPU" = "true" ]; then
+        log_success "Whisper.cpp скомпільовано з Metal підтримкою (Core ML вимкнено)"
+    else
+        log_success "Whisper.cpp скомпільовано у CPU режимі"
     fi
     
     cd "$REPO_ROOT"
@@ -680,7 +711,19 @@ download_3d_models() {
 # =============================================================================
 
 configure_system() {
-    log_step "КРОК 13: Налаштування системної конфігурації"
+    log_step "КРОК 14: Налаштування системної конфігурації"
+    
+    local goose_bin_value="${GOOSE_BIN:-/Applications/Goose.app/Contents/MacOS/goose}"
+    local tts_device_value="${TTS_DEVICE:-mps}"
+    local whisper_device_value="${WHISPER_DEVICE:-metal}"
+    local use_metal_value="${USE_METAL_GPU:-true}"
+    local whisper_disable_gpu_value="${WHISPER_CPP_DISABLE_GPU:-false}"
+    local cpu_cores
+    cpu_cores=$(sysctl -n hw.ncpu 2>/dev/null || echo "6")
+    if ! [[ "$cpu_cores" =~ ^[0-9]+$ ]] || [ "$cpu_cores" -lt 1 ]; then
+        cpu_cores=6
+    fi
+    local whisper_threads_value="${WHISPER_CPP_THREADS:-$cpu_cores}"
     
     # Створити .env файл якщо не існує
     if [ ! -f "$REPO_ROOT/.env" ]; then
@@ -694,29 +737,30 @@ NODE_ENV=production
 FORCE_FREE_PORTS=true
 
 # Goose Configuration
-GOOSE_BIN=${GOOSE_BIN}
+GOOSE_BIN=${goose_bin_value}
 GOOSE_SERVER_PORT=3000
 GOOSE_DISABLE_KEYRING=1
 
 # TTS Configuration
 REAL_TTS_MODE=true
-TTS_DEVICE=${TTS_DEVICE}
+TTS_DEVICE=${tts_device_value}
 TTS_PORT=3001
 
 # Whisper Configuration
 WHISPER_BACKEND=cpp
-WHISPER_DEVICE=${WHISPER_DEVICE}
+WHISPER_DEVICE=${whisper_device_value}
 WHISPER_PORT=3002
 WHISPER_CPP_MODEL=$MODELS_DIR/whisper/ggml-large-v3.bin
 WHISPER_CPP_NGL=20
-WHISPER_CPP_THREADS=6
+WHISPER_CPP_THREADS=${whisper_threads_value}
+WHISPER_CPP_DISABLE_GPU=${whisper_disable_gpu_value}
 
 # Ports
 FRONTEND_PORT=5001
 ORCHESTRATOR_PORT=5101
 
 # Features
-USE_METAL_GPU=${USE_METAL_GPU}
+USE_METAL_GPU=${use_metal_value}
 EOF
         log_success ".env файл створено"
     else
