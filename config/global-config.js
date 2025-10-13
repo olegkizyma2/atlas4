@@ -59,11 +59,13 @@ export const AI_MODEL_CONFIG = {
     // Класифікація та швидкі рішення
     // PATTERN-BASED: Clear action patterns with examples
     classification: {
-      model: 'openai/gpt-4o',
-      temperature: 0.5,  // Higher for pattern matching flexibility
+      model: 'openai/gpt-4o-mini',  // FIXED 14.10.2025 - використовуємо mini для уникнення 429
+      temperature: 0.1,  // Нижча T для точної класифікації
       max_tokens: 50,
-      description: 'GPT-4o з T=0.5 для pattern-based класифікації'
-    },    // Чат та розмова
+      description: 'GPT-4o-mini для швидкої класифікації без rate limits'
+    },
+    
+    // Чат та розмова
     chat: {
       model: 'openai/gpt-4o-mini',
       temperature: 0.7,
@@ -73,10 +75,10 @@ export const AI_MODEL_CONFIG = {
 
     // Аналіз та reasoning
     analysis: {
-      model: 'openai/gpt-4o',
+      model: 'anthropic/claude-3-5-sonnet-20241022',  // FIXED 14.10.2025 - Claude для reasoning
       temperature: 0.3,
       max_tokens: 1000,
-      description: 'Потужна модель для складного аналізу'
+      description: 'Claude Sonnet для якісного аналізу та reasoning'
     },
 
     // TTS оптимізація
@@ -98,6 +100,78 @@ export const AI_MODEL_CONFIG = {
 
   // Fallback модель якщо не знайдено специфічну
   defaultModel: 'classification'
+};
+
+// === MCP MODELS CONFIGURATION (NEW 14.10.2025) ===
+// Окрема конфігурація моделей для кожного MCP стейджу з ENV підтримкою
+// Детально: docs/MCP_MODEL_SELECTION_GUIDE.md
+export const MCP_MODEL_CONFIG = {
+  // API endpoint
+  apiEndpoint: 'http://localhost:4000/v1/chat/completions',
+  
+  // Моделі для кожного MCP stage (читаємо з ENV для гнучкості)
+  stages: {
+    // Stage 0: Mode Selection (task vs chat)
+    mode_selection: {
+      get model() { return process.env.MCP_MODEL_MODE_SELECTION || 'openai/gpt-4o-mini'; },
+      get temperature() { return parseFloat(process.env.MCP_TEMP_MODE_SELECTION || '0.1'); },
+      max_tokens: 50,
+      description: 'Бінарна класифікація - швидка легка модель'
+    },
+    
+    // Stage 0.5: Backend Selection (goose vs mcp)
+    backend_selection: {
+      get model() { return process.env.MCP_MODEL_BACKEND_SELECTION || 'openai/gpt-4o-mini'; },
+      get temperature() { return parseFloat(process.env.MCP_TEMP_BACKEND_SELECTION || '0.1'); },
+      max_tokens: 50,
+      description: 'Keyword-based routing - швидко'
+    },
+    
+    // Stage 1-MCP: Atlas TODO Planning
+    todo_planning: {
+      get model() { return process.env.MCP_MODEL_TODO_PLANNING || 'anthropic/claude-3-5-sonnet-20241022'; },
+      get temperature() { return parseFloat(process.env.MCP_TEMP_TODO_PLANNING || '0.3'); },
+      max_tokens: 2000,
+      description: 'Critical planning - потрібен якісний reasoning'
+    },
+    
+    // Stage 2.1-MCP: Tetyana Plan Tools
+    plan_tools: {
+      get model() { return process.env.MCP_MODEL_PLAN_TOOLS || 'openai/gpt-4o-mini'; },
+      get temperature() { return parseFloat(process.env.MCP_TEMP_PLAN_TOOLS || '0.2'); },
+      max_tokens: 500,
+      description: 'Tool matching - проста відповідність'
+    },
+    
+    // Stage 2.3-MCP: Grisha Verify Item
+    verify_item: {
+      get model() { return process.env.MCP_MODEL_VERIFY_ITEM || 'openai/gpt-4o-mini'; },
+      get temperature() { return parseFloat(process.env.MCP_TEMP_VERIFY_ITEM || '0.2'); },
+      max_tokens: 300,
+      description: 'Проста верифікація success/fail'
+    },
+    
+    // Stage 3-MCP: Atlas Adjust TODO
+    adjust_todo: {
+      get model() { return process.env.MCP_MODEL_ADJUST_TODO || 'anthropic/claude-3-5-haiku-20241022'; },
+      get temperature() { return parseFloat(process.env.MCP_TEMP_ADJUST_TODO || '0.3'); },
+      max_tokens: 1000,
+      description: 'Корекція TODO - mid-level reasoning'
+    },
+    
+    // Stage 8-MCP: Final Summary
+    final_summary: {
+      get model() { return process.env.MCP_MODEL_FINAL_SUMMARY || 'openai/gpt-4o-mini'; },
+      get temperature() { return parseFloat(process.env.MCP_TEMP_FINAL_SUMMARY || '0.5'); },
+      max_tokens: 500,
+      description: 'User-facing summary - природна мова'
+    }
+  },
+  
+  // Helper: Отримати конфігурацію для stage
+  getStageConfig(stageName) {
+    return this.stages[stageName] || this.stages.plan_tools; // Fallback на mid-tier model
+  }
 };
 
 // === AI BACKEND CONFIGURATION (NEW 13.10.2025) ===
