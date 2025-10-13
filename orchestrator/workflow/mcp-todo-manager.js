@@ -75,6 +75,29 @@ export class MCPTodoManager {
         
         this.activeTodos = new Map(); // todoId -> TodoList
         this.completedTodos = new Map(); // todoId -> results
+        
+        // Rate limiting state (ADDED 14.10.2025)
+        this.lastApiCall = 0;
+        this.minApiDelay = 500; // 500ms between API calls
+    }
+
+    /**
+     * Wait before making API call to avoid rate limits
+     * ADDED 14.10.2025 - Prevent parallel API calls
+     * 
+     * @private
+     */
+    async _waitForRateLimit() {
+        const now = Date.now();
+        const timeSinceLastCall = now - this.lastApiCall;
+        
+        if (timeSinceLastCall < this.minApiDelay) {
+            const delay = this.minApiDelay - timeSinceLastCall;
+            this.logger.system('mcp-todo', `[RATE-LIMIT] Waiting ${delay}ms before API call`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+        
+        this.lastApiCall = Date.now();
     }
 
     /**
@@ -96,6 +119,9 @@ export class MCPTodoManager {
             const userMessage = todoPrompt.userPrompt
                 .replace('{{request}}', request)
                 .replace('{{context}}', JSON.stringify(context, null, 2));
+            
+            // Wait for rate limit (ADDED 14.10.2025)
+            await this._waitForRateLimit();
             
             // FIXED 13.10.2025 - Use FULL prompt with JSON schema and examples
             // FIXED 14.10.2025 - Use MCP_MODEL_CONFIG for per-stage models
@@ -338,6 +364,9 @@ Previous items: ${JSON.stringify(todo.items.slice(0, item.id - 1).map(i => ({ id
                 const modelConfig = MCP_MODEL_CONFIG.getStageConfig('plan_tools');
                 this.logger.system('mcp-todo', `[TODO] Calling LLM API at ${MCP_MODEL_CONFIG.apiEndpoint}...`);
 
+                // Wait for rate limit (ADDED 14.10.2025)
+                await this._waitForRateLimit();
+
                 apiResponse = await axios.post(MCP_MODEL_CONFIG.apiEndpoint, {
                     model: modelConfig.model,
                     messages: [
@@ -484,6 +513,10 @@ Execution Results: ${JSON.stringify(execution.results, null, 2)}
             // FIXED 13.10.2025 - Use correct API call format
             // FIXED 14.10.2025 - Use MCP_MODEL_CONFIG for per-stage models
             const modelConfig = MCP_MODEL_CONFIG.getStageConfig('verify_item');
+            
+            // Wait for rate limit (ADDED 14.10.2025)
+            await this._waitForRateLimit();
+            
             const apiResponse = await axios.post(MCP_MODEL_CONFIG.apiEndpoint, {
                 model: modelConfig.model,
                 messages: [
@@ -545,6 +578,10 @@ Attempt: ${attempt}/${item.max_attempts}
             // FIXED 13.10.2025 - Use correct API call format
             // FIXED 14.10.2025 - Use MCP_MODEL_CONFIG for per-stage models
             const modelConfig = MCP_MODEL_CONFIG.getStageConfig('adjust_todo');
+            
+            // Wait for rate limit (ADDED 14.10.2025)
+            await this._waitForRateLimit();
+            
             const apiResponse = await axios.post(MCP_MODEL_CONFIG.apiEndpoint, {
                 model: modelConfig.model,
                 messages: [
@@ -639,6 +676,10 @@ Results: ${JSON.stringify(todo.items.map(i => ({
         let llmText = '';
         try {
             const modelConfig = MCP_MODEL_CONFIG.getStageConfig('final_summary');
+            
+            // Wait for rate limit (ADDED 14.10.2025)
+            await this._waitForRateLimit();
+            
             const apiResponse = await axios.post(MCP_MODEL_CONFIG.apiEndpoint, {
                 model: modelConfig.model,
                 messages: [
