@@ -1,6 +1,6 @@
 # ATLAS v4.0 - Adaptive Task and Learning Assistant System
 
-**LAST UPDATED:** 14 жовтня 2025 - День ~13:15 (MCP GitHub Server Disabled - 6/6 Running)
+**LAST UPDATED:** 14 жовтня 2025 - День ~14:30 (Git MCP Server Fixed - 6/6 Running, 92 Tools)
 
 ---
 
@@ -406,6 +406,32 @@ ATLAS is an intelligent multi-agent orchestration system with Flask web frontend
   - **ЗАВЖДИ** використовуй всі 6 servers для максимальної автоматизації
   - **Приклади** показують як комбінувати сервери для складних завдань
 - **Детально:** `docs/MCP_AUTOMATION_COMPLETE_2025-10-14.md`
+
+### ✅ Git MCP Server Initialization Fix (FIXED 14.10.2025 - день ~11:00 devcontainer)
+- **Проблема:** Git MCP server (@cyanheads/git-mcp-server) запускався але НЕ завантажував 27 tools
+- **Симптом:** `[MCP git] ✅ Initialized with 0 tools` замість `27 tools`
+- **Логи:** Initialize response успішний, tools/list response успішний (27 tools), але orchestrator бачив 0 tools
+- **Корінь #1:** `_handleMCPMessage()` намагався витягти tools з `capabilities.tools` → отримував `{listChanged: true}` (metadata)
+- **Корінь #2:** `Array.isArray({listChanged: true})` = `false` → `this.tools = []` (пустий масив)
+- **Корінь #3:** Справжні tools приходять ОКРЕМО через `tools/list` request, НЕ в capabilities
+- **Рішення #1:** Змінено initialize handler - НЕ витягувати tools з capabilities.tools
+- **Рішення #2:** Позначати `this.ready = true` після initialize, чекати tools окремо
+- **Рішення #3:** requestToolsList() вже був правильний - витягує з `result.tools` array
+- **Виправлено:** `orchestrator/ai/mcp-manager.js` (_handleMCPMessage lines 95-105)
+- **Результат:**
+  - ✅ Git server тепер завантажує **27 tools** правильно
+  - ✅ Initialize → capabilities (metadata), tools/list → tools (array)
+  - ✅ Правильна обробка MCP protocol двох етапів
+  - ✅ Всі git операції доступні (commit, push, pull, branch, merge, etc.)
+- **Критично:**
+  - **capabilities.tools** - це metadata `{listChanged: true}`, НЕ список tools
+  - **Справжні tools** приходять через окремий `tools/list` request
+  - **ЗАВЖДИ** розділяйте initialize та tools/list обробку
+  - **НЕ припускайте** що capabilities містить готові дані
+  - **MCP Protocol** має 2 етапи: 1) initialize → ready, 2) tools/list → tools
+- **Test script:** `test-git-mcp.sh` - перевірка всіх 27 tools
+- **Tools доступні:** git_add, git_commit, git_push, git_pull, git_branch, git_checkout, git_merge, git_rebase, git_stash, git_log, git_diff, git_status, git_tag, git_remote, git_fetch, git_clone, git_init, git_reset, git_clean, git_cherry_pick, git_blame, git_show, git_reflog, git_worktree, git_set_working_dir, git_clear_working_dir, git_wrapup_instructions
+- **Детально:** `docs/GIT_MCP_SERVER_FIX_2025-10-14.md`
 
 ### ✅ MCP Computercontroller Confusion Fix (FIXED 14.10.2025 - день ~11:50)
 - **Проблема:** Промпти MCP Dynamic TODO згадували 'computercontroller' як MCP server, але це Goose extension
