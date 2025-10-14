@@ -276,6 +276,9 @@ export const AI_BACKEND_CONFIG = {
         },
         */
 
+        // NOTE 14.10.2025: @cyanheads/git-mcp-server часто не повертає tools list (timeout)
+        // Сервер ініціалізується успішно, але tools/list request не відповідає вчасно
+        // Це не критично - git операції можна виконувати через shell MCP server
         git: {
           command: 'npx',
           args: ['-y', '@cyanheads/git-mcp-server'],
