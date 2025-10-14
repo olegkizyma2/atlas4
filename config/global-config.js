@@ -578,6 +578,9 @@ if (ENV_CONFIG.isProduction) {
   }
 }
 
+// Quick access константи
+export const MCP_SERVERS = AI_BACKEND_CONFIG.providers.mcp.servers;
+
 // Експорт всього як об'єкт за замовчуванням
 export default {
   SYSTEM_INFO,
@@ -587,6 +590,7 @@ export default {
   ENV_CONFIG,
   AI_MODEL_CONFIG,
   AI_BACKEND_CONFIG,  // NEW: Модульна система backends
+  MCP_SERVERS,        // Quick access до MCP серверів
 
   // Модульні конфігурації
   AGENTS,
