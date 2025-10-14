@@ -34,19 +34,22 @@ import logger from '../utils/logger.js';
 export class TTSSyncManager {
     /**
      * @param {Object} dependencies
-     * @param {Object} [dependencies.ttsService] - TTS service instance (optional)
+     * @param {Object} [dependencies.ttsService] - WebSocket Manager for TTS delivery (FIXED 14.10.2025 NIGHT - renamed from ttsService but keeping param name for compatibility)
      * @param {Object} dependencies.logger - Logger instance
      */
     constructor({ ttsService = null, logger: loggerInstance }) {
-        this.ttsService = ttsService;
+        // FIXED 14.10.2025 NIGHT - ttsService is actually wsManager for WebSocket TTS
+        this.wsManager = ttsService;  // Rename internally for clarity
         this.logger = loggerInstance || logger;
         
-        // FIXED 14.10.2025 - Warn if TTS service not provided
-        if (!this.ttsService) {
-            this.logger.warn('[TTS-SYNC] ⚠️ TTS service not provided - all TTS calls will be skipped', { 
+        // FIXED 14.10.2025 NIGHT - Log if WebSocket Manager not provided
+        if (!this.wsManager) {
+            this.logger.warn('[TTS-SYNC] ⚠️ WebSocket Manager not provided - TTS will use fallback queue', { 
                 category: 'tts-sync', 
                 component: 'tts-sync' 
             });
+        } else {
+            this.logger.system('tts-sync', '[TTS-SYNC] ✅ WebSocket Manager connected for TTS delivery');
         }
         
         this.queue = []; // TTS queue
@@ -90,7 +93,6 @@ export class TTSSyncManager {
      * @param {number} [options.duration] - Max duration (overrides mode default)
      * @param {number} [options.priority] - Custom priority (overrides mode default)
      * @param {boolean} [options.skipIfBusy=false] - Skip if queue is full (for quick mode)
-     * @param {Object} [options.wsManager] - WebSocket Manager for sending to frontend
      * @param {string} [options.agent='tetyana'] - Agent name for TTS voice
      * @returns {Promise<void>}
      */
@@ -100,7 +102,6 @@ export class TTSSyncManager {
             duration,
             priority,
             skipIfBusy = false,
-            wsManager = null,
             agent = 'tetyana'
         } = options;
 
@@ -127,11 +128,11 @@ export class TTSSyncManager {
             return Promise.resolve();
         }
 
-        // FIXED 14.10.2025 NIGHT - Send to frontend TTS via WebSocket
-        if (wsManager) {
+        // FIXED 14.10.2025 NIGHT - Send to frontend TTS via WebSocket (use internal wsManager)
+        if (this.wsManager) {
             try {
                 this.logger.system('tts-sync', `[TTS-SYNC] 🔊 Sending TTS to frontend: "${phrase}" (agent: ${agent}, mode: ${validMode})`);
-                wsManager.broadcastToSubscribers('chat', 'agent_message', {
+                this.wsManager.broadcastToSubscribers('chat', 'agent_message', {
                     content: phrase,
                     agent: agent,
                     ttsContent: phrase,
