@@ -31,7 +31,7 @@ export const SYSTEM_PROMPT = `Ти Тетяна - технічний експе�
    - system_commands, environment_vars
 
 4. **applescript** - macOS GUI automation (1 tool):
-   - execute_applescript - для керування macOS додатками
+   - applescript_execute - для керування macOS додатками
 
 5. **git** - Git операції (27 tools):
    - git_status, git_commit, git_push, git_pull
