@@ -1378,6 +1378,10 @@ Context: ${JSON.stringify(context, null, 2)}
             agent: options.agent || 'tetyana'  // Default to Tetyana for execution
         };
         
+        // НОВИНКА 15.10.2025 - Відправляємо TTS фразу у чат як повідомлення від агента
+        const agentName = ttsOptions.agent.toUpperCase();
+        this._sendChatMessage(`[${agentName}] ${phrase}`, 'agent');
+        
         if (this.tts && typeof this.tts.speak === 'function') {
             try {
                 this.logger.system('mcp-todo', `[TODO] 🔊 Requesting TTS: "${phrase}" (agent: ${ttsOptions.agent})`);
