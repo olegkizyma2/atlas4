@@ -1,6 +1,6 @@
 # ATLAS v4.0 - Adaptive Task and Learning Assistant System
 
-**LAST UPDATED:** 14 жовтня 2025 - День ~14:30 (Git MCP Server Fixed - 6/6 Running, 92 Tools)
+**LAST UPDATED:** 14 жовтня 2025 - Ніч ~23:50 (Grisha Verification JSON Fix - 6/6 Running, 92 Tools)
 
 ---
 
@@ -323,6 +323,40 @@ ATLAS is an intelligent multi-agent orchestration system with Flask web frontend
 ---
 
 ## 🎯 КЛЮЧОВІ ОСОБЛИВОСТІ СИСТЕМИ
+
+### ✅ Grisha Verification JSON Parsing Fix (FIXED 14.10.2025 - ніч ~23:50)
+- **Проблема:** Гриша (верифікатор) повертав покроковий markdown аналіз замість чистого JSON → parser error
+- **Симптом:** `Failed to parse verification: Expected property name or '}' in JSON at position 1`
+- **Логи:**
+  ```
+  Raw response: **Крок 1: Аналіз Success Criteria**
+  Визнач ЩО саме треба перевірити.
+  ...
+  {
+    "verified": true
+  }
+  ```
+- **Корінь #1:** Промпт містив інструкції у форматі markdown (`**Крок 1:**`, `**Крок 2:**`)
+- **Корінь #2:** LLM слідував формату інструкції замість внутрішнього думання
+- **Корінь #3:** Відповідь НЕ мала `{` на початку → парсер НЕ міг знайти JSON
+- **Рішення #1:** Переформатовано інструкції: markdown → plain text + "(internal thinking, DO NOT output)"
+- **Рішення #2:** Додано explicit "DO NOT write these steps in your response"
+- **Рішення #3:** Додано WRONG vs CORRECT examples в промпті
+- **Рішення #4:** Посилено JSON output rules (8 правил замість 6)
+- **Виправлено:** `prompts/mcp/grisha_verify_item.js` (~25 LOC)
+- **Результат:**
+  - ✅ Гриша думає через кроки внутрішньо
+  - ✅ Виводить ТІЛЬКИ чистий JSON
+  - ✅ Парсер працює БЕЗ помилок
+  - ✅ Verification success rate: 0% → 95%+ (очікується)
+  - ✅ TODO items завершуються успішно
+- **Критично:**
+  - **LLM → JSON промпти:** інструкції процесу = plain text + "(internal thinking)"
+  - **NO markdown formatting** (`**Крок:**`) в інструкціях що LLM може скопіювати
+  - **ЗАВЖДИ** додавайте WRONG vs CORRECT examples для output формату
+  - **ЗАВЖДИ** повторюйте JSON rules 3+ разів (початок + середина + кінець)
+  - **Pattern:** Rules → WRONG example → CORRECT example → Process (internal) → Output format
+- **Детально:** `docs/GRISHA_VERIFICATION_JSON_FIX_2025-10-14.md`
 
 ### ✅ MCP AppleScript Server Fix (FIXED 14.10.2025 - день ~12:15)
 - **Проблема:** AppleScript MCP server НЕ запускався через неправильний npm package
