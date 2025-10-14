@@ -99,8 +99,8 @@ export class GrishaVerifyItemProcessor {
             };
 
         } catch (error) {
-            this.logger.error('grisha-verify-item', `[STAGE-2.3-MCP] ❌ Verification failed: ${error.message}`);
-            this.logger.error('grisha-verify-item', error.stack);
+            this.logger.error(`[STAGE-2.3-MCP] ❌ Verification failed: ${error.message}`, { category: 'grisha-verify-item', component: 'grisha-verify-item' });
+            this.logger.error(`Stack trace: ${error.stack}`, { category: 'grisha-verify-item', component: 'grisha-verify-item' });
 
             return {
                 success: false,

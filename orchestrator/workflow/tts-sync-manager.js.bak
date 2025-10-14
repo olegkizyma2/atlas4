@@ -93,7 +93,7 @@ export class TTSSyncManager {
 
         // Validate mode
         if (!this.config.modes[mode]) {
-            this.logger.error(`[TTS-SYNC] Invalid mode: ${mode}, defaulting to normal`, { category: 'tts-sync', component: 'tts-sync' });
+            this.logger.error('tts-sync', `[TTS-SYNC] Invalid mode: ${mode}, defaulting to normal`);
             mode = 'normal';
         }
 
@@ -172,7 +172,7 @@ export class TTSSyncManager {
         while (this.isProcessing || this._hasStageItemsInQueue(currentStage)) {
             // Check timeout
             if (Date.now() - startTime > timeout) {
-                this.logger.warn(`[TTS-SYNC] ⚠️ Stage completion wait timeout after ${timeout}ms`, { category: 'tts-sync', component: 'tts-sync' });
+                this.logger.warn('tts-sync', `[TTS-SYNC] ⚠️ Stage completion wait timeout after ${timeout}ms`);
                 break;
             }
 
@@ -251,7 +251,7 @@ export class TTSSyncManager {
         // Enforce max queue size (remove lowest priority items)
         while (this.queue.length > this.config.maxQueueSize) {
             const removed = this.queue.pop();
-            this.logger.warn(`[TTS-SYNC] ⚠️ Queue overflow, removed: "${removed.phrase}"`, { category: 'tts-sync', component: 'tts-sync' });
+            this.logger.warn('tts-sync', `[TTS-SYNC] ⚠️ Queue overflow, removed: "${removed.phrase}"`);
             if (removed.reject) {
                 removed.reject(new Error('Queue overflow'));
             }
@@ -292,7 +292,7 @@ export class TTSSyncManager {
                         this.logger.system('tts-sync', `[TTS-SYNC] ✅ Completed in ${actualDuration}ms [${item.mode}]: "${item.phrase}"`);
                     } else {
                         // TTS service not available - skip gracefully
-                        this.logger.warn(`[TTS-SYNC] ⚠️ TTS service not available, skipping: "${item.phrase}"`, { category: 'tts-sync', component: 'tts-sync' });
+                        this.logger.warn('tts-sync', `[TTS-SYNC] ⚠️ TTS service not available, skipping: "${item.phrase}"`);
                     }
 
                     // Resolve promise
@@ -301,7 +301,7 @@ export class TTSSyncManager {
                     }
 
                 } catch (error) {
-                    this.logger.error(`[TTS-SYNC] ❌ Failed to speak: ${error.message}`, { category: 'tts-sync', component: 'tts-sync' });
+                    this.logger.error('tts-sync', `[TTS-SYNC] ❌ Failed to speak: ${error.message}`);
 
                     // Reject promise
                     if (item.reject) {
