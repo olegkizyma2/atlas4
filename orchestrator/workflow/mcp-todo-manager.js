@@ -187,7 +187,7 @@ export class MCPTodoManager {
                 max_tokens: modelConfig.max_tokens
             }, {
                 headers: { 'Content-Type': 'application/json' },
-                timeout: 60000  // FIXED 14.10.2025 - 60s для o1-mini reasoning models (moved to config)
+                timeout: 120000  // FIXED 14.10.2025 - 120s для mistral-small-2503 (повільна але якісна модель)
             });
 
             const response = apiResponse.data.choices[0].message.content;

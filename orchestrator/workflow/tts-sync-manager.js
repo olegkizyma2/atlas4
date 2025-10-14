@@ -34,12 +34,20 @@ import logger from '../utils/logger.js';
 export class TTSSyncManager {
     /**
      * @param {Object} dependencies
-     * @param {Object} dependencies.ttsService - TTS service instance
+     * @param {Object} [dependencies.ttsService] - TTS service instance (optional)
      * @param {Object} dependencies.logger - Logger instance
      */
-    constructor({ ttsService, logger: loggerInstance }) {
+    constructor({ ttsService = null, logger: loggerInstance }) {
         this.ttsService = ttsService;
         this.logger = loggerInstance || logger;
+        
+        // FIXED 14.10.2025 - Warn if TTS service not provided
+        if (!this.ttsService) {
+            this.logger.warn('[TTS-SYNC] ⚠️ TTS service not provided - all TTS calls will be skipped', { 
+                category: 'tts-sync', 
+                component: 'tts-sync' 
+            });
+        }
         
         this.queue = []; // TTS queue
         this.isProcessing = false; // Processing flag

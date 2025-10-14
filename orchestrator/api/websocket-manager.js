@@ -59,7 +59,7 @@ class WebSocketManager {
       userAgent: req.headers['user-agent'],
       connectedAt: Date.now(),
       lastPong: Date.now(),
-      subscriptions: new Set(['logs', 'model3d', 'tts']) // За замовчуванням підписані на все
+      subscriptions: new Set(['logs', 'model3d', 'tts', 'chat', 'workflow']) // FIXED 14.10.2025 - додано chat та workflow
     };
 
     this.clients.set(clientId, clientInfo);

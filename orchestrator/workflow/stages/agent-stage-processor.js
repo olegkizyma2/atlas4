@@ -239,13 +239,25 @@ export default class AgentStageProcessor {
 
       // Викликаємо API з ПОВНИМ контекстом розмови
       // OPTIMIZED 14.10.2025 - ministral-3b замість gpt-4o-mini (45 req/min)
-      const response = await axios.post('http://localhost:4000/v1/chat/completions', {
+      const requestBody = {
         model: 'mistral-ai/ministral-3b',
         temperature: 0.7, // Вища температура для природної розмови
         max_tokens: 500,
         messages: contextMessages // ✅ ПЕРЕДАЄМО ВЕСЬ КОНТЕКСТ!
-      }, {
-        timeout: 30000,
+      };
+      
+      // ADDED 14.10.2025 - Log request size to debug 413 errors
+      const requestSize = JSON.stringify(requestBody).length;
+      logger.info(`[API] Sending chat request`, {
+        sessionId: session.id,
+        requestSizeBytes: requestSize,
+        requestSizeKB: (requestSize / 1024).toFixed(2),
+        messagesCount: contextMessages.length,
+        model: 'ministral-3b'
+      });
+      
+      const response = await axios.post('http://localhost:4000/v1/chat/completions', requestBody, {
+        timeout: 60000,  // FIXED 14.10.2025 - Збільшено з 30s до 60s
         headers: {
           'Content-Type': 'application/json'
         }

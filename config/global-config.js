@@ -138,28 +138,30 @@ export const MCP_MODEL_CONFIG = {
     },
 
     // Stage 2.1-MCP: Tetyana Plan Tools
-    // OPTIMIZED 14.10.2025 - ministral-3b для найкращого rate limit (45 req/min)
+    // FIXED 14.10.2025 - mistral-nemo для великого context (128K) + хороший rate limit (14 req/min)
     plan_tools: {
-      get model() { return process.env.MCP_MODEL_PLAN_TOOLS || 'mistral-ai/ministral-3b'; },
+      get model() { return process.env.MCP_MODEL_PLAN_TOOLS || 'mistral-ai/mistral-nemo'; },
       get temperature() { return parseFloat(process.env.MCP_TEMP_PLAN_TOOLS || '0.2'); },
       max_tokens: 800,
-      description: 'Tool matching - швидка модель з високим rate limit'
+      description: 'Tool matching - 128K context для великих списків інструментів'
     },
 
     // Stage 2.3-MCP: Grisha Verify Item
+    // FIXED 14.10.2025 - mistral-nemo для великого context (128K), багато execution results
     verify_item: {
-      get model() { return process.env.MCP_MODEL_VERIFY_ITEM || 'mistral-ai/ministral-3b'; },
+      get model() { return process.env.MCP_MODEL_VERIFY_ITEM || 'mistral-ai/mistral-nemo'; },
       get temperature() { return parseFloat(process.env.MCP_TEMP_VERIFY_ITEM || '0.2'); },
       max_tokens: 300,
-      description: 'Проста верифікація success/fail (45 req/min)'
+      description: 'Верифікація з великим контекстом execution results (128K context)'
     },
 
     // Stage 3-MCP: Atlas Adjust TODO
+    // FIXED 14.10.2025 - mistral-nemo для великого context (128K)
     adjust_todo: {
-      get model() { return process.env.MCP_MODEL_ADJUST_TODO || 'mistral-ai/ministral-3b'; },  // OPTIMIZED 14.10.2025 - швидка модель
+      get model() { return process.env.MCP_MODEL_ADJUST_TODO || 'mistral-ai/mistral-nemo'; },
       get temperature() { return parseFloat(process.env.MCP_TEMP_ADJUST_TODO || '0.3'); },
       max_tokens: 1000,
-      description: 'Корекція TODO - швидка модель з високим rate limit (45 req/min)'
+      description: 'Корекція TODO з повним контекстом (128K context)'
     },
 
     // Stage 8-MCP: Final Summary

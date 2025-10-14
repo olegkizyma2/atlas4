@@ -57,13 +57,19 @@ tail -f logs/orchestrator.log | grep -i fallback
 
 ## Додаткові виправлення
 
-✅ **Timeout в MCP TODO Planning** - виправлено передачу timeout параметра  
-- Було: timeout в data об'єкті (не працював)
-- Стало: timeout в config об'єкті (працює)
+✅ **Timeout в MCP TODO Planning** - виправлено 2 проблеми  
+- Проблема 1: timeout в data об'єкті → виправлено (тепер в config)
+- Проблема 2: 60s недостатньо для mistral-small-2503 → збільшено до 120s
 
 ✅ **JSON Parsing Error в Verification** - виправлено обробку довгих error messages  
 - Було: довгі error/stack обривалися → невалідний JSON → crash
 - Стало: truncate error/stack до 500 chars + fallback замість throw
+
+## Timeouts
+
+- TODO Planning: **120s** (mistral-small-2503)
+- Plan Tools: **60s** (ministral-3b)
+- Verify Item: **60s** (ministral-3b)
 
 ## Файли
 

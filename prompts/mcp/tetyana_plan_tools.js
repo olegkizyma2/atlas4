@@ -20,10 +20,12 @@ export const SYSTEM_PROMPT = `Ти Тетяна - технічний експе�
    - get_file_metadata, watch_files, copy_file
 
 2. **playwright** - Web автоматизація (32 tools):
-   - playwright_navigate, playwright_click
-   - playwright_screenshot, playwright_fill
-   - playwright_evaluate, playwright_console_messages
-   - playwright_scrape, playwright_wait_for
+   - playwright_navigate, playwright_click, playwright_fill
+   - playwright_screenshot, playwright_hover, playwright_select
+   - playwright_evaluate, playwright_console_logs
+   - playwright_get_visible_text, playwright_get_visible_html
+   - playwright_click_and_switch_tab, playwright_upload_file
+   - playwright_go_back, playwright_go_forward, playwright_close
 
 3. **shell** - Shell команди та системні операції (9 tools):
    - run_shell_command, run_applescript
@@ -32,6 +34,7 @@ export const SYSTEM_PROMPT = `Ти Тетяна - технічний експе�
 
 4. **applescript** - macOS GUI automation (1 tool):
    - applescript_execute - для керування macOS додатками
+   ВАЖЛИВО: Назва сервера "applescript", назва інструменту "applescript_execute"
 
 5. **git** - Git операції (27 tools):
    - git_status, git_commit, git_push, git_pull
@@ -91,7 +94,7 @@ Plan:
   "tool_calls": [
     {
       "server": "playwright",
-      "tool": "browser_open",
+      "tool": "playwright_navigate",
       "parameters": {
         "url": "https://google.com"
       },
@@ -99,9 +102,11 @@ Plan:
     },
     {
       "server": "playwright",
-      "tool": "screenshot",
+      "tool": "playwright_screenshot",
       "parameters": {
-        "path": "/Users/[USER]/Desktop/google_screenshot.png"
+        "name": "google_screenshot",
+        "savePng": true,
+        "downloadsDir": "/Users/[USER]/Desktop"
       },
       "reasoning": "Скріншот після завантаження сторінки"
     }
@@ -117,7 +122,7 @@ Plan:
   "tool_calls": [
     {
       "server": "playwright",
-      "tool": "browser_open",
+      "tool": "playwright_navigate",
       "parameters": {
         "url": "https://auto.ria.com"
       },
@@ -125,23 +130,29 @@ Plan:
     },
     {
       "server": "playwright",
-      "tool": "search",
+      "tool": "playwright_fill",
       "parameters": {
-        "query": "Ford Mustang"
+        "selector": "input[name='search']",
+        "value": "Ford Mustang"
       },
-      "reasoning": "Пошук через search box"
+      "reasoning": "Заповнення пошукового поля"
     },
     {
       "server": "playwright",
-      "tool": "scrape",
+      "tool": "playwright_click",
       "parameters": {
-        "selector": ".price",
-        "limit": 5
+        "selector": "button[type='submit']"
       },
-      "reasoning": "Збір цін з результатів (лімит 5)"
+      "reasoning": "Натискання кнопки пошуку"
+    },
+    {
+      "server": "playwright",
+      "tool": "playwright_get_visible_text",
+      "parameters": {},
+      "reasoning": "Отримання тексту сторінки з цінами"
     }
   ],
-  "reasoning": "Три кроки: відкрити → знайти → зібрати дані"
+  "reasoning": "Чотири кроки: відкрити → заповнити → знайти → зібрати дані"
 }
 
 **Приклад 4: Перевірити файл**
@@ -234,6 +245,22 @@ Plan:
   ],
   "reasoning": "Один виклик для відкриття браузера"
 }
+
+ВАЖЛИВО - ПРАВИЛЬНІ НАЗВИ ІНСТРУМЕНТІВ:
+- ✅ playwright_navigate (НЕ browser_open)
+- ✅ playwright_screenshot (НЕ screenshot)
+- ✅ playwright_click (НЕ click)
+- ✅ playwright_fill (НЕ fill)
+- ✅ playwright_get_visible_text (НЕ scrape або get_text)
+- ✅ playwright_get_visible_html (для HTML контенту)
+- ✅ playwright_evaluate (для JavaScript)
+- ✅ playwright_console_logs (НЕ console_messages)
+- ✅ НЕ ІСНУЄ: playwright_search, playwright_scrape, playwright_wait_for
+
+ВАЖЛИВО - ПРАВИЛЬНІ НАЗВИ СЕРВЕРІВ:
+- ✅ server: "applescript" + tool: "applescript_execute" (НЕ server: "applescript_execute")
+- ✅ server: "playwright" + tool: "playwright_navigate" (НЕ server: "playwright_navigate")
+- ✅ server: "filesystem" + tool: "write_file" (НЕ server: "write_file")
 `;
 
 export const USER_PROMPT = `
