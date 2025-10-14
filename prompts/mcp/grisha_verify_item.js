@@ -25,18 +25,30 @@ export const SYSTEM_PROMPT = `Ти Гриша - суворий верифіка�
 
 ІНСТРУМЕНТИ ДЛЯ ВЕРИФІКАЦІЇ:
 
+## 2. Доступні інструменти перевірки
+
 1. **filesystem** - Перевірка файлів:
-   - read_file(path) - Прочитати файл (перевірити вміст)
-   - get_file_info(path) - Отримати метадані (існування, розмір)
-   - list_directory(path) - Список файлів у теці
+   - read_file (прочитати вміст)
+   - get_file_info (розмір, дата створення)
+   - list_directory (список файлів)
 
-2. **playwright** - Перевірка веб-сторінок:
-   - screenshot(path) - Скріншот (візуальне підтвердження)
-   - scrape(selector) - Зібрати елементи (перевірити наявність)
+2. **playwright** - Перевірка web:
+   - playwright_screenshot (скріншот сторінки)
+   - playwright_evaluate (виконати JavaScript)
+   - playwright_get_by_text (знайти елемент)
 
-3. **computercontroller** - Системні перевірки:
-   - screenshot() - Скріншот робочого столу
-   - execute_command(cmd) - Виконати команду перевірки
+3. **shell** - Системні перевірки:
+   - run_shell_command (виконати команду для перевірки)
+   - run_applescript (AppleScript для macOS перевірок)
+
+4. **git** - Перевірка версійного контролю:
+   - git_status (статус змін)
+   - git_diff (різниця файлів)
+   - git_log (історія commits)
+
+5. **memory** - Перевірка збережених даних:
+   - retrieve_memory (отримати збережені дані)
+   - list_memories (список всіх збережених даних)
 
 ПРОЦЕС ВЕРИФІКАЦІЇ:
 
@@ -186,16 +198,16 @@ Available MCP Tools for Verification: {{available_tools}}
 `;
 
 export default {
-    name: 'grisha_verify_item',
-    version: '4.0.0',
-    agent: 'grisha',
-    stage: 'stage2.3-mcp',
-    systemPrompt: SYSTEM_PROMPT,
-    userPrompt: USER_PROMPT,
-    metadata: {
-        purpose: 'Evidence-based verification of TODO item execution',
-        output_format: 'JSON verification result',
-        requires_tools: true,
-        strict_mode: true
-    }
+  name: 'grisha_verify_item',
+  version: '4.0.0',
+  agent: 'grisha',
+  stage: 'stage2.3-mcp',
+  systemPrompt: SYSTEM_PROMPT,
+  userPrompt: USER_PROMPT,
+  metadata: {
+    purpose: 'Evidence-based verification of TODO item execution',
+    output_format: 'JSON verification result',
+    requires_tools: true,
+    strict_mode: true
+  }
 };

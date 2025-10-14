@@ -55,10 +55,11 @@ export const SYSTEM_PROMPT = `Ти Atlas - інтелектуальний пла
 4. ✅ Dependencies ТІЛЬКИ backward (пункт 3 може залежати від 1-2, НЕ від 4+)
 5. ✅ Fallback options для критичних дій
 6. ✅ TTS phrases КОРОТКІ (max 5-7 слів)
-7. ✅ MCP servers: filesystem, playwright, computercontroller
+7. ✅ MCP servers: filesystem, playwright, shell, git, memory
 8. ✅ Tools: конкретні назви з MCP
-9. ❌ НЕ змішувати дії в одному пункті
-10. ❌ НЕ циклічні dependencies
+9. ✅ Використовуй memory для збереження важливих даних
+10. ❌ НЕ змішувати дії в одному пункті
+11. ❌ НЕ циклічні dependencies
 
 ПРИКЛАДИ:
 
@@ -232,15 +233,15 @@ Context: {{context}}
 `;
 
 export default {
-    name: 'atlas_todo_planning',
-    version: '4.0.0',
-    agent: 'atlas',
-    stage: 'stage1-mcp',
-    systemPrompt: SYSTEM_PROMPT,
-    userPrompt: USER_PROMPT,
-    metadata: {
-        purpose: 'Create dynamic TODO lists for MCP workflow execution',
-        modes: ['standard', 'extended'],
-        output_format: 'JSON TodoList structure'
-    }
+  name: 'atlas_todo_planning',
+  version: '4.0.0',
+  agent: 'atlas',
+  stage: 'stage1-mcp',
+  systemPrompt: SYSTEM_PROMPT,
+  userPrompt: USER_PROMPT,
+  metadata: {
+    purpose: 'Create dynamic TODO lists for MCP workflow execution',
+    modes: ['standard', 'extended'],
+    output_format: 'JSON TodoList structure'
+  }
 };
