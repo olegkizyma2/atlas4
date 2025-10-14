@@ -499,8 +499,9 @@ Previous items: ${JSON.stringify(todo.items.slice(0, item.id - 1).map(i => ({ id
                 await this._waitForRateLimit();
 
                 // FIXED 14.10.2025 - Increase timeout for reasoning models
+                // FIXED 15.10.2025 - Increase to 180s for ALL models (web scraping може бути повільним)
                 const isReasoningModel = modelConfig.model.includes('reasoning') || modelConfig.model.includes('phi-4');
-                const timeoutMs = isReasoningModel ? 120000 : 60000;  // 120s for reasoning, 60s for others
+                const timeoutMs = isReasoningModel ? 180000 : 120000;  // 180s for reasoning, 120s for others
                 
                 apiResponse = await axios.post(MCP_MODEL_CONFIG.apiEndpoint, {
                     model: modelConfig.model,
@@ -697,8 +698,9 @@ Execution Results: ${JSON.stringify(truncatedResults, null, 2)}
             await this._waitForRateLimit();
 
             // FIXED 14.10.2025 - Increase timeout for reasoning models
+            // FIXED 15.10.2025 - Increase to 180s for ALL models (verification може потребувати часу)
             const isReasoningModel = modelConfig.model.includes('reasoning') || modelConfig.model.includes('phi-4');
-            const timeoutMs = isReasoningModel ? 120000 : 60000;  // 120s for reasoning, 60s for others
+            const timeoutMs = isReasoningModel ? 180000 : 120000;  // 180s for reasoning, 120s for others
 
             const apiResponse = await axios.post(MCP_MODEL_CONFIG.apiEndpoint, {
                 model: modelConfig.model,
@@ -1378,6 +1380,9 @@ Context: ${JSON.stringify(context, null, 2)}
             agent: options.agent || 'tetyana'  // Default to Tetyana for execution
         };
         
+        // Debug TTS availability (ADDED 15.10.2025)
+        this.logger.system('mcp-todo', `[TODO] 🔍 TTS check: tts=${!!this.tts}, speak=${this.tts ? typeof this.tts.speak : 'N/A'}`);
+        
         // НОВИНКА 15.10.2025 - Відправляємо TTS фразу у чат як повідомлення від агента
         const agentName = ttsOptions.agent.toUpperCase();
         this._sendChatMessage(`[${agentName}] ${phrase}`, 'agent');
@@ -1395,7 +1400,7 @@ Context: ${JSON.stringify(context, null, 2)}
                 });
             }
         } else {
-            this.logger.warn(`[MCP-TODO] TTS not available - skipping phrase: "${phrase}"`, { 
+            this.logger.warn(`[MCP-TODO] TTS not available - tts=${!!this.tts}, speak=${this.tts ? typeof this.tts.speak : 'N/A'}`, { 
                 category: 'mcp-todo', 
                 component: 'mcp-todo'
             });
