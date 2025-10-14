@@ -357,7 +357,7 @@ ATLAS is an intelligent multi-agent orchestration system with Flask web frontend
 - **Результат:**
   - ✅ Orchestrator запускається БЕЗ крашів
   - ✅ 6/6 MCP servers працюють (100% configured servers)
-  - ✅ 92+ tools доступно (filesystem 14, playwright 32, shell 9, applescript 1, git 27, memory 9)
+  - ✅ 92 tools доступно (filesystem 14, playwright 32, shell 9, applescript 1, git 27, memory 9)
   - ❌ Немає GitHub automation (issues, PRs, repos)
   - ✅ Система повністю функціональна без GitHub MCP
 - **Критично:**
@@ -370,37 +370,40 @@ ATLAS is an intelligent multi-agent orchestration system with Flask web frontend
 
 ### ✅ MCP Automation Cycles Complete (FIXED 14.10.2025 - день ~12:30)
 - **Досягнення:** Всі цикли автоматизації ЗАКРИТО - система готова до повноцінної роботи
-- **MCP Servers:** 5/7 operational (filesystem, playwright, shell, git, memory) - 91 tools доступно
+- **MCP Servers:** 6/6 operational (filesystem, playwright, shell, applescript, git, memory) - 92 tools доступно
 - **Documentation:** 100% coverage - всі сервери задокументовані в промптах з прикладами
 - **Automation Cycles:**
   - ✅ **Cycle 1:** File Operations (filesystem 14 tools) - повний цикл створення → перевірка
   - ✅ **Cycle 2:** Web Automation (playwright 32 tools) - браузер → скріншот → перевірка
   - ✅ **Cycle 3:** System Operations (shell 9 tools) - shell команди → виконання → перевірка
-  - ✅ **Cycle 4:** Version Control (git 27 tools) - зміни → commit → push → перевірка (NEW)
-  - ✅ **Cycle 5:** Cross-Session Memory (memory 9 tools) - збереження → відновлення → перевірка (ENHANCED)
+  - ✅ **Cycle 4:** macOS GUI Automation (applescript 1 tool) - GUI automation через AppleScript (NEW)
+  - ✅ **Cycle 5:** Version Control (git 27 tools) - зміни → commit → push → перевірка
+  - ✅ **Cycle 6:** Cross-Session Memory (memory 9 tools) - збереження → відновлення → перевірка
 - **Prompt Updates:**
-  - `prompts/mcp/tetyana_plan_tools.js` - 6 examples, 5 servers documented (додано git та memory)
-  - `prompts/mcp/grisha_verify_item.js` - 5 servers verification (додано git та memory)
-  - `prompts/mcp/atlas_todo_planning.js` - 5 servers у TODO planning
+  - `prompts/mcp/tetyana_plan_tools.js` - 6 examples, 6 servers documented (всі активні сервери)
+  - `prompts/mcp/grisha_verify_item.js` - 6 servers verification (всі активні сервери)
+  - `prompts/mcp/atlas_todo_planning.js` - 6 servers у TODO planning (всі активні сервери)
 - **Examples Added:**
   - Приклад 5: Зберегти дані в пам'ять (memory: store_memory)
   - Приклад 6: Commit змін в Git (git: status → commit → push)
 - **Performance:** 
   - Before: 64 tools (4 servers), 70% coverage
-  - After: 91 tools (5 servers), 95% coverage
-  - Added: git automation (27 tools), enhanced memory (full 9 tools)
-- **Failed Servers:** applescript, github (можна debug окремо якщо потрібно)
+  - After: 92 tools (6 servers), 100% coverage
+  - Added: applescript (1 tool), git automation (27 tools), enhanced memory (full 9 tools)
+- **Failed Servers:** github (можна debug окремо якщо потрібно)
 - **Результат:**
-  - ✅ Всі operational сервери ПОВНІСТЮ задіяні в автоматизації
+  - ✅ Всі 6 operational сервери ПОВНІСТЮ задіяні в автоматизації
   - ✅ Кожен сервер має usage examples
-  - ✅ 100% documentation coverage (5/5 servers)
-  - ✅ 91 tools ready для Dynamic TODO workflow
+  - ✅ 100% documentation coverage (6/6 servers)
+  - ✅ 92 tools ready для Dynamic TODO workflow
+  - ✅ AppleScript automation доступна (macOS GUI)
   - ✅ Git automation тепер доступна (version control)
   - ✅ Memory automation розширена (cross-session persistence)
 - **Критично:**
+  - **applescript server** додає 1 tool для macOS GUI automation (execute_applescript)
   - **git server** додає 27 tools для версійного контролю (status, commit, push, pull, branch, checkout, merge, log, diff, stash)
   - **memory server** тепер повністю задокументований (store, retrieve, list, delete, update, search)
-  - **ЗАВЖДИ** використовуй всі 5 servers для максимальної автоматизації
+  - **ЗАВЖДИ** використовуй всі 6 servers для максимальної автоматизації
   - **Приклади** показують як комбінувати сервери для складних завдань
 - **Детально:** `docs/MCP_AUTOMATION_COMPLETE_2025-10-14.md`
 
