@@ -219,10 +219,10 @@ AI_BACKEND_DISABLE_FALLBACK=false  # Fallback на Goose при помилках
 
 ## Додаткове виправлення: Timeout в MCP TODO
 
-### Проблема
+### Проблема 1: Неправильна передача timeout
 Timeout 60 секунд не працював, бо передавався як частина data об'єкта замість config.
 
-### Виправлення
+### Виправлення 1
 ```javascript
 // ДО (НЕПРАВИЛЬНО):
 const apiResponse = await axios.post(endpoint, {
@@ -238,6 +238,27 @@ const apiResponse = await axios.post(endpoint, {
 }, {
     timeout: 60000  // ✅ Це config параметр
 });
+```
+
+### Проблема 2: Недостатній timeout для mistral-small-2503
+Модель `mistral-small-2503` занадто повільна для 60s timeout (реальний час: 60-70s).
+
+**Лог**:
+```
+17:02:51 [INFO] [TODO] Using model: mistral-ai/mistral-small-2503
+17:03:51 [ERROR] Failed to create TODO: timeout of 60000ms exceeded
+```
+
+### Виправлення 2
+Збільшено timeout для TODO Planning до **120 секунд**:
+
+```javascript
+timeout: 120000  // FIXED 14.10.2025 - 120s для mistral-small-2503 (повільна але якісна модель)
+```
+
+**Альтернатива**: Змінити модель на швидшу через ENV:
+```bash
+MCP_MODEL_TODO_PLANNING=mistral-ai/ministral-3b  # Швидша, але менш якісна
 ```
 
 ## Додаткове виправлення 2: JSON Parsing Error в Verification
@@ -281,5 +302,12 @@ catch (error) {
 ## Статус
 
 ✅ **ВИПРАВЛЕНО** - Всі 5 точок fallback тепер перевіряють `disableFallback`  
-✅ **ВИПРАВЛЕНО** - Timeout 60s тепер працює правильно для MCP TODO Planning  
+✅ **ВИПРАВЛЕНО** - Timeout тепер працює правильно (120s для TODO Planning)  
 ✅ **ВИПРАВЛЕНО** - JSON parsing errors тепер обробляються gracefully з fallback
+
+## Timeouts для різних операцій
+
+- **TODO Planning**: 120s (mistral-small-2503 - повільна але якісна)
+- **Plan Tools**: 60s (ministral-3b - швидка)
+- **Verify Item**: 60s (ministral-3b - швидка)
+- **Adjust TODO**: 30s (ministral-3b - швидка)

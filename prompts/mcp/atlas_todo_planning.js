@@ -125,7 +125,7 @@ Request: "Знайди ціни Ford Mustang на auto.ria, створи Excel �
     {
       "id": 1,
       "action": "Відкрити браузер на auto.ria.com",
-      "tools_needed": ["playwright__browser_open"],
+      "tools_needed": ["playwright__playwright_navigate"],
       "mcp_servers": ["playwright"],
       "parameters": { "url": "https://auto.ria.com" },
       "success_criteria": "Браузер відкрито, сторінка завантажена",
@@ -141,9 +141,9 @@ Request: "Знайди ціни Ford Mustang на auto.ria, створи Excel �
     {
       "id": 2,
       "action": "Знайти Ford Mustang через пошук",
-      "tools_needed": ["playwright__search", "playwright__click"],
+      "tools_needed": ["playwright__playwright_fill", "playwright__playwright_click"],
       "mcp_servers": ["playwright"],
-      "parameters": { "query": "Ford Mustang" },
+      "parameters": { "selector": "input[name='search']", "value": "Ford Mustang" },
       "success_criteria": "Показано результати пошуку Ford Mustang",
       "fallback_options": ["Використати фільтри якщо пошук не працює"],
       "dependencies": [1],
@@ -157,9 +157,9 @@ Request: "Знайди ціни Ford Mustang на auto.ria, створи Excel �
     {
       "id": 3,
       "action": "Зібрати ціни з перших 10 оголошень",
-      "tools_needed": ["playwright__scrape"],
+      "tools_needed": ["playwright__playwright_get_visible_text"],
       "mcp_servers": ["playwright"],
-      "parameters": { "selector": ".price", "limit": 10 },
+      "parameters": {},
       "success_criteria": "Зібрано мінімум 5 цін",
       "fallback_options": ["Зібрати мінімум 3 якщо < 5"],
       "dependencies": [2],

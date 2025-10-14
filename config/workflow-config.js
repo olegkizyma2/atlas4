@@ -38,18 +38,18 @@ export const WORKFLOW_STAGES = [
     description: 'Класифікація: чат або завдання',
     required: true,
     maxRetries: 0,
-    timeout: 10000,
+    timeout: 60000,  // FIXED 14.10.2025 - Збільшено з 10s до 60s для повільних моделей
     expectedStates: ['chat', 'task']
   },
   {
     stage: 0,
     agent: 'atlas',
     name: 'stage0_chat',
-    description: 'Atlas в режимі спілкування через API 4000',
+    description: 'Atlas відповідає на чат',
     required: false,
     condition: 'system_selected_chat',
     maxRetries: 0,
-    timeout: 30000,
+    timeout: 60000,  // FIXED 14.10.2025 - Збільшено з 30s до 60s для повільних моделей
     expectedStates: ['chat_response']
   },
   {

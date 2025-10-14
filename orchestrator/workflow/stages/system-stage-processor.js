@@ -268,13 +268,24 @@ export default class SystemStageProcessor {
       }
 
       // Use configured API endpoint with FULL CONTEXT
-      const response = await axios.post(modelConfig.endpoint, {
+      const requestBody = {
         model: modelConfig.model,
         temperature: modelConfig.temperature,
         max_tokens: modelConfig.max_tokens,
         messages: contextMessages
-      }, {
-        timeout: 10000,
+      };
+      
+      // ADDED 14.10.2025 - Log request size to debug 413 errors
+      const requestSize = JSON.stringify(requestBody).length;
+      logger.system('ai', `[API] Sending request to ${modelConfig.model}`, {
+        sessionId: session.id,
+        requestSizeBytes: requestSize,
+        requestSizeKB: (requestSize / 1024).toFixed(2),
+        messagesCount: contextMessages.length
+      });
+      
+      const response = await axios.post(modelConfig.endpoint, requestBody, {
+        timeout: 60000,  // FIXED 14.10.2025 - Збільшено з 10s до 60s
         headers: {
           'Content-Type': 'application/json'
         }

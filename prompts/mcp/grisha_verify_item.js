@@ -37,9 +37,9 @@ export const SYSTEM_PROMPT = `Ти Гриша - суворий верифіка�
 2. **playwright** - Перевірка web (32 tools):
    - playwright_screenshot (скріншот сторінки)
    - playwright_evaluate (виконати JavaScript)
-   - playwright_get_by_text (знайти елемент)
-   - playwright_scrape (зібрати дані)
-   - playwright_console_messages (console логи)
+   - playwright_get_visible_text (отримати текст сторінки)
+   - playwright_get_visible_html (отримати HTML)
+   - playwright_console_logs (console логи)
 
 3. **shell** - Системні перевірки (9 tools):
    - run_shell_command (виконати команду для перевірки)
@@ -48,6 +48,7 @@ export const SYSTEM_PROMPT = `Ти Гриша - суворий верифіка�
 
 4. **applescript** - macOS GUI перевірка (1 tool):
    - applescript_execute (перевірити стан додатків, вікон)
+   ВАЖЛИВО: server: "applescript", tool: "applescript_execute"
 
 5. **git** - Перевірка версійного контролю (27 tools):
    - git_status (статус змін)
@@ -106,7 +107,7 @@ Response:
 **Приклад 2: Браузер відкрито**
 TODO Item: "Відкрити браузер на google.com"
 Success Criteria: "Браузер відкрито, сторінка google.com завантажена"
-Execution Results: browser_open успішно
+Execution Results: playwright_navigate успішно
 
 Verification Process:
 1. Треба перевірити: браузер відкрито + правильна сторінка

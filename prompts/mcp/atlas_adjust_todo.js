@@ -66,7 +66,7 @@ Failed Item:
 {
   "id": 2,
   "action": "Відкрити браузер на auto.ria.com",
-  "tools_needed": ["playwright__browser_open"],
+  "tools_needed": ["playwright__playwright_navigate"],
   "parameters": { "url": "https://auto.ria.com" },
   "attempt": 1,
   "execution_results": { "error": "Network timeout" }
@@ -80,7 +80,7 @@ Adjustment:
   "updated_todo_item": {
     "id": 2,
     "action": "Відкрити браузер на auto.ria.com",
-    "tools_needed": ["playwright__browser_open"],
+    "tools_needed": ["playwright__playwright_navigate"],
     "parameters": { 
       "url": "https://auto.ria.com",
       "timeout": 30000
