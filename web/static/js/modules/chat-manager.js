@@ -401,6 +401,28 @@ export class ChatManager {
       case 'tts_stop':
         this.emit('tts-stop', data.data);
         break;
+      // FIXED 14.10.2025 - Handle new MCP workflow events
+      case 'mcp_todo_created':
+        this.handleMCPTodoCreated(data.data);
+        break;
+      case 'mcp_item_planning_failed':
+        this.handleMCPItemPlanningFailed(data.data);
+        break;
+      case 'mcp_item_executed':
+        this.handleMCPItemExecuted(data.data);
+        break;
+      case 'mcp_item_verified':
+        this.handleMCPItemVerified(data.data);
+        break;
+      case 'mcp_item_failed':
+        this.handleMCPItemFailed(data.data);
+        break;
+      case 'mcp_workflow_complete':
+        this.handleMCPWorkflowComplete(data.data);
+        break;
+      case 'workflow_error':
+        this.handleWorkflowError(data.data);
+        break;
       default:
         this.logger.debug('Unknown stream message type', data.type);
     }
@@ -650,12 +672,56 @@ export class ChatManager {
     return this.ttsManager.getMode();
   }
 
-  clearChat() {
+  clearMessages() {
     this.messages = [];
-    if (this.chatContainer) {
-      this.chatContainer.innerHTML = '';
+    const chatContainer = document.getElementById('chat-container');
+    if (chatContainer) {
+      chatContainer.innerHTML = '';
     }
     this.logger.info('Chat cleared');
+  }
+
+  // FIXED 14.10.2025 - MCP workflow event handlers
+  handleMCPTodoCreated(data) {
+    this.logger.info('📋 TODO list created', data.summary);
+    this.addMessage(`📋 ${data.summary}`, 'system');
+  }
+
+  handleMCPItemPlanningFailed(data) {
+    this.logger.warn(`⚠️ Planning failed for item ${data.itemId}: ${data.error}`);
+    this.addMessage(`⚠️ ${data.summary}`, 'system');
+  }
+
+  handleMCPItemExecuted(data) {
+    this.logger.info(`✅ Item ${data.itemId} executed: ${data.action}`);
+    if (data.summary) {
+      this.addMessage(`✅ ${data.summary}`, 'system');
+    }
+  }
+
+  handleMCPItemVerified(data) {
+    const icon = data.verified ? '✅' : '⚠️';
+    this.logger.info(`${icon} Item ${data.itemId} verification: ${data.verified}`);
+    if (data.summary) {
+      this.addMessage(`${icon} ${data.summary}`, 'system');
+    }
+  }
+
+  handleMCPItemFailed(data) {
+    this.logger.error(`❌ Item ${data.itemId} failed after ${data.attempts} attempts`);
+    this.addMessage(`❌ Помилка після ${data.attempts} спроб: ${data.error}`, 'system');
+  }
+
+  handleMCPWorkflowComplete(data) {
+    this.logger.info('🎉 MCP workflow complete', data);
+    if (data.summary) {
+      this.addMessage(`🎉 ${data.summary}`, 'system');
+    }
+  }
+
+  handleWorkflowError(data) {
+    this.logger.error('❌ Workflow error', data.error);
+    this.addMessage(`❌ Помилка: ${data.error}`, 'system');
   }
 
   destroy() {

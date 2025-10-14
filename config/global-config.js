@@ -133,7 +133,7 @@ export const MCP_MODEL_CONFIG = {
     todo_planning: {
       get model() { return process.env.MCP_MODEL_TODO_PLANNING || 'mistral-ai/mistral-small-2503'; },  // OPTIMIZED 14.10.2025 - mistral-small для швидкості (40 req/min)
       get temperature() { return parseFloat(process.env.MCP_TEMP_TODO_PLANNING || '0.3'); },
-      max_tokens: 2000,
+      max_tokens: 4000,  // FIXED 14.10.2025 - Збільшено з 2000 до 4000 для складних запитів з багатьма пунктами
       description: 'Critical planning - mistral-small для балансу швидкості та якості'
     },
 
