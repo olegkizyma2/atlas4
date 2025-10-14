@@ -771,6 +771,29 @@ async function executeWorkflowStages(userMessage, session, res, allStages, workf
     
     if (!container) {
       logger.warn('DI Container not available in session, using Goose workflow');
+      
+      // НОВИНКА 14.10.2025 - Check if fallback is disabled
+      if (GlobalConfig.AI_BACKEND_CONFIG.disableFallback) {
+        const error = new Error('DI Container not available and fallback is disabled');
+        logger.error('executor', '❌ DI Container unavailable and fallback is DISABLED', {
+          sessionId: session.id
+        });
+        
+        if (res.writable && !res.writableEnded) {
+          res.write(`data: ${JSON.stringify({
+            type: 'workflow_error',
+            data: {
+              error: 'DI Container unavailable',
+              message: error.message,
+              fallbackDisabled: true
+            }
+          })}\n\n`);
+          res.end();
+        }
+        
+        throw error;
+      }
+      
       return await executeTaskWorkflow(userMessage, session, res, allStages, workflowConfig);
     }
 
@@ -786,6 +809,29 @@ async function executeWorkflowStages(userMessage, session, res, allStages, workf
 
     if (!backendResult.success) {
       logger.warn('Backend selection failed, defaulting to Goose workflow');
+      
+      // НОВИНКА 14.10.2025 - Check if fallback is disabled
+      if (GlobalConfig.AI_BACKEND_CONFIG.disableFallback) {
+        const error = new Error('Backend selection failed and fallback is disabled');
+        logger.error('executor', '❌ Backend selection failed and fallback is DISABLED', {
+          sessionId: session.id
+        });
+        
+        if (res.writable && !res.writableEnded) {
+          res.write(`data: ${JSON.stringify({
+            type: 'workflow_error',
+            data: {
+              error: 'Backend selection failed',
+              message: error.message,
+              fallbackDisabled: true
+            }
+          })}\n\n`);
+          res.end();
+        }
+        
+        throw error;
+      }
+      
       return await executeTaskWorkflow(userMessage, session, res, allStages, workflowConfig);
     }
 
@@ -954,6 +1000,29 @@ async function executeWorkflowStages(userMessage, session, res, allStages, workf
       sessionId: session.id,
       error: backendError.message
     });
+    
+    // НОВИНКА 14.10.2025 - Check if fallback is disabled for backend selection errors too
+    if (GlobalConfig.AI_BACKEND_CONFIG.disableFallback) {
+      logger.error('executor', '❌ Backend selection failed and fallback is DISABLED (AI_BACKEND_DISABLE_FALLBACK=true)', {
+        sessionId: session.id,
+        error: backendError.message
+      });
+
+      // Send error to frontend without fallback
+      if (res.writable && !res.writableEnded) {
+        res.write(`data: ${JSON.stringify({
+          type: 'workflow_error',
+          data: {
+            error: 'Backend selection failed',
+            message: backendError.message,
+            fallbackDisabled: true
+          }
+        })}\n\n`);
+        res.end();
+      }
+
+      throw backendError; // Re-throw to propagate error
+    }
     
     // Fallback to Goose workflow on backend selection error
     logger.warn('Falling back to Goose workflow due to backend selection error');
