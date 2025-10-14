@@ -992,95 +992,17 @@ Context: ${JSON.stringify(context, null, 2)}
             // FIXED 14.10.2025 - Extract JSON from text if LLM added explanation
             // FIXED 14.10.2025 - Handle ellipsis patterns (...) in JSON
             let cleanResponse = response;
-            if (typeof response === 'string') {
-                // Remove ```json and ``` wrappers
-                cleanResponse = response
-                    .replace(/^```json\s*/i, '')  // Remove opening ```json
-                    .replace(/^```\s*/i, '')       // Remove opening ```
-                    .replace(/\s*```$/i, '')       // Remove closing ```
+            if (typeof cleanResponse === 'string') {
+                // Remove markdown wrappers
+                cleanResponse = cleanResponse
+                    .replace(/^```json\s*/i, '')
+                    .replace(/^```\s*/i, '')
+                    .replace(/\s*```$/i, '')
                     .trim();
-
-                // Extract JSON object from text (starts with '{' and ends with '}')
-                // Look for JSON with "mode" or "items" field
-                const jsonMatch = cleanResponse.match(/\{[\s\S]*"(mode|items)"[\s\S]*\}/);
-                if (jsonMatch) {
-                    cleanResponse = jsonMatch[0];
-                }
-
-                // FIXED 14.10.2025 - Remove ellipsis patterns that break JSON parsing
-                // Handle patterns like [...], {...}, "...", etc.
-                if (cleanResponse.includes('...')) {
-                    this.logger.warn(`[MCP-TODO] Detected ellipsis (...) in JSON, cleaning up`, {
-                        category: 'mcp-todo',
-                        component: 'mcp-todo'
-                    });
-
-                    // Strategy 1: Remove array ellipsis: [...] -> []
-                    cleanResponse = cleanResponse.replace(/\[\s*\.\.\.\s*\]/g, '[]');
-
-                    // Strategy 2: Remove object ellipsis: {...} -> {}
-                    cleanResponse = cleanResponse.replace(/\{\s*\.\.\.\s*\}/g, '{}');
-
-                    // Strategy 3: Remove string ellipsis in values: "..." -> ""
-                    cleanResponse = cleanResponse.replace(/:\s*"\.\.\."\s*,/g, ': "",');
-                    cleanResponse = cleanResponse.replace(/:\s*"\.\.\."\s*\}/g, ': ""}');
-
-                    // Strategy 4: Remove incomplete entries with ellipsis (e.g., "key": [...])
-                    // This handles cases like: "prices": [...] -> remove the entire line
-                    cleanResponse = cleanResponse.replace(/,?\s*"[^"]+"\s*:\s*\[\s*\.\.\.\s*\]\s*,?/g, '');
-                    cleanResponse = cleanResponse.replace(/,?\s*"[^"]+"\s*:\s*\{\s*\.\.\.\s*\}\s*,?/g, '');
-
-                    // Strategy 5: Clean up any remaining triple dots
-                    cleanResponse = cleanResponse.replace(/\.\.\./g, '');
-
-                    // Fix potential double commas from removals
-                    cleanResponse = cleanResponse.replace(/,\s*,/g, ',');
-
-                    // Fix trailing commas before closing brackets
-                    cleanResponse = cleanResponse.replace(/,\s*\]/g, ']');
-                    cleanResponse = cleanResponse.replace(/,\s*\}/g, '}');
-
-                    this.logger.system('mcp-todo', `[TODO] Cleaned ellipsis from JSON`);
-                }
-
-                // FIXED 14.10.2025 - Handling truncated JSON responses
-                // If JSON is incomplete (e.g., ends with `..."prices": [...],`), try to repair it
-                if (cleanResponse && !cleanResponse.trim().endsWith('}')) {
-                    this.logger.warn(`[MCP-TODO] Detected truncated JSON response, attempting repair`, {
-                        category: 'mcp-todo',
-                        component: 'mcp-todo',
-                        lastChars: cleanResponse.substring(cleanResponse.length - 50)
-                    });
-
-                    // Find the last complete item in the array
-                    // Strategy: Find last complete {...} object before truncation
-                    const lastCompleteItemMatch = cleanResponse.lastIndexOf('}');
-                    if (lastCompleteItemMatch > 0) {
-                        // Cut off incomplete data after last complete item
-                        let repairedJson = cleanResponse.substring(0, lastCompleteItemMatch + 1);
-
-                        // Close the items array and JSON object
-                        // Count open brackets to determine what needs closing
-                        const openArrays = (repairedJson.match(/\[/g) || []).length - (repairedJson.match(/\]/g) || []).length;
-                        const openObjects = (repairedJson.match(/\{/g) || []).length - (repairedJson.match(/\}/g) || []).length;
-
-                        // Close arrays
-                        for (let i = 0; i < openArrays; i++) {
-                            repairedJson += ']';
-                        }
-
-                        // Close objects
-                        for (let i = 0; i < openObjects; i++) {
-                            repairedJson += '}';
-                        }
-
-                        cleanResponse = repairedJson;
-                        this.logger.system('mcp-todo', `[TODO] Repaired JSON: ${cleanResponse.length} chars`);
-                    }
-                }
+                // Remove JS-style comments (fix for LLM output)
+                cleanResponse = cleanResponse.replace(/\/\*[\s\S]*?\*\//g, '');
             }
-
-            const parsed = typeof cleanResponse === 'string' ? JSON.parse(cleanResponse) : cleanResponse;
+            const parsed = JSON.parse(cleanResponse);
 
             return {
                 id: `todo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
