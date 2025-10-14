@@ -83,7 +83,7 @@ export class TetyanaПlanToolsProcessor {
             const validation = this._validatePlan(plan, availableTools);
 
             if (!validation.valid) {
-                this.logger.warn('tetyana-plan-tools', `[STAGE-2.1-MCP] ⚠️ Plan validation issues: ${validation.issues.join(', ')}`);
+                this.logger.warn(`[STAGE-2.1-MCP] ⚠️ Plan validation issues: ${validation.issues.join(', ')}`, { category: 'tetyana-plan-tools', component: 'tetyana-plan-tools' });
             }
 
             // Generate summary
@@ -103,8 +103,8 @@ export class TetyanaПlanToolsProcessor {
             };
 
         } catch (error) {
-            this.logger.error('tetyana-plan-tools', `[STAGE-2.1-MCP] ❌ Tool planning failed: ${error.message}`);
-            this.logger.error('tetyana-plan-tools', error.stack);
+            this.logger.error(`[STAGE-2.1-MCP] ❌ Tool planning failed: ${error.message}`, { category: 'tetyana-plan-tools', component: 'tetyana-plan-tools' });
+            this.logger.error(`Stack trace: ${error.stack}`, { category: 'tetyana-plan-tools', component: 'tetyana-plan-tools' });
 
             return {
                 success: false,
@@ -131,7 +131,7 @@ export class TetyanaПlanToolsProcessor {
             const tools = await this.mcpManager.getAvailableTools();
             
             if (!tools || tools.length === 0) {
-                this.logger.warn('tetyana-plan-tools', '[STAGE-2.1-MCP] No MCP tools available, using default list');
+                this.logger.warn(`[STAGE-2.1-MCP] No MCP tools available, using default list`, { category: 'tetyana-plan-tools', component: 'tetyana-plan-tools' });
                 
                 // Return default tool list if MCPManager not ready
                 return this._getDefaultTools();
@@ -140,7 +140,7 @@ export class TetyanaПlanToolsProcessor {
             return tools;
 
         } catch (error) {
-            this.logger.warn('tetyana-plan-tools', `[STAGE-2.1-MCP] Failed to get tools from MCPManager: ${error.message}`);
+            this.logger.warn(`[STAGE-2.1-MCP] Failed to get tools from MCPManager: ${error.message}`, { category: 'tetyana-plan-tools', component: 'tetyana-plan-tools' });
             
             // Fallback to default tools
             return this._getDefaultTools();
