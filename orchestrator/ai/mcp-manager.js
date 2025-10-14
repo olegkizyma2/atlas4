@@ -20,11 +20,11 @@ class MCPServer {
     this.tools = [];
     this.ready = false;
     this.messageId = 0;
-    
+
     // Buffers для stdio communication
     this.stdoutBuffer = '';
     this.stderrBuffer = '';
-    
+
     this._setupStreams();
   }
 
@@ -45,7 +45,7 @@ class MCPServer {
     this.process.stderr.on('data', (data) => {
       const message = data.toString().trim();
       this.stderrBuffer += message + '\n';
-      
+
       if (message) {
         // Показуємо npm warnings та errors
         if (message.includes('warn') || message.includes('error') || message.includes('ERR')) {
@@ -95,10 +95,14 @@ class MCPServer {
   _handleMCPMessage(message) {
     logger.debug('mcp-server', `[MCP ${this.name}] Received message:`, message);
 
-    // Initialize response
-    if (message.result && message.result.capabilities) {
+    // Initialize response (підтримка різних SDK версій)
+    // Новий формат: message.result.capabilities (SDK 1.x)
+    // Старий формат: message.capabilities (SDK 0.6.x)
+    const capabilities = message.result?.capabilities || message.capabilities;
+
+    if (capabilities) {
       // FIXED: Переконуємось що tools завжди масив
-      const toolsData = message.result.capabilities?.tools;
+      const toolsData = capabilities?.tools;
       this.tools = Array.isArray(toolsData) ? toolsData : [];
       this.ready = true;
       logger.system('mcp-server', `[MCP ${this.name}] ✅ Initialized with ${this.tools.length} tools`);
@@ -135,7 +139,7 @@ class MCPServer {
       id: ++this.messageId,
       method: 'initialize',
       params: {
-        protocolVersion: '1.0',
+        protocolVersion: '2024-11-05',  // FIXED: MCP standard protocol version (було '1.0')
         capabilities: {
           tools: { listChanged: true }
         },
@@ -201,7 +205,7 @@ class MCPServer {
     }
 
     const toolsPromise = new Promise((resolve, reject) => {
-      this.pendingRequests.set(messageId, { 
+      this.pendingRequests.set(messageId, {
         resolve: (result) => {
           // Витягти tools з response
           if (result && Array.isArray(result.tools)) {
@@ -216,7 +220,7 @@ class MCPServer {
           }
           resolve();
         },
-        reject 
+        reject
       });
 
       // Timeout 10s
@@ -301,10 +305,10 @@ class MCPServer {
    */
   async shutdown() {
     logger.system('mcp-server', `[MCP ${this.name}] Shutting down...`);
-    
+
     if (this.process && !this.process.killed) {
       this.process.kill('SIGTERM');
-      
+
       // Чекати на graceful exit (timeout 3s)
       await new Promise((resolve) => {
         const timeout = setTimeout(() => {
@@ -407,7 +411,7 @@ export class MCPManager {
 
       // Створити MCP server wrapper
       const server = new MCPServer(name, config, childProcess);
-      
+
       // Ініціалізувати (handshake)
       await server.initialize();
 
@@ -448,8 +452,8 @@ export class MCPManager {
     // Check if tool exists on server
     if (!Array.isArray(server.tools) || !server.tools.some(t => t.name === toolName)) {
       // FIXED 14.10.2025 - Better error message with list of available tools
-      const availableTools = Array.isArray(server.tools) 
-        ? server.tools.map(t => t.name).join(', ') 
+      const availableTools = Array.isArray(server.tools)
+        ? server.tools.map(t => t.name).join(', ')
         : 'none';
       throw new Error(`Tool '${toolName}' not available on server '${serverName}'. Available tools: ${availableTools}`);
     }
@@ -475,7 +479,7 @@ export class MCPManager {
         continue;
       }
 
-      const hasTool = server.tools.some(tool => 
+      const hasTool = server.tools.some(tool =>
         tool.name === toolName || toolName.includes(server.name)
       );
 

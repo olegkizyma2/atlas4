@@ -64,7 +64,7 @@ export const AI_MODEL_CONFIG = {
       max_tokens: 50,
       description: 'GPT-4o-mini для швидкої класифікації'
     },
-    
+
     // Чат та розмова
     chat: {
       model: 'openai/gpt-4o-mini',
@@ -108,7 +108,7 @@ export const AI_MODEL_CONFIG = {
 export const MCP_MODEL_CONFIG = {
   // API endpoint
   apiEndpoint: 'http://localhost:4000/v1/chat/completions',
-  
+
   // Моделі для кожного MCP stage (читаємо з ENV для гнучкості)
   stages: {
     // Stage 0: Mode Selection (task vs chat)
@@ -118,7 +118,7 @@ export const MCP_MODEL_CONFIG = {
       max_tokens: 50,
       description: 'Бінарна класифікація - швидка легка модель'
     },
-    
+
     // Stage 0.5: Backend Selection (goose vs mcp)
     backend_selection: {
       get model() { return process.env.MCP_MODEL_BACKEND_SELECTION || 'openai/gpt-4o-mini'; },
@@ -126,7 +126,7 @@ export const MCP_MODEL_CONFIG = {
       max_tokens: 50,
       description: 'Keyword-based routing - швидко'
     },
-    
+
     // Stage 1-MCP: Atlas TODO Planning
     todo_planning: {
       get model() { return process.env.MCP_MODEL_TODO_PLANNING || 'openai/o1-mini'; },  // FIXED 14.10.2025 - o1-mini для reasoning
@@ -134,8 +134,8 @@ export const MCP_MODEL_CONFIG = {
       max_tokens: 2000,
       description: 'Critical planning - o1-mini для якісного reasoning'
     },
-    
-        // Stage 2.1-MCP: Tetyana Plan Tools
+
+    // Stage 2.1-MCP: Tetyana Plan Tools
     // OPTIMIZED 14.10.2025 - Повернено gpt-4o-mini після оптимізації prompt (summary замість full schemas)
     plan_tools: {
       get model() { return process.env.MCP_MODEL_PLAN_TOOLS || 'openai/gpt-4o-mini'; },
@@ -143,7 +143,7 @@ export const MCP_MODEL_CONFIG = {
       max_tokens: 800,
       description: 'Tool matching - оптимізовано (тільки name+description, без schemas)'
     },
-    
+
     // Stage 2.3-MCP: Grisha Verify Item
     verify_item: {
       get model() { return process.env.MCP_MODEL_VERIFY_ITEM || 'openai/gpt-4o-mini'; },
@@ -151,7 +151,7 @@ export const MCP_MODEL_CONFIG = {
       max_tokens: 300,
       description: 'Проста верифікація success/fail'
     },
-    
+
     // Stage 3-MCP: Atlas Adjust TODO
     adjust_todo: {
       get model() { return process.env.MCP_MODEL_ADJUST_TODO || 'openai/gpt-4o-mini'; },  // FIXED 14.10.2025 - доступна модель
@@ -159,7 +159,7 @@ export const MCP_MODEL_CONFIG = {
       max_tokens: 1000,
       description: 'Корекція TODO - gpt-4o-mini (mid-level reasoning)'
     },
-    
+
     // Stage 8-MCP: Final Summary
     final_summary: {
       get model() { return process.env.MCP_MODEL_FINAL_SUMMARY || 'openai/gpt-4o-mini'; },
@@ -168,7 +168,7 @@ export const MCP_MODEL_CONFIG = {
       description: 'User-facing summary - природна мова'
     }
   },
-  
+
   // Helper: Отримати конфігурацію для stage
   getStageConfig(stageName) {
     return this.stages[stageName] || this.stages.plan_tools; // Fallback на mid-tier model
@@ -181,34 +181,34 @@ export const MCP_MODEL_CONFIG = {
 export const AI_BACKEND_CONFIG = {
   // Режим роботи: 'goose', 'mcp', 'hybrid'
   // FIXED 13.10.2025 - getter reads from process.env dynamically
-  get mode() { 
+  get mode() {
     return process.env.AI_BACKEND_MODE || 'hybrid';
   },
-  
+
   // Primary backend для task execution
   get primary() {
     return process.env.AI_BACKEND_PRIMARY || 'goose';
   },
-  
+
   // Fallback при недоступності primary
   get fallback() {
     return process.env.AI_BACKEND_FALLBACK || 'mcp';
   },
-  
+
   // НОВИНКА 13.10.2025 - Дозволити/заборонити fallback на Goose
   // Якщо true - при помилках MCP система падатиме з error (strict mode)
   // Якщо false - при помилках MCP буде fallback на Goose (default)
   get disableFallback() {
     return process.env.AI_BACKEND_DISABLE_FALLBACK === 'true';
   },
-  
+
   // Retry налаштування
   retry: {
     maxAttempts: 2,
     timeoutMs: 30000,
     switchToFallbackOnTimeout: true
   },
-  
+
   // Provider конфігурації
   providers: {
     // Goose Desktop через WebSocket
@@ -218,19 +218,19 @@ export const AI_BACKEND_CONFIG = {
       url: 'ws://localhost:3000/ws',
       apiKey: process.env.GITHUB_TOKEN,
       model: 'gpt-4o',
-      
+
       // MCP extensions через Goose
       extensions: ['developer', 'playwright', 'computercontroller'],
-      
+
       // Коли використовувати
       useFor: ['complex_tasks', 'multi_step', 'reasoning']
     },
-    
+
     // Прямі MCP сервери
     mcp: {
       enabled: true,
       type: 'direct',
-      
+
       // Direct MCP server connections
       servers: {
         filesystem: {
@@ -240,7 +240,7 @@ export const AI_BACKEND_CONFIG = {
             ALLOWED_DIRECTORIES: '/Users,/tmp,/Desktop,/Applications'
           }
         },
-        
+
         playwright: {
           command: 'npx',
           args: ['-y', '@executeautomation/playwright-mcp-server'],
@@ -248,7 +248,7 @@ export const AI_BACKEND_CONFIG = {
             HEADLESS: 'false'
           }
         },
-        
+
         shell: {
           command: 'npx',
           args: ['-y', 'super-shell-mcp'],
@@ -256,13 +256,17 @@ export const AI_BACKEND_CONFIG = {
             SHELL: process.env.SHELL || '/bin/zsh'
           }
         },
-        
+
         applescript: {
           command: 'npx',
-          args: ['-y', '@mseep/applescript-mcp'],
+          args: ['-y', '@peakmojo/applescript-mcp'],
           env: {}
         },
-        
+
+        // DISABLED 14.10.2025: GitHub MCP server (@wipiano/github-mcp-lightweight v0.1.1) 
+        // зависає при ініціалізації з GITHUB_TOKEN, спричиняє крах orchestrator
+        // TODO: Спробувати альтернативний пакет або оновлену версію
+        /*
         github: {
           command: 'npx',
           args: ['-y', '@wipiano/github-mcp-lightweight'],
@@ -270,7 +274,8 @@ export const AI_BACKEND_CONFIG = {
             GITHUB_TOKEN: process.env.GITHUB_TOKEN || ''
           }
         },
-        
+        */
+
         git: {
           command: 'npx',
           args: ['-y', '@cyanheads/git-mcp-server'],
@@ -279,14 +284,14 @@ export const AI_BACKEND_CONFIG = {
             GIT_AUTHOR_EMAIL: process.env.GIT_AUTHOR_EMAIL || 'atlas@example.com'
           }
         },
-        
+
         memory: {
           command: 'npx',
           args: ['-y', '@modelcontextprotocol/server-memory'],
           env: {}
         }
       },
-      
+
       // LLM для MCP mode (використовується для reasoning)
       llm: {
         provider: 'openai',
@@ -294,7 +299,7 @@ export const AI_BACKEND_CONFIG = {
         model: 'openai/gpt-4o-mini',
         temperature: 0.3
       },
-      
+
       // Коли використовувати
       useFor: [
         'file_operations',      // filesystem
@@ -309,7 +314,7 @@ export const AI_BACKEND_CONFIG = {
       ]
     }
   },
-  
+
   // Routing rules (коли який backend)
   routing: {
     // Якщо prompt містить ці ключові слова → використовувати MCP
@@ -317,33 +322,33 @@ export const AI_BACKEND_CONFIG = {
       // Файли
       'створи файл', 'create file', 'save file',
       'файл', 'file', 'directory', 'папка',
-      
+
       // Браузер
       'відкрий браузер', 'open browser',
       'скріншот', 'screenshot',
       'web scraping', 'scrape',
-      
+
       // Terminal
       'виконай команду', 'run command', 'terminal',
       'npm', 'brew', 'git clone', 'install',
-      
+
       // macOS
       'відкрий програму', 'open app', 'launch',
       'applescript', 'finder', 'safari', 'chrome',
-      
+
       // GitHub
       'github issue', 'pull request', 'pr',
       'create issue', 'list issues',
-      
+
       // Git
       'git commit', 'git push', 'git pull',
       'branch', 'merge', 'checkout',
-      
+
       // Memory
       'запамʼятай', 'remember', 'save context',
       'що ти пам\'ятаєш', 'recall'
     ],
-    
+
     // Якщо prompt містить ці → Goose
     gooseKeywords: [
       'проаналізуй', 'analyze', 'порівняй', 'compare',
