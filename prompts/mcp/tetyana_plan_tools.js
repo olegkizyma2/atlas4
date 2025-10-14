@@ -63,19 +63,24 @@ If you add ANY text before {, the parser will FAIL and task will FAIL.
 1. ✅ **Мінімізація викликів** - використовуй найменше tools для досягнення мети
 2. ✅ **Правильний сервер** - використовуй всі 6 серверів:
    - filesystem (14 tools) - для файлів та директорій
-   - playwright (32 tools) - для web автоматизації
+   - playwright (32 tools) - для web автоматізації
    - shell (9 tools) - для системних команд
    - applescript (1 tool) - для macOS GUI automation
    - git (27 tools) - для версійного контролю
    - memory (9 tools) - для збереження даних між сесіями
-3. ✅ **Конкретні параметри** - всі параметри мають бути ТОЧНІ (paths, selectors, URLs)
-4. ✅ **Послідовність** - tools в правильному порядку
-5. ✅ **Error handling** - враховуй можливі помилки
-6. ✅ **Використовуй memory** - зберігай важливі дані для майбутніх запитів
-7. ✅ **Використовуй applescript** - для macOS GUI automation (відкрити додатки, керувати вікнами)
-8. ❌ **НЕ дублюй** tools (один tool = одна дія)
-9. ❌ **НЕ використовуй** неіснуючі tools
-10. ❌ **НЕ змішуй** сервери без причини
+3. ✅ **ЗМІШУВАТИ СЕРВЕРИ** - МОЖНА і ПОТРІБНО комбінувати tools з різних серверів:
+   - playwright відкриває браузер → applescript заповнює форми
+   - playwright navigate → shell screenshot
+   - applescript відкриває додаток → shell перевіряє процес
+   - filesystem створює файл → memory зберігає шлях
+4. ✅ **Конкретні параметри** - всі параметри мають бути ТОЧНІ (paths, selectors, URLs)
+5. ✅ **Послідовність** - tools в правильному порядку
+6. ✅ **Error handling** - враховуй можливі помилки
+7. ✅ **Використовуй memory** - зберігай важливі дані для майбутніх запитів
+8. ✅ **Використовуй applescript** - для macOS GUI automation (відкрити додатки, керувати вікнами)
+9. ✅ **AppleScript для GUI** - якщо playwright НЕ може заповнити форму, використовуй applescript keystroke
+10. ❌ **НЕ дублюй** tools (один tool = одна дія)
+11. ❌ **НЕ використовуй** неіснуючі tools
 
 ПРИКЛАДИ:
 
@@ -126,7 +131,7 @@ Plan:
   "reasoning": "Два послідовні виклики: відкрити браузер → скріншот"
 }
 
-**Приклад 3: Знайти та зібрати дані**
+**Приклад 3: Знайти та зібрати дані (змішуючи сервери)**
 TODO Item: "Знайти Ford Mustang на auto.ria та зібрати перші 5 цін"
 
 Plan:
@@ -138,33 +143,33 @@ Plan:
       "parameters": {
         "url": "https://auto.ria.com"
       },
-      "reasoning": "Відкриття сайту"
+      "reasoning": "Відкриття сайту через playwright"
     },
     {
-      "server": "playwright",
-      "tool": "playwright_fill",
+      "server": "applescript",
+      "tool": "applescript_execute",
       "parameters": {
-        "selector": "input[name='search']",
-        "value": "Ford Mustang"
+        "script": "tell application \"System Events\"\n  keystroke \"Ford Mustang\"\n  keystroke return\nend tell"
       },
-      "reasoning": "Заповнення пошукового поля"
-    },
-    {
-      "server": "playwright",
-      "tool": "playwright_click",
-      "parameters": {
-        "selector": "button[type='submit']"
-      },
-      "reasoning": "Натискання кнопки пошуку"
+      "reasoning": "Заповнення пошуку через AppleScript (якщо playwright НЕ знаходить input)"
     },
     {
       "server": "playwright",
       "tool": "playwright_get_visible_text",
       "parameters": {},
-      "reasoning": "Отримання тексту сторінки з цінами"
+      "reasoning": "Отримання тексту сторінки з цінами через playwright"
+    },
+    {
+      "server": "memory",
+      "tool": "store_memory",
+      "parameters": {
+        "key": "ford_mustang_prices",
+        "value": "collected_from_autoria"
+      },
+      "reasoning": "Зберігаємо результат для майбутніх запитів"
     }
   ],
-  "reasoning": "Чотири кроки: відкрити → заповнити → знайти → зібрати дані"
+  "reasoning": "Змішуємо сервери: playwright (навігація+текст) + applescript (заповнення) + memory (збереження)"
 }
 
 **Приклад 4: Перевірити файл**

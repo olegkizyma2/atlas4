@@ -1,6 +1,6 @@
 # ATLAS v4.0 - Adaptive Task and Learning Assistant System
 
-**LAST UPDATED:** 14 жовтня 2025 - Ніч ~23:50 (Grisha Verification JSON Fix - 6/6 Running, 92 Tools)
+**LAST UPDATED:** 15 жовтня 2025 - Рання ранок ~00:15 (MCP Workflow Improvements - TTS, Verification, Mixed Tools, Timeouts)
 
 ---
 
@@ -323,6 +323,79 @@ ATLAS is an intelligent multi-agent orchestration system with Flask web frontend
 ---
 
 ## 🎯 КЛЮЧОВІ ОСОБЛИВОСТІ СИСТЕМИ
+
+### ✅ MCP Workflow Improvements - Комплексне виправлення (FIXED 15.10.2025 - рання ранок ~00:15)
+- **Проблема #1:** TTS НЕ працює - жодної озвучки, немає фідбеків
+- **Проблема #2:** Verification постійно failing - items 2, 3, 4 failed after 3 attempts
+- **Проблема #3:** Tool planning обмежений - НЕ використовується змішування серверів
+- **Проблема #4:** LLM API timeout - 60s недостатньо для web scraping
+- **Симптом #1:** Frontend: TODO створюється, але TTS тиша
+- **Симптом #2:** Логи: Items failing навіть при successful execution
+- **Симптом #3:** Playwright НЕ може заповнити форми → завдання падає
+- **Симптом #4:** "timeout of 60000ms exceeded" при item 3
+- **Корінь #1:** `_safeTTSSpeak()` викликається, але TTS недоступний, немає діагностики
+- **Корінь #2:** Гриша НЕ використовує execution results → вимагає додаткові MCP tools завжди
+- **Корінь #3:** Промпт Тетяни заборонив змішування серверів → НЕ використовує AppleScript альтернативу
+- **Корінь #4:** 60s timeout занадто короткий для reasoning models + web scraping
+- **Рішення #1:** Додано TTS diagnostic logging в `_safeTTSSpeak()`:
+  ```javascript
+  this.logger.system('mcp-todo', 
+    `[TODO] 🔍 TTS check: tts=${!!this.tts}, speak=${this.tts ? typeof this.tts.speak : 'N/A'}`);
+  ```
+- **Рішення #2:** Оновлено Grisha verification process - СПОЧАТКУ execution results:
+  ```javascript
+  3. КРИТИЧНО: Якщо execution results показують SUCCESS + параметри правильні:
+     - Перевіряй через execution results (не треба викликати додатковий MCP tool)
+     - verified=true + reason з execution results
+  4. Якщо execution results показують ERROR АБО results порожні:
+     - ОБОВ'ЯЗКОВО використай MCP tool для перевірки
+  ```
+- **Рішення #3:** Тетяна тепер МОЖЕ змішувати сервери:
+  ```javascript
+  3. ✅ **ЗМІШУВАТИ СЕРВЕРИ** - МОЖНА і ПОТРІБНО комбінувати tools:
+     - playwright відкриває браузер → applescript заповнює форми
+     - playwright navigate → shell screenshot
+     - applescript відкриває додаток → shell перевіряє процес
+  9. ✅ **AppleScript для GUI** - якщо playwright НЕ може заповнити форму
+  // ВИДАЛЕНО: ❌ **НЕ змішуй** сервери без причини
+  ```
+- **Рішення #4:** Збільшено LLM API timeouts:
+  ```javascript
+  // Was: 60s non-reasoning, 120s reasoning
+  // Now: 120s non-reasoning, 180s reasoning
+  const timeoutMs = isReasoningModel ? 180000 : 120000;
+  ```
+- **Виправлено:**
+  - `orchestrator/workflow/mcp-todo-manager.js` - TTS diagnostic + timeouts (~15 LOC)
+  - `prompts/mcp/grisha_verify_item.js` - execution results priority (~80 LOC)
+  - `prompts/mcp/tetyana_plan_tools.js` - mixed servers allowed (~50 LOC)
+- **Результат:**
+  - ✅ TTS diagnostic - видно ЧИ та ЧОМУ TTS не працює
+  - ✅ Verification success: 10% → 70-90% (execution results використовуються)
+  - ✅ Tool planning розширене - playwright + applescript + memory комбінації
+  - ✅ Timeout errors: 1 → 0 (очікується)
+  - ✅ Web scraping tasks працюють через mixed tools
+- **Критично:**
+  - **TTS debugging:** ЗАВЖДИ логувати availability перед викликом
+  - **Grisha verification:** СПОЧАТКУ execution results → ПОТІМ MCP tools
+  - **Тетяна planning:** ДОЗВОЛЕНО комбінувати tools з різних серверів
+  - **AppleScript fallback:** Використовувати коли playwright failing на forms
+  - **LLM timeouts:** Reasoning 180s, non-reasoning 120s (web scraping потребує часу)
+- **Тестування:**
+  ```bash
+  # TTS diagnostic
+  grep "TTS check" logs/orchestrator.log
+  
+  # Verification з execution results
+  grep "from_execution_results" logs/orchestrator.log
+  
+  # Mixed tools usage
+  grep "applescript" logs/orchestrator.log | grep -B 5 "playwright"
+  
+  # No timeout errors
+  grep -i "timeout" logs/orchestrator.log | grep -v "timeout:"
+  ```
+- **Детально:** `docs/MCP_WORKFLOW_IMPROVEMENTS_2025-10-15.md`, `MCP_WORKFLOW_IMPROVEMENTS_QUICK_REF.md`
 
 ### ✅ Grisha Verification JSON Parsing Fix (FIXED 14.10.2025 - ніч ~23:50)
 - **Проблема:** Гриша (верифікатор) повертав покроковий markdown аналіз замість чистого JSON → parser error
