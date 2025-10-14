@@ -345,13 +345,22 @@ export class MCPTodoManager {
             // Get available MCP tools
             const availableTools = await this.mcpManager.listTools();
 
+            // OPTIMIZATION 14.10.2025 - Send only essential tool info, not full JSON schemas
+            // This reduces prompt size from 8000+ tokens to ~1000 tokens
+            const toolsSummary = availableTools.map(tool => ({
+                name: tool.name,
+                description: tool.description || tool.inputSchema?.description || 'No description',
+                // Include only required parameter names, not full schemas
+                required_params: tool.inputSchema?.required || []
+            }));
+
             // Import Tetyana Plan Tools prompt
             const { MCP_PROMPTS } = await import('../../prompts/mcp/index.js');
             const planPrompt = MCP_PROMPTS.TETYANA_PLAN_TOOLS;
 
             const userMessage = `
 TODO Item: ${item.action}
-Available MCP Tools: ${JSON.stringify(availableTools, null, 2)}
+Available MCP Tools: ${JSON.stringify(toolsSummary, null, 2)}
 Previous items: ${JSON.stringify(todo.items.slice(0, item.id - 1).map(i => ({ id: i.id, action: i.action, status: i.status })), null, 2)}
 
 Визнач які інструменти потрібні та параметри для виконання.

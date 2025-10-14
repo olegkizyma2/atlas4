@@ -136,11 +136,12 @@ export const MCP_MODEL_CONFIG = {
     },
     
     // Stage 2.1-MCP: Tetyana Plan Tools
+    // OPTIMIZED 14.10.2025 - Повернено gpt-4o-mini після оптимізації prompt (summary замість full schemas)
     plan_tools: {
       get model() { return process.env.MCP_MODEL_PLAN_TOOLS || 'openai/gpt-4o-mini'; },
       get temperature() { return parseFloat(process.env.MCP_TEMP_PLAN_TOOLS || '0.2'); },
-      max_tokens: 500,
-      description: 'Tool matching - проста відповідність'
+      max_tokens: 800,
+      description: 'Tool matching - оптимізовано (тільки name+description, без schemas)'
     },
     
     // Stage 2.3-MCP: Grisha Verify Item
