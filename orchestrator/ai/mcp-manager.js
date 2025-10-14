@@ -101,11 +101,11 @@ class MCPServer {
     const capabilities = message.result?.capabilities || message.capabilities;
 
     if (capabilities) {
-      // FIXED: Переконуємось що tools завжди масив
-      const toolsData = capabilities?.tools;
-      this.tools = Array.isArray(toolsData) ? toolsData : [];
+      // FIXED 14.10.2025: capabilities.tools - це metadata {listChanged: true}, НЕ список tools
+      // Справжні tools приходять окремо через tools/list request
+      // Просто позначаємо що ініціалізація завершена, tools прийдуть окремо
       this.ready = true;
-      logger.system('mcp-server', `[MCP ${this.name}] ✅ Initialized with ${this.tools.length} tools`);
+      logger.system('mcp-server', `[MCP ${this.name}] ✅ Initialized, waiting for tools list...`);
       return;
     }
 
