@@ -184,9 +184,10 @@ export class MCPTodoManager {
                     { role: 'user', content: userMessage }
                 ],
                 temperature: modelConfig.temperature,
-                max_tokens: modelConfig.max_tokens,
+                max_tokens: modelConfig.max_tokens
+            }, {
                 headers: { 'Content-Type': 'application/json' },
-                timeout: 60000  // INCREASED 14.10.2025 - 60s для o1-mini reasoning models
+                timeout: 60000  // FIXED 14.10.2025 - 60s для o1-mini reasoning models (moved to config)
             });
 
             const response = apiResponse.data.choices[0].message.content;
