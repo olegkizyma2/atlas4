@@ -217,10 +217,20 @@ export class MCPTodoManager {
             // TTS feedback (optional - skip if TTS not available)
             if (this.tts && typeof this.tts.speak === 'function') {
                 try {
-                    await this._safeTTSSpeak(
-                        `План створено, ${todo.items.length} ${this._getPluralForm(todo.items.length, 'пункт', 'пункти', 'пунктів')}, починаю виконання`,
-                        { mode: 'detailed', duration: 2500 }
-                    );
+                    // ENHANCED 14.10.2025 NIGHT - Atlas speaks about the plan with more personality
+                    const itemCount = todo.items.length;
+                    const taskDescription = this._extractTaskDescription(request);
+                    
+                    let atlasPhrase;
+                    if (itemCount === 1) {
+                        atlasPhrase = `Розумію, ${taskDescription}. Один крок, виконую`;
+                    } else if (itemCount <= 3) {
+                        atlasPhrase = `Добре, ${taskDescription}. План з ${itemCount} кроків, починаю`;
+                    } else {
+                        atlasPhrase = `Зрозумів, ${taskDescription}. Складне завдання, ${itemCount} кроків. Приступаю`;
+                    }
+                    
+                    await this._safeTTSSpeak(atlasPhrase, { mode: 'detailed', duration: 3000 });
                 } catch (ttsError) {
                     this.logger.warn(`[MCP-TODO] TTS feedback failed: ${ttsError.message}`, { category: 'mcp-todo', component: 'mcp-todo' });
                 }
@@ -289,11 +299,19 @@ export class MCPTodoManager {
             const duration = ((Date.now() - startTime) / 1000).toFixed(1);
             this.logger.system('mcp-todo', `[TODO] Execution completed in ${duration}s - Success: ${summary.success_rate}%`);
 
-            // Final TTS
-            await this._safeTTSSpeak(
-                `Завдання виконано на ${summary.success_rate}%`,
-                { mode: 'detailed', duration: 2500 }
-            );
+            // ENHANCED 14.10.2025 NIGHT - Atlas speaks about results with personality
+            let atlasSummaryPhrase;
+            if (summary.success_rate === 100) {
+                atlasSummaryPhrase = `Все готово. Завдання виконано повністю за ${Math.round(duration)} секунд`;
+            } else if (summary.success_rate >= 80) {
+                atlasSummaryPhrase = `Майже готово. Виконано ${summary.success_rate} відсотків завдання`;
+            } else if (summary.success_rate >= 50) {
+                atlasSummaryPhrase = `Частково виконано. ${summary.success_rate} відсотків готово, є проблеми`;
+            } else {
+                atlasSummaryPhrase = `Виникли проблеми. Виконано тільки ${summary.success_rate} відсотків`;
+            }
+            
+            await this._safeTTSSpeak(atlasSummaryPhrase, { mode: 'detailed', duration: 3000 });
 
             return summary;
 
@@ -363,10 +381,22 @@ export class MCPTodoManager {
                     // Apply adjustments
                     Object.assign(item, adjustment.updated_todo_item);
 
-                    await this._safeTTSSpeak('Коригую та повторюю...', { mode: 'normal', duration: 1000 });
+                    // ENHANCED 14.10.2025 NIGHT - Atlas speaks about adjustment strategy
+                    let atlasAdjustmentPhrase;
+                    if (adjustment.strategy === 'retry') {
+                        atlasAdjustmentPhrase = 'Пробую інший підхід';
+                    } else if (adjustment.strategy === 'alternative_approach') {
+                        atlasAdjustmentPhrase = 'Змінюю стратегію';
+                    } else if (adjustment.strategy === 'skip') {
+                        atlasAdjustmentPhrase = 'Пропускаю цей крок';
+                    } else {
+                        atlasAdjustmentPhrase = 'Коригую та повторюю';
+                    }
+                    
+                    await this._safeTTSSpeak(atlasAdjustmentPhrase, { mode: 'normal', duration: 1000 });
                 } else {
                     // Final attempt failed
-                    await this._safeTTSSpeak('❌ Помилка', { mode: 'quick', duration: 100 });
+                    await this._safeTTSSpeak('Не вдалось виконати', { mode: 'normal', duration: 800 });
                 }
 
             } catch (error) {
@@ -684,7 +714,26 @@ Execution Results: ${JSON.stringify(truncatedResults, null, 2)}
 
             const response = apiResponse.data.choices[0].message.content;
             const verification = this._parseVerification(response);
-            verification.tts_phrase = verification.verified ? '✅ Підтверджено' : '❌ Не підтверджено';
+            
+            // ENHANCED 14.10.2025 NIGHT - More informative Grisha verification phrases
+            if (verification.verified) {
+                // Grisha confirms with context
+                const mainAction = item.action.toLowerCase();
+                if (mainAction.includes('створ')) {
+                    verification.tts_phrase = 'Створення підтверджено';
+                } else if (mainAction.includes('відкр')) {
+                    verification.tts_phrase = 'Відкриття підтверджено';
+                } else if (mainAction.includes('збер')) {
+                    verification.tts_phrase = 'Збереження підтверджено';
+                } else if (mainAction.includes('введ')) {
+                    verification.tts_phrase = 'Введення підтверджено';
+                } else {
+                    verification.tts_phrase = 'Підтверджено';
+                }
+            } else {
+                // Grisha reports failure with context
+                verification.tts_phrase = 'Виконання не підтверджено';
+            }
 
             this.logger.system('mcp-todo', `[TODO] Verification result for item ${item.id}: ${verification.verified ? 'PASS' : 'FAIL'}`);
 
@@ -1069,18 +1118,27 @@ Context: ${JSON.stringify(context, null, 2)}
             // FIXED 14.10.2025 - Extract JSON from text if LLM added explanation
             // FIXED 14.10.2025 - Handle <think> tags from reasoning models (phi-4-reasoning)
             // FIXED 14.10.2025 - Aggressive extraction: handle unclosed tags and extract JSON
+            // FIXED 14.10.2025 NIGHT - Ultra-aggressive: cut at <think>, then extract JSON
             let cleanResponse = response;
             if (typeof response === 'string') {
-                // Step 1: Remove ALL <think> content (even unclosed tags)
-                // Match from <think> to </think>, or from <think> to end if no closing tag
-                cleanResponse = response
-                    .replace(/<think>[\s\S]*?(<\/think>|$)/gi, '')  // Remove <think> blocks (closed or unclosed)
+                // Step 1: ULTRA-AGGRESSIVE - cut everything from <think> onwards
+                // phi-4-reasoning sometimes doesn't close tags - just remove everything after <think>
+                const thinkIndex = response.indexOf('<think>');
+                if (thinkIndex !== -1) {
+                    // Cut before <think> - reasoning models put <think> FIRST
+                    cleanResponse = response.substring(0, thinkIndex).trim();
+                } else {
+                    cleanResponse = response;
+                }
+                
+                // Step 2: Clean markdown wrappers
+                cleanResponse = cleanResponse
                     .replace(/^```json\s*/i, '')  // Remove opening ```json
                     .replace(/^```\s*/i, '')       // Remove opening ```
                     .replace(/\s*```$/i, '')       // Remove closing ```
                     .trim();
 
-                // Step 2: Aggressive JSON extraction - find first { to last }
+                // Step 3: Aggressive JSON extraction - find first { to last }
                 // This handles cases where LLM adds text before/after JSON
                 const firstBrace = cleanResponse.indexOf('{');
                 const lastBrace = cleanResponse.lastIndexOf('}');
@@ -1088,8 +1146,16 @@ Context: ${JSON.stringify(context, null, 2)}
                 if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
                     cleanResponse = cleanResponse.substring(firstBrace, lastBrace + 1);
                 } else {
-                    // No JSON found in response
-                    throw new Error('No JSON object found in response (no curly braces)');
+                    // No JSON found in response - try to extract from original
+                    // Some models put JSON AFTER <think>, so try original response too
+                    const origFirstBrace = response.indexOf('{');
+                    const origLastBrace = response.lastIndexOf('}');
+                    
+                    if (origFirstBrace !== -1 && origLastBrace !== -1 && origLastBrace > origFirstBrace) {
+                        cleanResponse = response.substring(origFirstBrace, origLastBrace + 1);
+                    } else {
+                        throw new Error('No JSON object found in response (no curly braces)');
+                    }
                 }
             }
 
@@ -1117,24 +1183,40 @@ Context: ${JSON.stringify(context, null, 2)}
             // FIXED 13.10.2025 - Clean markdown wrappers before parsing
             // FIXED 14.10.2025 - Handle <think> tags from reasoning models
             // FIXED 14.10.2025 - Aggressive extraction: handle unclosed tags
+            // FIXED 14.10.2025 NIGHT - Ultra-aggressive: cut at <think>, then extract JSON
             let cleanResponse = response;
             if (typeof response === 'string') {
-                // Step 1: Remove ALL <think> content (even unclosed tags)
-                cleanResponse = response
-                    .replace(/<think>[\s\S]*?(<\/think>|$)/gi, '')  // Remove <think> blocks (closed or unclosed)
+                // Step 1: ULTRA-AGGRESSIVE - cut everything from <think> onwards
+                const thinkIndex = response.indexOf('<think>');
+                if (thinkIndex !== -1) {
+                    cleanResponse = response.substring(0, thinkIndex).trim();
+                } else {
+                    cleanResponse = response;
+                }
+                
+                // Step 2: Clean markdown wrappers
+                cleanResponse = cleanResponse
                     .replace(/^```json\s*/i, '')  // Remove opening ```json
                     .replace(/^```\s*/i, '')       // Remove opening ```
                     .replace(/\s*```$/i, '')       // Remove closing ```
                     .trim();
 
-                // Step 2: Aggressive JSON extraction - find first { to last }
+                // Step 3: Aggressive JSON extraction - find first { to last }
                 const firstBrace = cleanResponse.indexOf('{');
                 const lastBrace = cleanResponse.lastIndexOf('}');
                 
                 if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
                     cleanResponse = cleanResponse.substring(firstBrace, lastBrace + 1);
                 } else {
-                    throw new Error('No JSON object found in response (no curly braces)');
+                    // Try original response
+                    const origFirstBrace = response.indexOf('{');
+                    const origLastBrace = response.lastIndexOf('}');
+                    
+                    if (origFirstBrace !== -1 && origLastBrace !== -1 && origLastBrace > origFirstBrace) {
+                        cleanResponse = response.substring(origFirstBrace, origLastBrace + 1);
+                    } else {
+                        throw new Error('No JSON object found in response (no curly braces)');
+                    }
                 }
             }
 
@@ -1149,19 +1231,12 @@ Context: ${JSON.stringify(context, null, 2)}
             const truncatedResponse = typeof response === 'string' && response.length > 500 
                 ? response.substring(0, 500) + '... [truncated]' 
                 : response;
-            
-            this.logger.error(`[MCP-TODO] Failed to parse verification. Raw response: ${truncatedResponse}`, { 
-                category: 'mcp-todo', 
+            this.logger.error(`[MCP-TODO] Failed to parse verification. Raw response: ${truncatedResponse}`, {
+                category: 'mcp-todo',
                 component: 'mcp-todo',
-                parseError: error.message 
+                parseError: error.message
             });
-            
-            // Fallback: return failed verification with error details
-            return {
-                verified: false,
-                reason: `JSON parsing failed: ${error.message}`,
-                evidence: { parseError: error.message, responsePreview: truncatedResponse }
-            };
+            throw new Error(`Failed to parse verification: ${error.message}`);
         }
     }
 
@@ -1170,24 +1245,40 @@ Context: ${JSON.stringify(context, null, 2)}
             // FIXED 13.10.2025 - Clean markdown wrappers before parsing
             // FIXED 14.10.2025 - Extract JSON from text if LLM added explanation
             // FIXED 14.10.2025 - Aggressive extraction: handle unclosed tags
+            // FIXED 14.10.2025 NIGHT - Ultra-aggressive: cut at <think>, then extract JSON
             let cleanResponse = response;
             if (typeof response === 'string') {
-                // Step 1: Remove <think> tags
-                cleanResponse = response
-                    .replace(/<think>[\s\S]*?(<\/think>|$)/gi, '')
+                // Step 1: ULTRA-AGGRESSIVE - cut everything from <think> onwards
+                const thinkIndex = response.indexOf('<think>');
+                if (thinkIndex !== -1) {
+                    cleanResponse = response.substring(0, thinkIndex).trim();
+                } else {
+                    cleanResponse = response;
+                }
+                
+                // Step 2: Clean markdown wrappers
+                cleanResponse = cleanResponse
                     .replace(/^```json\s*/i, '')  // Remove opening ```json
                     .replace(/^```\s*/i, '')       // Remove opening ```
                     .replace(/\s*```$/i, '')       // Remove closing ```
                     .trim();
 
-                // Step 2: Aggressive JSON extraction - find first { to last }
+                // Step 3: Aggressive JSON extraction - find first { to last }
                 const firstBrace = cleanResponse.indexOf('{');
                 const lastBrace = cleanResponse.lastIndexOf('}');
                 
                 if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
                     cleanResponse = cleanResponse.substring(firstBrace, lastBrace + 1);
                 } else {
-                    throw new Error('No JSON object found in response (no curly braces)');
+                    // Fallback: Try original response
+                    const origFirstBrace = response.indexOf('{');
+                    const origLastBrace = response.lastIndexOf('}');
+                    
+                    if (origFirstBrace !== -1 && origLastBrace !== -1 && origLastBrace > origFirstBrace) {
+                        cleanResponse = response.substring(origFirstBrace, origLastBrace + 1);
+                    } else {
+                        throw new Error('No JSON object found in response (no curly braces)');
+                    }
                 }
             }
 
@@ -1198,27 +1289,67 @@ Context: ${JSON.stringify(context, null, 2)}
                 reasoning: parsed.reasoning || ''
             };
         } catch (error) {
-            this.logger.error(`[MCP-TODO] Failed to parse adjustment. Raw response: ${response}`, { category: 'mcp-todo', component: 'mcp-todo' });
+            const truncatedResponse = typeof response === 'string' && response.length > 500 
+                ? response.substring(0, 500) + '... [truncated]' 
+                : response;
+            this.logger.error(`[MCP-TODO] Failed to parse adjustment. Raw response: ${truncatedResponse}`, {
+                category: 'mcp-todo',
+                component: 'mcp-todo',
+                parseError: error.message
+            });
             throw new Error(`Failed to parse adjustment: ${error.message}`);
         }
     }
 
     _generatePlanTTS(plan, item) {
+        // ENHANCED 14.10.2025 NIGHT - More informative TTS phrases
+        const toolCount = plan.tool_calls.length;
         const actionVerb = item.action.split(' ')[0];
-        return `${actionVerb}...`;
+        
+        // Tetyana speaks about what she's planning to do
+        if (toolCount === 1) {
+            return `${actionVerb}`;
+        } else {
+            return `${actionVerb}, ${toolCount} кроки`;
+        }
     }
 
     _generateExecutionTTS(results, item, allSuccessful) {
+        // ENHANCED 14.10.2025 NIGHT - More informative Tetyana execution phrases
         if (allSuccessful) {
-            // Extract key result
+            // Extract key result with more context
             const mainAction = item.action.toLowerCase();
-            if (mainAction.includes('створ')) return 'Створено';
-            if (mainAction.includes('відкр')) return 'Відкрито';
-            if (mainAction.includes('збер')) return 'Збережено';
-            if (mainAction.includes('знайд')) return 'Знайдено';
-            return 'Готово';
+            
+            // Specific action feedback
+            if (mainAction.includes('створ') && mainAction.includes('файл')) {
+                return 'Файл створено';
+            }
+            if (mainAction.includes('відкр') && mainAction.includes('калькулятор')) {
+                return 'Калькулятор відкрито';
+            }
+            if (mainAction.includes('відкр') && mainAction.includes('браузер')) {
+                return 'Браузер відкрито';
+            }
+            if (mainAction.includes('збер')) {
+                return 'Дані збережено';
+            }
+            if (mainAction.includes('знайд')) {
+                return 'Знайдено';
+            }
+            if (mainAction.includes('введ') || mainAction.includes('ввод')) {
+                return 'Введено';
+            }
+            if (mainAction.includes('скріншот') || mainAction.includes('screenshot')) {
+                return 'Скріншот зроблено';
+            }
+            
+            // Generic successful execution
+            return 'Виконано';
         }
-        return 'Виконано частково';
+        
+        // Partial success - be specific
+        const successCount = results.filter(r => r.success).length;
+        return `Виконано ${successCount} з ${results.length}`;
     }
 
     /**
@@ -1238,6 +1369,31 @@ Context: ${JSON.stringify(context, null, 2)}
             }
         }
         // Silently skip if TTS not available
+    }
+
+    /**
+     * Extract short task description for Atlas TTS
+     * ADDED 14.10.2025 NIGHT - Atlas speaks more naturally
+     * 
+     * @param {string} request - User's original request
+     * @returns {string} Short task description
+     */
+    _extractTaskDescription(request) {
+        const lowerRequest = request.toLowerCase();
+        
+        // Extract main action keywords
+        if (lowerRequest.includes('калькулятор')) return 'калькулятор';
+        if (lowerRequest.includes('браузер')) return 'браузер';
+        if (lowerRequest.includes('файл')) return 'робота з файлами';
+        if (lowerRequest.includes('скріншот')) return 'скріншот';
+        if (lowerRequest.includes('знайд')) return 'пошук';
+        if (lowerRequest.includes('створ')) return 'створення';
+        if (lowerRequest.includes('відкр')) return 'відкриття';
+        if (lowerRequest.includes('збер')) return 'збереження';
+        
+        // Fallback: take first 3-4 words
+        const words = request.split(' ').slice(0, 4).join(' ');
+        return words.length > 30 ? words.substring(0, 30) + '...' : words;
     }
 
     _getPluralForm(count, one, few, many) {
