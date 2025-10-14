@@ -162,7 +162,7 @@ export function registerMCPWorkflowServices(container) {
     container.singleton('mcpManager', (c) => {
         const config = c.resolve('config');
         const serversConfig = config.AI_BACKEND_CONFIG?.providers?.mcp?.servers || {};
-        
+
         // Create MCPManager instance (doesn't start servers yet)
         // Actual initialization (spawning servers) happens in onInit hook
         return new MCPManager(serversConfig);
@@ -248,10 +248,11 @@ export function registerMCPProcessors(container) {
     container.singleton('tetyanaПlanToolsProcessor', (c) => {
         return new TetyanaПlanToolsProcessor({
             mcpTodoManager: c.resolve('mcpTodoManager'),
+            mcpManager: c.resolve('mcpManager'),
             logger: c.resolve('logger')
         });
     }, {
-        dependencies: ['mcpTodoManager', 'logger'],
+        dependencies: ['mcpTodoManager', 'mcpManager', 'logger'],
         metadata: { category: 'processors', priority: 40 }
     });
 
