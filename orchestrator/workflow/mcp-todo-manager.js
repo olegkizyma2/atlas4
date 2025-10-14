@@ -208,11 +208,9 @@ export class MCPTodoManager {
             this.logger.system('mcp-todo', `[TODO] Created ${todo.mode} TODO with ${todo.items.length} items (complexity: ${todo.complexity}/10)`);
 
             // Send chat message (ADDED 14.10.2025)
-            const itemsList = todo.items.map((item, idx) => `${idx + 1}. ${item.action}`).join('\n');
-            this._sendChatMessage(
-                `📋 План створено (${todo.items.length} ${this._getPluralForm(todo.items.length, 'пункт', 'пункти', 'пунктів')}):\n${itemsList}`,
-                'info'
-            );
+            const itemsList = todo.items.map((item, idx) => `  ${idx + 1}. ${item.action}`).join('\n');
+            const todoMessage = `📋 ${todo.mode === 'extended' ? 'Розширений' : 'Стандартний'} план виконання (${todo.items.length} ${this._getPluralForm(todo.items.length, 'пункт', 'пункти', 'пунктів')}):\n\n${itemsList}\n\n⏱️ Орієнтовний час виконання: ${Math.ceil(todo.items.length * 0.2)} ${todo.items.length === 1 ? 'хвилина' : 'хвилини'}`;
+            this._sendChatMessage(todoMessage, 'info');
 
             // TTS feedback (optional - skip if TTS not available)
             if (this.tts && typeof this.tts.speak === 'function') {
@@ -230,7 +228,8 @@ export class MCPTodoManager {
                         atlasPhrase = `Зрозумів, ${taskDescription}. Складне завдання, ${itemCount} кроків. Приступаю`;
                     }
                     
-                    await this._safeTTSSpeak(atlasPhrase, { mode: 'detailed', duration: 3000 });
+                    // FIXED 14.10.2025 NIGHT - Atlas voice for TODO announcement
+                    await this._safeTTSSpeak(atlasPhrase, { mode: 'detailed', duration: 3000, agent: 'atlas' });
                 } catch (ttsError) {
                     this.logger.warn(`[MCP-TODO] TTS feedback failed: ${ttsError.message}`, { category: 'mcp-todo', component: 'mcp-todo' });
                 }
@@ -299,6 +298,13 @@ export class MCPTodoManager {
             const duration = ((Date.now() - startTime) / 1000).toFixed(1);
             this.logger.system('mcp-todo', `[TODO] Execution completed in ${duration}s - Success: ${summary.success_rate}%`);
 
+            // Send final summary to chat (ADDED 14.10.2025 NIGHT)
+            const summaryEmoji = summary.success_rate === 100 ? '✅' : summary.success_rate >= 80 ? '⚠️' : '❌';
+            this._sendChatMessage(
+                `${summaryEmoji} Завершено: ${summary.success_rate}% успіху (${summary.completed}/${summary.total})`,
+                summary.success_rate === 100 ? 'success' : summary.success_rate >= 80 ? 'info' : 'error'
+            );
+
             // ENHANCED 14.10.2025 NIGHT - Atlas speaks about results with personality
             let atlasSummaryPhrase;
             if (summary.success_rate === 100) {
@@ -311,7 +317,8 @@ export class MCPTodoManager {
                 atlasSummaryPhrase = `Виникли проблеми. Виконано тільки ${summary.success_rate} відсотків`;
             }
             
-            await this._safeTTSSpeak(atlasSummaryPhrase, { mode: 'detailed', duration: 3000 });
+            // FIXED 14.10.2025 NIGHT - Atlas voice for final summary
+            await this._safeTTSSpeak(atlasSummaryPhrase, { mode: 'detailed', duration: 3000, agent: 'atlas' });
 
             return summary;
 
@@ -346,15 +353,16 @@ export class MCPTodoManager {
 
                 // Stage 2.1: Plan Tools (Tetyana)
                 const plan = await this.planTools(item, todo);
-                await this._safeTTSSpeak(plan.tts_phrase, { mode: 'quick', duration: 150 });
+                await this._safeTTSSpeak(plan.tts_phrase, { mode: 'quick', duration: 150, agent: 'tetyana' });
 
                 // Stage 2.2: Execute Tools (Tetyana)
                 const execution = await this.executeTools(plan, item);
-                await this._safeTTSSpeak(execution.tts_phrase, { mode: 'normal', duration: 800 });
+                await this._safeTTSSpeak(execution.tts_phrase, { mode: 'normal', duration: 800, agent: 'tetyana' });
 
                 // Stage 2.3: Verify Item (Grisha)
                 const verification = await this.verifyItem(item, execution);
-                await this._safeTTSSpeak(verification.tts_phrase, { mode: 'normal', duration: 800 });
+                // FIXED 14.10.2025 NIGHT - Grisha's voice for verification
+                await this._safeTTSSpeak(verification.tts_phrase, { mode: 'normal', duration: 800, agent: 'grisha' });
 
                 // Check verification result
                 if (verification.verified) {
@@ -365,7 +373,8 @@ export class MCPTodoManager {
                     this.logger.system('mcp-todo', `[TODO] ✅ Item ${item.id} completed on attempt ${attempt}`);
                     this._sendChatMessage(`✅ Виконано: ${item.action}`, 'success');  // ADDED 14.10.2025
 
-                    await this._safeTTSSpeak('✅ Виконано', { mode: 'quick', duration: 100 });
+                    // FIXED 14.10.2025 NIGHT - Grisha confirms success
+                    await this._safeTTSSpeak('✅ Виконано', { mode: 'quick', duration: 100, agent: 'grisha' });
 
                     return { status: 'completed', attempts: attempt, item };
                 }
@@ -1355,18 +1364,38 @@ Context: ${JSON.stringify(context, null, 2)}
     /**
      * Safe TTS helper - speaks only if TTS is available
      * FIXED 13.10.2025 - Added null-safety for TTS
+     * FIXED 14.10.2025 NIGHT - Pass wsManager for frontend TTS delivery
      * 
      * @param {string} phrase - Text to speak
      * @param {Object} options - TTS options (mode, duration)
+     * @param {string} [options.agent='tetyana'] - Agent name for voice
      * @returns {Promise<void>}
      */
     async _safeTTSSpeak(phrase, options = {}) {
+        // FIXED 14.10.2025 NIGHT - Always pass wsManager to TTS for frontend delivery
+        const ttsOptions = {
+            ...options,
+            wsManager: this.wsManager,
+            agent: options.agent || 'tetyana'  // Default to Tetyana for execution
+        };
+        
         if (this.tts && typeof this.tts.speak === 'function') {
             try {
-                await this.tts.speak(phrase, options);
+                this.logger.system('mcp-todo', `[TODO] 🔊 Requesting TTS: "${phrase}" (agent: ${ttsOptions.agent})`);
+                await this.tts.speak(phrase, ttsOptions);
+                this.logger.system('mcp-todo', `[TODO] ✅ TTS completed successfully`);
             } catch (ttsError) {
-                this.logger.warn(`[MCP-TODO] TTS failed: ${ttsError.message}`, { category: 'mcp-todo', component: 'mcp-todo' });
+                this.logger.warn(`[MCP-TODO] TTS failed: ${ttsError.message}`, { 
+                    category: 'mcp-todo', 
+                    component: 'mcp-todo',
+                    stack: ttsError.stack
+                });
             }
+        } else {
+            this.logger.warn(`[MCP-TODO] TTS not available - skipping phrase: "${phrase}"`, { 
+                category: 'mcp-todo', 
+                component: 'mcp-todo'
+            });
         }
         // Silently skip if TTS not available
     }

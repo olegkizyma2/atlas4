@@ -82,6 +82,7 @@ export class TTSSyncManager {
 
     /**
      * Speak phrase with mode and duration
+     * FIXED 14.10.2025 NIGHT - Send to WebSocket for frontend TTS instead of skipping
      * 
      * @param {string} phrase - Text to speak
      * @param {Object} options - Speech options
@@ -89,6 +90,8 @@ export class TTSSyncManager {
      * @param {number} [options.duration] - Max duration (overrides mode default)
      * @param {number} [options.priority] - Custom priority (overrides mode default)
      * @param {boolean} [options.skipIfBusy=false] - Skip if queue is full (for quick mode)
+     * @param {Object} [options.wsManager] - WebSocket Manager for sending to frontend
+     * @param {string} [options.agent='tetyana'] - Agent name for TTS voice
      * @returns {Promise<void>}
      */
     async speak(phrase, options = {}) {
@@ -96,21 +99,24 @@ export class TTSSyncManager {
             mode = 'normal',
             duration,
             priority,
-            skipIfBusy = false
+            skipIfBusy = false,
+            wsManager = null,
+            agent = 'tetyana'
         } = options;
 
-        // Validate mode
-        if (!this.config.modes[mode]) {
-            this.logger.error(`[TTS-SYNC] Invalid mode: ${mode}, defaulting to normal`, { category: 'tts-sync', component: 'tts-sync' });
-            mode = 'normal';
+        // FIXED 14.10.2025 NIGHT - Validate mode and fix typo
+        let validMode = mode;
+        if (!this.config.modes[validMode]) {
+            this.logger.error(`[TTS-SYNC] Invalid mode: ${validMode}, defaulting to normal`, { category: 'tts-sync', component: 'tts-sync' });
+            validMode = 'normal';
         }
 
-        const modeConfig = this.config.modes[mode];
+        const modeConfig = this.config.modes[validMode];
         const finalDuration = duration || modeConfig.maxDuration;
         const finalPriority = priority || modeConfig.priority;
 
         // Smart skipping for quick phrases when queue is full
-        if (mode === 'quick' && this.config.skipQuickIfQueueFull && this.queue.length >= 2) {
+        if (validMode === 'quick' && this.config.skipQuickIfQueueFull && this.queue.length >= 2) {
             this.logger.system('tts-sync', `[TTS-SYNC] ⏭️ Skipping quick phrase (queue busy): "${phrase}"`);
             return Promise.resolve();
         }
@@ -121,10 +127,37 @@ export class TTSSyncManager {
             return Promise.resolve();
         }
 
-        // Create queue item
+        // FIXED 14.10.2025 NIGHT - Send to frontend TTS via WebSocket
+        if (wsManager) {
+            try {
+                this.logger.system('tts-sync', `[TTS-SYNC] 🔊 Sending TTS to frontend: "${phrase}" (agent: ${agent}, mode: ${validMode})`);
+                wsManager.broadcastToSubscribers('chat', 'agent_message', {
+                    content: phrase,
+                    agent: agent,
+                    ttsContent: phrase,
+                    mode: validMode,
+                    messageId: `tts_${Date.now()}`
+                });
+                
+                // Simulate delay based on phrase length for synchronization
+                const estimatedDuration = Math.min(phrase.length * 50, finalDuration);
+                await new Promise(resolve => setTimeout(resolve, estimatedDuration));
+                
+                this.logger.system('tts-sync', `[TTS-SYNC] ✅ TTS sent successfully (estimated: ${estimatedDuration}ms)`);
+                return Promise.resolve();
+            } catch (error) {
+                this.logger.error(`[TTS-SYNC] Failed to send TTS via WebSocket: ${error.message}`, { 
+                    category: 'tts-sync', 
+                    component: 'tts-sync',
+                    stack: error.stack
+                });
+            }
+        }
+
+        // Fallback: Create queue item (original logic)
         const queueItem = {
             phrase,
-            mode,
+            mode: validMode,
             duration: finalDuration,
             priority: finalPriority,
             stage: this.currentStage,
@@ -140,7 +173,7 @@ export class TTSSyncManager {
         // Add to queue (maintain priority order)
         this._addToQueue(queueItem);
 
-        this.logger.system('tts-sync', `[TTS-SYNC] 📝 Queued [${mode}] "${phrase}" (priority: ${finalPriority}, duration: ${finalDuration}ms, queue: ${this.queue.length})`);
+        this.logger.system('tts-sync', `[TTS-SYNC] 📝 Queued [${validMode}] "${phrase}" (priority: ${finalPriority}, duration: ${finalDuration}ms, queue: ${this.queue.length})`);
 
         // Start processing if not already
         if (!this.isProcessing) {
