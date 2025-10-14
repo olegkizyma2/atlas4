@@ -158,14 +158,14 @@ export class MCPTodoManager {
                         { mode: 'detailed', duration: 2500 }
                     );
                 } catch (ttsError) {
-                    this.logger.warn('mcp-todo', `[TODO] TTS feedback failed: ${ttsError.message}`);
+                    this.logger.warn(`[MCP-TODO] TTS feedback failed: ${ttsError.message}`, { category: 'mcp-todo', component: 'mcp-todo' });
                 }
             }
 
             return todo;
 
         } catch (error) {
-            this.logger.error('mcp-todo', `[TODO] Failed to create TODO: ${error.message}`);
+            this.logger.error(`[MCP-TODO] Failed to create TODO: ${error.message}`, { category: 'mcp-todo', component: 'mcp-todo' });
             throw new Error(`TODO creation failed: ${error.message}`);
         }
     }
@@ -197,7 +197,7 @@ export class MCPTodoManager {
 
                 // Check dependencies
                 if (!this._checkDependencies(item, todo)) {
-                    this.logger.warn('mcp-todo', `[TODO] Item ${item.id} skipped - dependencies not met`);
+                    this.logger.warn(`[MCP-TODO] Item ${item.id} skipped - dependencies not met`, { category: 'mcp-todo', component: 'mcp-todo' });
                     item.status = 'skipped';
                     continue;
                 }
@@ -234,7 +234,7 @@ export class MCPTodoManager {
             return summary;
 
         } catch (error) {
-            this.logger.error('mcp-todo', `[TODO] Execution failed: ${error.message}`);
+            this.logger.error(`[MCP-TODO] Execution failed: ${error.message}`, { category: 'mcp-todo', component: 'mcp-todo' });
             throw error;
         }
     }
@@ -284,7 +284,7 @@ export class MCPTodoManager {
                 }
 
                 // Verification failed
-                this.logger.warn('mcp-todo', `[TODO] Item ${item.id} verification failed: ${verification.reason}`);
+                this.logger.warn(`[MCP-TODO] Item ${item.id} verification failed: ${verification.reason}`, { category: 'mcp-todo', component: 'mcp-todo' });
                 lastError = verification.reason;
 
                 // Stage 3: Adjust TODO (if attempts remain)
@@ -301,7 +301,7 @@ export class MCPTodoManager {
                 }
 
             } catch (error) {
-                this.logger.error('mcp-todo', `[TODO] Item ${item.id} attempt ${attempt} error: ${error.message}`);
+                this.logger.error(`[MCP-TODO] Item ${item.id} attempt ${attempt} error: ${error.message}`, { category: 'mcp-todo', component: 'mcp-todo' });
                 lastError = error.message;
 
                 if (attempt >= item.max_attempts) {
@@ -317,7 +317,7 @@ export class MCPTodoManager {
         item.status = 'failed';
         item.execution_results = { error: lastError };
 
-        this.logger.error('mcp-todo', `[TODO] ❌ Item ${item.id} failed after ${item.max_attempts} attempts`);
+        this.logger.error(`[MCP-TODO] ❌ Item ${item.id} failed after ${item.max_attempts} attempts`, { category: 'mcp-todo', component: 'mcp-todo' });
 
         return { status: 'failed', attempts: item.max_attempts, item, error: lastError };
     }
@@ -335,11 +335,21 @@ export class MCPTodoManager {
         try {
             // DIAGNOSTIC: Check mcpManager before using
             if (!this.mcpManager) {
-                this.logger.error('mcp-todo', `[TODO] MCP Manager is null in planTools!`);
+                // FIXED 14.10.2025 - Use correct logger signature for error() method
+                this.logger.error(`[MCP-TODO] MCP Manager is null in planTools!`, {
+                    category: 'mcp-todo',
+                    component: 'mcp-todo'
+                });
                 throw new Error('MCP Manager is not initialized (null) in planTools. Check DI registration and service instantiation.');
             }
             if (typeof this.mcpManager.listTools !== 'function') {
-                this.logger.error('mcp-todo', `[TODO] MCP Manager missing listTools method! Type: ${typeof this.mcpManager.listTools}`);
+                // FIXED 14.10.2025 - Use correct logger signature for error() method
+                this.logger.error(`[MCP-TODO] MCP Manager missing listTools method! Type: ${typeof this.mcpManager.listTools}`, {
+                    category: 'mcp-todo',
+                    component: 'mcp-todo',
+                    mcpManagerType: typeof this.mcpManager,
+                    listToolsType: typeof this.mcpManager.listTools
+                });
                 throw new Error('MCP Manager does not have listTools() method. Check implementation and DI registration.');
             }
             // Get available MCP tools
@@ -398,7 +408,14 @@ Previous items: ${JSON.stringify(todo.items.slice(0, item.id - 1).map(i => ({ id
                 this.logger.system('mcp-todo', `[TODO] LLM API responded successfully`);
 
             } catch (apiError) {
-                this.logger.error('mcp-todo', `[TODO] LLM API call failed: ${apiError.message}`);
+                // FIXED 14.10.2025 - Use correct logger signature for error() method
+                this.logger.error(`[MCP-TODO] LLM API call failed: ${apiError.message}`, {
+                    category: 'mcp-todo',
+                    component: 'mcp-todo',
+                    errorName: apiError.name,
+                    code: apiError.code,
+                    stack: apiError.stack
+                });
                 if (apiError.code === 'ECONNREFUSED') {
                     throw new Error('LLM API not available at localhost:4000. Start it with: ./start-llm-api-4000.sh');
                 }
@@ -420,15 +437,26 @@ Previous items: ${JSON.stringify(todo.items.slice(0, item.id - 1).map(i => ({ id
 
             // DIAGNOSTIC: Check if tool_calls is empty
             if (!plan.tool_calls || plan.tool_calls.length === 0) {
-                this.logger.warn('mcp-todo', `[TODO] Warning: No tool calls in plan! Plan: ${JSON.stringify(plan)}`);
+                // FIXED 14.10.2025 - Use correct logger signature for warn() method
+                this.logger.warn(`[MCP-TODO] Warning: No tool calls in plan! Plan: ${JSON.stringify(plan)}`, {
+                    category: 'mcp-todo',
+                    component: 'mcp-todo',
+                    plan
+                });
                 throw new Error('No tool calls generated - plan is empty');
             }
 
             return plan;
 
         } catch (error) {
-            this.logger.error('mcp-todo', `[TODO] Failed to plan tools for item ${item.id}: ${error.message}`);
-            this.logger.error('mcp-todo', `[TODO] Error stack: ${error.stack}`);
+            // FIXED 14.10.2025 - Use correct logger signature for error() method
+            this.logger.error(`[MCP-TODO] Failed to plan tools for item ${item.id}: ${error.message}`, {
+                category: 'mcp-todo',
+                component: 'mcp-todo',
+                itemId: item.id,
+                errorName: error.name,
+                stack: error.stack
+            });
             throw new Error(`Tool planning failed: ${error.message}`);
         }
     }
@@ -465,10 +493,14 @@ Previous items: ${JSON.stringify(todo.items.slice(0, item.id - 1).map(i => ({ id
 
             } catch (error) {
                 // Enhanced diagnostics: include stack and toolCall metadata
-                this.logger.error('mcp-todo', `[TODO] Tool ${toolCall.tool} failed: ${error.message}`, {
+                // FIXED 14.10.2025 - Use correct logger signature for error() method
+                this.logger.error(`[MCP-TODO] Tool ${toolCall.tool} on ${toolCall.server} failed: ${error.message}`, {
+                    category: 'mcp-todo',
+                    component: 'mcp-todo',
                     toolCall,
                     server: toolCall.server,
                     itemId: item.id,
+                    errorName: error.name,
                     stack: error.stack
                 });
 
@@ -554,7 +586,14 @@ Execution Results: ${JSON.stringify(execution.results, null, 2)}
             return verification;
             
         } catch (error) {
-            this.logger.error('mcp-todo', `[TODO] Failed to verify item ${item.id}: ${error.message}`);
+            // FIXED 14.10.2025 - Use correct logger signature for error() method
+            this.logger.error(`[MCP-TODO] Failed to verify item ${item.id}: ${error.message}`, {
+                category: 'mcp-todo',
+                component: 'mcp-todo',
+                itemId: item.id,
+                errorName: error.name,
+                stack: error.stack
+            });
             throw new Error(`Verification failed: ${error.message}`);
         }
     }
@@ -618,7 +657,7 @@ Attempt: ${attempt}/${item.max_attempts}
             return adjustment;
             
         } catch (error) {
-            this.logger.error('mcp-todo', `[TODO] Failed to adjust item ${item.id}: ${error.message}`);
+            this.logger.error(`[MCP-TODO] Failed to adjust item ${item.id}: ${error.message}`, { category: 'mcp-todo', component: 'mcp-todo' });
             throw new Error(`Adjustment failed: ${error.message}`);
         }
     }
@@ -639,7 +678,7 @@ Attempt: ${attempt}/${item.max_attempts}
             const depItem = todo.items.find(i => i.id === depId);
             
             if (!depItem || depItem.status !== 'completed') {
-                this.logger.warn('mcp-todo', `[TODO] Dependency ${depId} not completed for item ${item.id}`);
+                this.logger.warn(`[MCP-TODO] Dependency ${depId} not completed for item ${item.id}`, { category: 'mcp-todo', component: 'mcp-todo' });
                 return false;
             }
         }
@@ -707,7 +746,7 @@ Results: ${JSON.stringify(todo.items.map(i => ({
 
             llmText = apiResponse.data?.choices?.[0]?.message?.content || '';
         } catch (err) {
-            this.logger.warn('mcp-todo', `[TODO] LLM summary generation failed: ${err.message}`, { stack: err.stack });
+            this.logger.warn(`[MCP-TODO] LLM summary generation failed: ${err.message}`, { category: 'mcp-todo', component: 'mcp-todo', stack: err.stack });
             // Fallback: create a minimal summary based on counts
             llmText = `Summary generation failed: ${err.message}. Completed ${completedItems.length}/${todo.items.length} items.`;
         }
@@ -808,7 +847,7 @@ Context: ${JSON.stringify(context, null, 2)}
         }
 
         if (todo.mode === 'standard' && todo.items.length > 3) {
-            this.logger.warn('mcp-todo', `[TODO] Standard mode has ${todo.items.length} items (recommended 1-3)`);
+            this.logger.warn(`[MCP-TODO] Standard mode has ${todo.items.length} items (recommended 1-3)`, { category: 'mcp-todo', component: 'mcp-todo' });
         }
 
         if (todo.mode === 'extended' && todo.items.length > 10) {
@@ -846,7 +885,7 @@ Context: ${JSON.stringify(context, null, 2)}
                 reasoning: parsed.reasoning || ''
             };
         } catch (error) {
-            this.logger.error('mcp-todo', `[TODO] Failed to parse tool plan. Raw response: ${response}`);
+            this.logger.error(`[MCP-TODO] Failed to parse tool plan. Raw response: ${response}`, { category: 'mcp-todo', component: 'mcp-todo' });
             throw new Error(`Failed to parse tool plan: ${error.message}`);
         }
     }
@@ -870,7 +909,7 @@ Context: ${JSON.stringify(context, null, 2)}
                 evidence: parsed.evidence || {}
             };
         } catch (error) {
-            this.logger.error('mcp-todo', `[TODO] Failed to parse verification. Raw response: ${response}`);
+            this.logger.error(`[MCP-TODO] Failed to parse verification. Raw response: ${response}`, { category: 'mcp-todo', component: 'mcp-todo' });
             throw new Error(`Failed to parse verification: ${error.message}`);
         }
     }
@@ -894,7 +933,7 @@ Context: ${JSON.stringify(context, null, 2)}
                 reasoning: parsed.reasoning || ''
             };
         } catch (error) {
-            this.logger.error('mcp-todo', `[TODO] Failed to parse adjustment. Raw response: ${response}`);
+            this.logger.error(`[MCP-TODO] Failed to parse adjustment. Raw response: ${response}`, { category: 'mcp-todo', component: 'mcp-todo' });
             throw new Error(`Failed to parse adjustment: ${error.message}`);
         }
     }
@@ -930,7 +969,7 @@ Context: ${JSON.stringify(context, null, 2)}
             try {
                 await this.tts.speak(phrase, options);
             } catch (ttsError) {
-                this.logger.warn('mcp-todo', `[TODO] TTS failed: ${ttsError.message}`);
+                this.logger.warn(`[MCP-TODO] TTS failed: ${ttsError.message}`, { category: 'mcp-todo', component: 'mcp-todo' });
             }
         }
         // Silently skip if TTS not available

@@ -54,7 +54,9 @@ export class TetyanaПlanToolsProcessor {
             // Get available MCP tools
             const availableTools = await this._getAvailableTools();
 
-            this.logger.system('tetyana-plan-tools', `[STAGE-2.1-MCP] Available MCP servers: ${availableTools.map(t => t.server).join(', ')}`);
+            // FIXED 14.10.2025 - Log unique server names only, not all tool instances
+            const uniqueServers = [...new Set(availableTools.map(t => t.server))];
+            this.logger.system('tetyana-plan-tools', `[STAGE-2.1-MCP] Available MCP servers: ${uniqueServers.join(', ')} (${availableTools.length} tools total)`);
 
             // Plan tools using MCPTodoManager
             this.logger.system('tetyana-plan-tools', `[STAGE-2.1-MCP] Calling mcpTodoManager.planTools()...`);
@@ -83,7 +85,7 @@ export class TetyanaПlanToolsProcessor {
             const validation = this._validatePlan(plan, availableTools);
 
             if (!validation.valid) {
-                this.logger.warn('tetyana-plan-tools', `[STAGE-2.1-MCP] ⚠️ Plan validation issues: ${validation.issues.join(', ')}`);
+                this.logger.warn(`[STAGE-2.1-MCP] ⚠️ Plan validation issues: ${validation.issues.join(', ')}`, { category: 'tetyana-plan-tools', component: 'tetyana-plan-tools' });
             }
 
             // Generate summary
@@ -103,8 +105,8 @@ export class TetyanaПlanToolsProcessor {
             };
 
         } catch (error) {
-            this.logger.error('tetyana-plan-tools', `[STAGE-2.1-MCP] ❌ Tool planning failed: ${error.message}`);
-            this.logger.error('tetyana-plan-tools', error.stack);
+            this.logger.error(`[STAGE-2.1-MCP] ❌ Tool planning failed: ${error.message}`, { category: 'tetyana-plan-tools', component: 'tetyana-plan-tools' });
+            this.logger.error(`Stack trace: ${error.stack}`, { category: 'tetyana-plan-tools', component: 'tetyana-plan-tools' });
 
             return {
                 success: false,
@@ -131,7 +133,7 @@ export class TetyanaПlanToolsProcessor {
             const tools = await this.mcpManager.getAvailableTools();
             
             if (!tools || tools.length === 0) {
-                this.logger.warn('tetyana-plan-tools', '[STAGE-2.1-MCP] No MCP tools available, using default list');
+                this.logger.warn(`[STAGE-2.1-MCP] No MCP tools available, using default list`, { category: 'tetyana-plan-tools', component: 'tetyana-plan-tools' });
                 
                 // Return default tool list if MCPManager not ready
                 return this._getDefaultTools();
@@ -140,7 +142,7 @@ export class TetyanaПlanToolsProcessor {
             return tools;
 
         } catch (error) {
-            this.logger.warn('tetyana-plan-tools', `[STAGE-2.1-MCP] Failed to get tools from MCPManager: ${error.message}`);
+            this.logger.warn(`[STAGE-2.1-MCP] Failed to get tools from MCPManager: ${error.message}`, { category: 'tetyana-plan-tools', component: 'tetyana-plan-tools' });
             
             // Fallback to default tools
             return this._getDefaultTools();
@@ -149,6 +151,7 @@ export class TetyanaПlanToolsProcessor {
 
     /**
      * Get default tool list (fallback when MCPManager unavailable)
+     * FIXED 14.10.2025 - Removed non-existent 'computercontroller', added real 'shell' server
      * 
      * @returns {Array} Default tools
      * @private
@@ -172,12 +175,9 @@ export class TetyanaПlanToolsProcessor {
             { server: 'playwright', tool: 'browser_scrape', description: 'Scrape page data' },
             { server: 'playwright', tool: 'browser_screenshot', description: 'Take screenshot' },
 
-            // Computer Controller tools
-            { server: 'computercontroller', tool: 'web_scrape', description: 'Scrape website' },
-            { server: 'computercontroller', tool: 'screenshot', description: 'Take system screenshot' },
-            { server: 'computercontroller', tool: 'execute_command', description: 'Execute shell command' },
-            { server: 'computercontroller', tool: 'mouse_click', description: 'Click at coordinates' },
-            { server: 'computercontroller', tool: 'keyboard_type', description: 'Type text' }
+            // Shell tools (REAL server that exists in MCP config)
+            { server: 'shell', tool: 'run_shell_command', description: 'Execute shell command' },
+            { server: 'shell', tool: 'run_applescript', description: 'Execute AppleScript for Mac automation' }
         ];
     }
 
