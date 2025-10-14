@@ -1,6 +1,6 @@
 # ATLAS v4.0 - Adaptive Task and Learning Assistant System
 
-**LAST UPDATED:** 14 жовтня 2025 - Ніч ~03:15 (MCP Tools Array Fix - TypeError Prevention)
+**LAST UPDATED:** 14 жовтня 2025 - Ніч ~04:00 (MCP Tool Execution Fix - Complete Workflow Stabilization)
 
 ---
 
@@ -323,6 +323,87 @@ ATLAS is an intelligent multi-agent orchestration system with Flask web frontend
 ---
 
 ## 🎯 КЛЮЧОВІ ОСОБЛИВОСТІ СИСТЕМИ
+
+### ✅ MCP Tool Execution Complete Fix (FIXED 14.10.2025 - ніч ~04:00)
+- **Проблема #1:** `executeTool()` method signature mismatch - caller passed 3 params, method accepted 2
+- **Проблема #2:** Logger error/warn calls losing metadata - всі помилки показували `{"metadata":{}}`
+- **Проблема #3:** Fictional 'computercontroller' server in default tools - LLM recommend tools що НЕ існують
+- **Симптом #1:** 0% tool execution success rate - ВСІ tool calls falling
+- **Симптом #2:** Empty error logs - неможливо діагностувати проблеми
+- **Симптом #3:** `Tool computercontroller not available` × багато разів, хоча LLM рекомендував
+- **Логі:** 
+  ```
+  [TODO] Calling execute_command on computercontroller
+  ERROR mcp-todo {"metadata":{}}
+  Available MCP servers: filesystem, filesystem, ... computercontroller, computercontroller, ...
+  ```
+- **Корінь #1:** Method `executeTool(toolName, parameters)` але caller викликав `executeTool(serverName, toolName, parameters)`
+- **Корінь #2:** Logger methods мають різні signatures: `system(component, msg, meta)` vs `error(msg, meta)` - неправильне використання
+- **Корінь #3:** Default tools list містив 'computercontroller' (5 tools) який НЕ є MCP server, тільки Goose extension
+- **Рішення #1:** Змінено signature на `executeTool(serverName, toolName, parameters)` + прямий lookup через `servers.get(serverName)`
+  ```javascript
+  // FIXED 14.10.2025
+  async executeTool(serverName, toolName, parameters) {
+    const server = this.servers.get(serverName);  // Direct lookup by name
+    if (!server) {
+      const available = Array.from(this.servers.keys()).join(', ');
+      throw new Error(`MCP server '${serverName}' not found. Available: ${available}`);
+    }
+    // Check tool exists on server
+    if (!server.tools.some(t => t.name === toolName)) {
+      const tools = server.tools.map(t => t.name).join(', ');
+      throw new Error(`Tool '${toolName}' not on '${serverName}'. Available: ${tools}`);
+    }
+    return await server.call(toolName, parameters);
+  }
+  ```
+- **Рішення #2:** Виправлено ВСІ logger.error/warn calls:
+  ```javascript
+  // ❌ WRONG
+  this.logger.error('mcp-todo', `[TODO] Failed: ${error.message}`, { metadata });
+  
+  // ✅ CORRECT
+  this.logger.error(`[MCP-TODO] Failed: ${error.message}`, {
+    category: 'mcp-todo',
+    component: 'mcp-todo',
+    errorName: error.name,
+    stack: error.stack
+  });
+  ```
+- **Рішення #3:** Замінено fictional 'computercontroller' на real 'shell' server:
+  ```javascript
+  // ❌ REMOVED
+  { server: 'computercontroller', tool: 'execute_command', ... }
+  
+  // ✅ ADDED
+  { server: 'shell', tool: 'run_shell_command', description: 'Execute shell command' }
+  { server: 'shell', tool: 'run_applescript', description: 'Execute AppleScript' }
+  ```
+- **Рішення #4:** Покращено logging - показує унікальні server names:
+  ```javascript
+  const uniqueServers = [...new Set(availableTools.map(t => t.server))];
+  logger.system('...', `Available: ${uniqueServers.join(', ')} (${availableTools.length} tools)`);
+  ```
+- **Виправлено:** 
+  - `orchestrator/ai/mcp-manager.js` - executeTool() signature + better errors
+  - `orchestrator/workflow/mcp-todo-manager.js` - 15+ logger calls
+  - `orchestrator/workflow/tts-sync-manager.js` - 5 logger calls
+  - `orchestrator/workflow/stages/tetyana-plan-tools-processor.js` - logger + default tools + unique servers
+  - `orchestrator/workflow/stages/tetyana-execute-tools-processor.js` - logger calls
+  - `orchestrator/workflow/stages/grisha-verify-item-processor.js` - logger calls
+- **Результат:**
+  - ✅ Tool execution success rate: 0% → 80%+ (очікується)
+  - ✅ Error logs тепер містять full context (stack, metadata, available options)
+  - ✅ LLM рекомендує ТІЛЬКИ real servers (filesystem, playwright, shell, memory, git)
+  - ✅ Better error messages: "Server 'X' not found. Available: A, B, C"
+  - ✅ Clean logging: "Available: filesystem, playwright, shell (64 tools)" замість duplicates
+- **Критично:**
+  - **ЗАВЖДИ** перевіряйте що default tools містять ТІЛЬКИ real MCP servers
+  - **Logger signatures:** `system(comp, msg, meta)` але `error/warn(msg, meta)` - НЕ плутайте!
+  - **executeTool:** ЗАВЖДИ викликати з (serverName, toolName, params) - 3 params!
+  - **Error messages:** ЗАВЖДИ показувати available options для швидкого debugging
+  - **'computercontroller'** НЕ є MCP server - це Goose extension, use 'shell' instead
+- **Детально:** `docs/MCP_STABILIZATION_FIXES_2025-10-14.md`
 
 ### ✅ MCP Tools Array Fix (FIXED 14.10.2025 - ніч ~03:15)
 - **Проблема:** `server.tools.some is not a function` - MCP tools НЕ були масивом → всі tool виклики падали

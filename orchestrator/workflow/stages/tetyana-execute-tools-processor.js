@@ -104,8 +104,8 @@ export class TetyanaExecuteToolsProcessor {
             };
 
         } catch (error) {
-            this.logger.error('tetyana-execute-tools', `[STAGE-2.2-MCP] ❌ Execution failed: ${error.message}`);
-            this.logger.error('tetyana-execute-tools', error.stack);
+            this.logger.error(`[STAGE-2.2-MCP] ❌ Execution failed: ${error.message}`, { category: 'tetyana-execute-tools', component: 'tetyana-execute-tools' });
+            this.logger.error(`Stack trace: ${error.stack}`, { category: 'tetyana-execute-tools', component: 'tetyana-execute-tools' });
 
             return {
                 success: false,

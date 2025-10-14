@@ -423,20 +423,38 @@ export class MCPManager {
 
   /**
    * Викликати tool на відповідному server
+   * FIXED 14.10.2025 - Changed signature to accept (serverName, toolName, parameters)
+   * instead of using findServerForTool which was causing issues
    * 
-   * @param {string} toolName - Назва tool (напр. "filesystem__createFile")
+   * @param {string} serverName - Назва server (напр. "filesystem")
+   * @param {string} toolName - Назва tool (напр. "createFile")
    * @param {Object} parameters - Параметри для tool
    * @returns {Promise<Object>} Результат виконання
    */
-  async executeTool(toolName, parameters) {
-    // Знайти server який має цей tool
-    const server = this.findServerForTool(toolName);
+  async executeTool(serverName, toolName, parameters) {
+    // Знайти server за назвою
+    const server = this.servers.get(serverName);
 
     if (!server) {
-      throw new Error(`Tool ${toolName} not available in any MCP server`);
+      // FIXED 14.10.2025 - Better error message with list of available servers
+      const availableServers = Array.from(this.servers.keys()).join(', ');
+      throw new Error(`MCP server '${serverName}' not found. Available servers: ${availableServers}`);
     }
 
-    logger.debug('mcp-manager', `[MCP Manager] Executing ${toolName} on ${server.name}`);
+    if (!server.ready) {
+      throw new Error(`MCP server ${serverName} not ready`);
+    }
+
+    // Check if tool exists on server
+    if (!Array.isArray(server.tools) || !server.tools.some(t => t.name === toolName)) {
+      // FIXED 14.10.2025 - Better error message with list of available tools
+      const availableTools = Array.isArray(server.tools) 
+        ? server.tools.map(t => t.name).join(', ') 
+        : 'none';
+      throw new Error(`Tool '${toolName}' not available on server '${serverName}'. Available tools: ${availableTools}`);
+    }
+
+    logger.debug('mcp-manager', `[MCP Manager] Executing ${toolName} on ${serverName}`);
 
     const result = await server.call(toolName, parameters);
 
