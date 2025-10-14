@@ -1,6 +1,6 @@
 # ATLAS v4.0 - Adaptive Task and Learning Assistant System
 
-**LAST UPDATED:** 14 жовтня 2025 - Ніч ~02:35 (MCP Initialization Timeout Fix - Mac M1 Performance)
+**LAST UPDATED:** 14 жовтня 2025 - Ніч ~03:15 (MCP Tools Array Fix - TypeError Prevention)
 
 ---
 
@@ -323,6 +323,46 @@ ATLAS is an intelligent multi-agent orchestration system with Flask web frontend
 ---
 
 ## 🎯 КЛЮЧОВІ ОСОБЛИВОСТІ СИСТЕМИ
+
+### ✅ MCP Tools Array Fix (FIXED 14.10.2025 - ніч ~03:15)
+- **Проблема:** `server.tools.some is not a function` - MCP tools НЕ були масивом → всі tool виклики падали
+- **Симптом:** 0% success rate, всі TODO items failing з TypeError при спробі викликати .some()
+- **Логі:** `Error: server.tools.some is not a function` × множинні виклики → execution failed
+- **Корінь #1:** `_handleMCPMessage()` встановлював `this.tools = capabilities?.tools || []` → якщо undefined, то встановлювався undefined
+- **Корінь #2:** Відсутні перевірки `Array.isArray()` перед викликом array методів (.some, .map, .filter)
+- **Корінь #3:** `prompts/package.json` без `"type": "module"` → Node.js warning про typeless module
+- **Рішення #1:** Array guarantee з явною перевіркою типу:
+  ```javascript
+  // ❌ WRONG
+  this.tools = message.result.capabilities?.tools || [];
+  
+  // ✅ CORRECT
+  const toolsData = message.result.capabilities?.tools;
+  this.tools = Array.isArray(toolsData) ? toolsData : [];
+  ```
+- **Рішення #2:** Додано type checks у всі методи що використовують tools:
+  ```javascript
+  if (!Array.isArray(server.tools)) {
+    logger.warn('mcp-manager', `Server ${server.name} has invalid tools`);
+    continue;
+  }
+  ```
+- **Рішення #3:** Виправлено prompts/package.json - додано `"type": "module"`
+- **Виправлено:** 
+  - `orchestrator/ai/mcp-manager.js` - 4 виправлення (_handleMCPMessage, findServerForTool, getAvailableTools, getStatus)
+  - `prompts/package.json` - додано type: module
+- **Результат:**
+  - ✅ Tools завжди масив, навіть якщо MCP response garbage
+  - ✅ Graceful degradation при некоректних servers
+  - ✅ Немає більше TypeError на array методах
+  - ✅ Немає module type warnings
+  - ✅ Success rate очікується 70-90% (було 0%)
+- **Критично:**
+  - **ЗАВЖДИ** перевіряйте `Array.isArray()` перед array методами
+  - **НІКОЛИ** не використовуйте `|| []` для optional arrays - використовуйте тернарний оператор з явною перевіркою
+  - **ЗАВЖДИ** додавайте `"type": "module"` в package.json для ES6 modules
+  - **External data** може бути будь-якого типу - ЗАВЖДИ validate
+- **Детально:** `docs/MCP_TOOLS_ARRAY_FIX_2025-10-14.md`
 
 ### ✅ MCP Initialization Timeout Fix (FIXED 14.10.2025 - ніч ~02:35)
 - **Проблема:** MCP сервери НЕ встигали ініціалізуватись за 5 секунд → система крашилась при старті

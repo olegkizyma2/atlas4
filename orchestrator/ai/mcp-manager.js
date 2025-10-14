@@ -97,7 +97,9 @@ class MCPServer {
 
     // Initialize response
     if (message.result && message.result.capabilities) {
-      this.tools = message.result.capabilities?.tools || [];
+      // FIXED: Переконуємось що tools завжди масив
+      const toolsData = message.result.capabilities?.tools;
+      this.tools = Array.isArray(toolsData) ? toolsData : [];
       this.ready = true;
       logger.system('mcp-server', `[MCP ${this.name}] ✅ Initialized with ${this.tools.length} tools`);
       return;
@@ -387,6 +389,12 @@ export class MCPManager {
    */
   findServerForTool(toolName) {
     for (const server of this.servers.values()) {
+      // FIXED: Додано перевірку що tools існує і є масивом
+      if (!Array.isArray(server.tools)) {
+        logger.warn('mcp-manager', `[MCP Manager] Server ${server.name} has invalid tools (not array)`);
+        continue;
+      }
+
       const hasTool = server.tools.some(tool => 
         tool.name === toolName || toolName.includes(server.name)
       );
@@ -407,6 +415,12 @@ export class MCPManager {
     const allTools = [];
 
     for (const server of this.servers.values()) {
+      // FIXED: Переконуємось що tools є масивом перед map
+      if (!Array.isArray(server.tools)) {
+        logger.warn('mcp-manager', `[MCP Manager] Server ${server.name} has invalid tools`);
+        continue;
+      }
+
       const serverTools = server.getTools().map(tool => ({
         ...tool,
         server: server.name
@@ -427,7 +441,7 @@ export class MCPManager {
     for (const [name, server] of this.servers.entries()) {
       status[name] = {
         ready: server.ready,
-        tools: server.tools.length,
+        tools: Array.isArray(server.tools) ? server.tools.length : 0,
         pid: server.process.pid
       };
     }
