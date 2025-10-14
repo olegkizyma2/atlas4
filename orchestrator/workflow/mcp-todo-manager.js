@@ -898,6 +898,7 @@ Context: ${JSON.stringify(context, null, 2)}
         try {
             // FIXED 13.10.2025 - Strip markdown code blocks (```json ... ```)
             // FIXED 14.10.2025 - Extract JSON from text if LLM added explanation
+            // FIXED 14.10.2025 - Handle ellipsis patterns (...) in JSON
             let cleanResponse = response;
             if (typeof response === 'string') {
                 // Remove ```json and ``` wrappers
@@ -912,6 +913,42 @@ Context: ${JSON.stringify(context, null, 2)}
                 const jsonMatch = cleanResponse.match(/\{[\s\S]*"(mode|items)"[\s\S]*\}/);
                 if (jsonMatch) {
                     cleanResponse = jsonMatch[0];
+                }
+                
+                // FIXED 14.10.2025 - Remove ellipsis patterns that break JSON parsing
+                // Handle patterns like [...], {...}, "...", etc.
+                if (cleanResponse.includes('...')) {
+                    this.logger.warn(`[MCP-TODO] Detected ellipsis (...) in JSON, cleaning up`, { 
+                        category: 'mcp-todo', 
+                        component: 'mcp-todo'
+                    });
+                    
+                    // Strategy 1: Remove array ellipsis: [...] -> []
+                    cleanResponse = cleanResponse.replace(/\[\s*\.\.\.\s*\]/g, '[]');
+                    
+                    // Strategy 2: Remove object ellipsis: {...} -> {}
+                    cleanResponse = cleanResponse.replace(/\{\s*\.\.\.\s*\}/g, '{}');
+                    
+                    // Strategy 3: Remove string ellipsis in values: "..." -> ""
+                    cleanResponse = cleanResponse.replace(/:\s*"\.\.\."\s*,/g, ': "",');
+                    cleanResponse = cleanResponse.replace(/:\s*"\.\.\."\s*\}/g, ': ""}');
+                    
+                    // Strategy 4: Remove incomplete entries with ellipsis (e.g., "key": [...])
+                    // This handles cases like: "prices": [...] -> remove the entire line
+                    cleanResponse = cleanResponse.replace(/,?\s*"[^"]+"\s*:\s*\[\s*\.\.\.\s*\]\s*,?/g, '');
+                    cleanResponse = cleanResponse.replace(/,?\s*"[^"]+"\s*:\s*\{\s*\.\.\.\s*\}\s*,?/g, '');
+                    
+                    // Strategy 5: Clean up any remaining triple dots
+                    cleanResponse = cleanResponse.replace(/\.\.\./g, '');
+                    
+                    // Fix potential double commas from removals
+                    cleanResponse = cleanResponse.replace(/,\s*,/g, ',');
+                    
+                    // Fix trailing commas before closing brackets
+                    cleanResponse = cleanResponse.replace(/,\s*\]/g, ']');
+                    cleanResponse = cleanResponse.replace(/,\s*\}/g, '}');
+                    
+                    this.logger.system('mcp-todo', `[TODO] Cleaned ellipsis from JSON`);
                 }
                 
                 // FIXED 14.10.2025 - Handling truncated JSON responses
