@@ -402,7 +402,7 @@ Previous items: ${JSON.stringify(todo.items.slice(0, item.id - 1).map(i => ({ id
                     max_tokens: modelConfig.max_tokens
                 }, {
                     headers: { 'Content-Type': 'application/json' },
-                    timeout: 15000
+                    timeout: 30000  // FIXED 14.10.2025 - Збільшено з 15s до 30s для повільних LLM відповідей
                 });
 
                 this.logger.system('mcp-todo', `[TODO] LLM API responded successfully`);
@@ -574,7 +574,7 @@ Execution Results: ${JSON.stringify(execution.results, null, 2)}
                 max_tokens: modelConfig.max_tokens
             }, {
                 headers: { 'Content-Type': 'application/json' },
-                timeout: 15000
+                timeout: 30000  // FIXED 14.10.2025 - Збільшено з 15s до 30s для verification
             });
 
             const response = apiResponse.data.choices[0].message.content;
@@ -646,7 +646,7 @@ Attempt: ${attempt}/${item.max_attempts}
                 max_tokens: modelConfig.max_tokens
             }, {
                 headers: { 'Content-Type': 'application/json' },
-                timeout: 15000
+                timeout: 30000  // FIXED 14.10.2025 - Збільшено з 15s до 30s для adjustment
             });
 
             const response = apiResponse.data.choices[0].message.content;
