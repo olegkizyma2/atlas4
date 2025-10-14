@@ -7,7 +7,7 @@
  * @date 2025-10-08
  */
 
-module.exports = {
+const agentDescriptions = {
   name: 'agent_descriptions',
   description: 'Описи ролей та поведінки агентів ATLAS',
   version: '4.0.0',
@@ -17,21 +17,21 @@ module.exports = {
      * Отримати опис агента
      */
   getAgentDescription: (agentName) => {
-    return module.exports.agents[agentName]?.description || 'Опис агента не знайдено';
+    return agentDescriptions.agents[agentName]?.description || 'Опис агента не знайдено';
   },
 
   /**
      * Отримати роль агента
      */
   getAgentRole: (agentName) => {
-    return module.exports.agents[agentName]?.role || 'unknown';
+    return agentDescriptions.agents[agentName]?.role || 'unknown';
   },
 
   /**
      * Отримати підпис агента
      */
   getAgentSignature: (agentName) => {
-    return module.exports.agents[agentName]?.signature || `[${agentName.toUpperCase()}]`;
+    return agentDescriptions.agents[agentName]?.signature || `[${agentName.toUpperCase()}]`;
   },
 
   /**
@@ -167,3 +167,6 @@ module.exports = {
     }
   }
 };
+
+// ES6 export
+export default agentDescriptions;
