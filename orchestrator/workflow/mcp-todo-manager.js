@@ -10,6 +10,7 @@
 
 import logger from '../utils/logger.js';
 import axios from 'axios';
+import vm from 'node:vm';
 import GlobalConfig, { MCP_MODEL_CONFIG } from '../../config/global-config.js';
 
 /**
@@ -114,7 +115,7 @@ export class MCPTodoManager {
     _sendChatMessage(message, type = 'info') {
         // DEBUG 14.10.2025 - Log every call
         this.logger.system('mcp-todo', `[TODO] _sendChatMessage called: "${message}" (type: ${type}, wsManager: ${!!this.wsManager})`);
-        
+
         if (!this.wsManager) {
             this.logger.warn(`[MCP-TODO] WebSocket Manager not available, skipping chat message`, {
                 category: 'mcp-todo',
@@ -151,7 +152,7 @@ export class MCPTodoManager {
      */
     async createTodo(request, context = {}) {
         this.logger.system('mcp-todo', `[TODO] Creating TODO for request: "${request}"`);
-        
+
         // ADDED 14.10.2025 - Store sessionId for WebSocket updates
         if (context.sessionId) {
             this.currentSessionId = context.sessionId;
@@ -173,10 +174,10 @@ export class MCPTodoManager {
             // FIXED 13.10.2025 - Use FULL prompt with JSON schema and examples
             // FIXED 14.10.2025 - Use MCP_MODEL_CONFIG for per-stage models
             const modelConfig = MCP_MODEL_CONFIG.getStageConfig('todo_planning');
-            
+
             // LOG MODEL SELECTION (ADDED 14.10.2025 - Debugging)
             this.logger.system('mcp-todo', `[TODO] Using model: ${modelConfig.model} (temp: ${modelConfig.temperature}, max_tokens: ${modelConfig.max_tokens})`);
-            
+
             const apiResponse = await axios.post(MCP_MODEL_CONFIG.apiEndpoint, {
                 model: modelConfig.model,
                 messages: [
@@ -218,7 +219,7 @@ export class MCPTodoManager {
                     // ENHANCED 14.10.2025 NIGHT - Atlas speaks about the plan with more personality
                     const itemCount = todo.items.length;
                     const taskDescription = this._extractTaskDescription(request);
-                    
+
                     let atlasPhrase;
                     if (itemCount === 1) {
                         atlasPhrase = `Розумію, ${taskDescription}. Один крок, виконую`;
@@ -227,7 +228,7 @@ export class MCPTodoManager {
                     } else {
                         atlasPhrase = `Зрозумів, ${taskDescription}. Складне завдання, ${itemCount} кроків. Приступаю`;
                     }
-                    
+
                     // FIXED 14.10.2025 NIGHT - Atlas voice for TODO announcement
                     await this._safeTTSSpeak(atlasPhrase, { mode: 'detailed', duration: 3000, agent: 'atlas' });
                 } catch (ttsError) {
@@ -316,7 +317,7 @@ export class MCPTodoManager {
             } else {
                 atlasSummaryPhrase = `Виникли проблеми. Виконано тільки ${summary.success_rate} відсотків`;
             }
-            
+
             // FIXED 14.10.2025 NIGHT - Atlas voice for final summary
             await this._safeTTSSpeak(atlasSummaryPhrase, { mode: 'detailed', duration: 3000, agent: 'atlas' });
 
@@ -401,7 +402,7 @@ export class MCPTodoManager {
                     } else {
                         atlasAdjustmentPhrase = 'Коригую та повторюю';
                     }
-                    
+
                     await this._safeTTSSpeak(atlasAdjustmentPhrase, { mode: 'normal', duration: 1000 });
                 } else {
                     // Final attempt failed
@@ -479,12 +480,12 @@ export class MCPTodoManager {
 
             // FIXED 15.10.2025 - Truncate execution_results to prevent 413 errors
             const previousItemsSummary = todo.items.slice(0, item.id - 1).map(i => {
-                const summary = { 
-                    id: i.id, 
-                    action: i.action, 
-                    status: i.status 
+                const summary = {
+                    id: i.id,
+                    action: i.action,
+                    status: i.status
                 };
-                
+
                 // Include truncated execution_results if available
                 if (i.execution_results && i.execution_results.results) {
                     summary.results_summary = i.execution_results.results.map(r => {
@@ -502,7 +503,7 @@ export class MCPTodoManager {
                         return truncated;
                     });
                 }
-                
+
                 return summary;
             });
 
@@ -519,7 +520,7 @@ Previous items: ${JSON.stringify(previousItemsSummary, null, 2)}
             let apiResponse;
             try {
                 const modelConfig = MCP_MODEL_CONFIG.getStageConfig('plan_tools');
-                
+
                 // LOG MODEL SELECTION (ADDED 14.10.2025 - Debugging)
                 this.logger.system('mcp-todo', `[TODO] Planning tools with model: ${modelConfig.model} (temp: ${modelConfig.temperature}, max_tokens: ${modelConfig.max_tokens})`);
                 this.logger.system('mcp-todo', `[TODO] Calling LLM API at ${MCP_MODEL_CONFIG.apiEndpoint}...`);
@@ -531,7 +532,7 @@ Previous items: ${JSON.stringify(previousItemsSummary, null, 2)}
                 // FIXED 15.10.2025 - Increase to 180s for ALL models (web scraping може бути повільним)
                 const isReasoningModel = modelConfig.model.includes('reasoning') || modelConfig.model.includes('phi-4');
                 const timeoutMs = isReasoningModel ? 180000 : 120000;  // 180s for reasoning, 120s for others
-                
+
                 apiResponse = await axios.post(MCP_MODEL_CONFIG.apiEndpoint, {
                     model: modelConfig.model,
                     messages: [
@@ -756,7 +757,7 @@ Execution Results: ${JSON.stringify(truncatedResults, null, 2)}
 
             const response = apiResponse.data.choices[0].message.content;
             const verification = this._parseVerification(response);
-            
+
             // ENHANCED 14.10.2025 NIGHT - More informative Grisha verification phrases
             if (verification.verified) {
                 // Grisha confirms with context
@@ -1005,74 +1006,74 @@ Context: ${JSON.stringify(context, null, 2)}
                 if (jsonMatch) {
                     cleanResponse = jsonMatch[0];
                 }
-                
+
                 // FIXED 14.10.2025 - Remove ellipsis patterns that break JSON parsing
                 // Handle patterns like [...], {...}, "...", etc.
                 if (cleanResponse.includes('...')) {
-                    this.logger.warn(`[MCP-TODO] Detected ellipsis (...) in JSON, cleaning up`, { 
-                        category: 'mcp-todo', 
+                    this.logger.warn(`[MCP-TODO] Detected ellipsis (...) in JSON, cleaning up`, {
+                        category: 'mcp-todo',
                         component: 'mcp-todo'
                     });
-                    
+
                     // Strategy 1: Remove array ellipsis: [...] -> []
                     cleanResponse = cleanResponse.replace(/\[\s*\.\.\.\s*\]/g, '[]');
-                    
+
                     // Strategy 2: Remove object ellipsis: {...} -> {}
                     cleanResponse = cleanResponse.replace(/\{\s*\.\.\.\s*\}/g, '{}');
-                    
+
                     // Strategy 3: Remove string ellipsis in values: "..." -> ""
                     cleanResponse = cleanResponse.replace(/:\s*"\.\.\."\s*,/g, ': "",');
                     cleanResponse = cleanResponse.replace(/:\s*"\.\.\."\s*\}/g, ': ""}');
-                    
+
                     // Strategy 4: Remove incomplete entries with ellipsis (e.g., "key": [...])
                     // This handles cases like: "prices": [...] -> remove the entire line
                     cleanResponse = cleanResponse.replace(/,?\s*"[^"]+"\s*:\s*\[\s*\.\.\.\s*\]\s*,?/g, '');
                     cleanResponse = cleanResponse.replace(/,?\s*"[^"]+"\s*:\s*\{\s*\.\.\.\s*\}\s*,?/g, '');
-                    
+
                     // Strategy 5: Clean up any remaining triple dots
                     cleanResponse = cleanResponse.replace(/\.\.\./g, '');
-                    
+
                     // Fix potential double commas from removals
                     cleanResponse = cleanResponse.replace(/,\s*,/g, ',');
-                    
+
                     // Fix trailing commas before closing brackets
                     cleanResponse = cleanResponse.replace(/,\s*\]/g, ']');
                     cleanResponse = cleanResponse.replace(/,\s*\}/g, '}');
-                    
+
                     this.logger.system('mcp-todo', `[TODO] Cleaned ellipsis from JSON`);
                 }
-                
+
                 // FIXED 14.10.2025 - Handling truncated JSON responses
                 // If JSON is incomplete (e.g., ends with `..."prices": [...],`), try to repair it
                 if (cleanResponse && !cleanResponse.trim().endsWith('}')) {
-                    this.logger.warn(`[MCP-TODO] Detected truncated JSON response, attempting repair`, { 
-                        category: 'mcp-todo', 
+                    this.logger.warn(`[MCP-TODO] Detected truncated JSON response, attempting repair`, {
+                        category: 'mcp-todo',
                         component: 'mcp-todo',
                         lastChars: cleanResponse.substring(cleanResponse.length - 50)
                     });
-                    
+
                     // Find the last complete item in the array
                     // Strategy: Find last complete {...} object before truncation
                     const lastCompleteItemMatch = cleanResponse.lastIndexOf('}');
                     if (lastCompleteItemMatch > 0) {
                         // Cut off incomplete data after last complete item
                         let repairedJson = cleanResponse.substring(0, lastCompleteItemMatch + 1);
-                        
+
                         // Close the items array and JSON object
                         // Count open brackets to determine what needs closing
                         const openArrays = (repairedJson.match(/\[/g) || []).length - (repairedJson.match(/\]/g) || []).length;
                         const openObjects = (repairedJson.match(/\{/g) || []).length - (repairedJson.match(/\}/g) || []).length;
-                        
+
                         // Close arrays
                         for (let i = 0; i < openArrays; i++) {
                             repairedJson += ']';
                         }
-                        
+
                         // Close objects
                         for (let i = 0; i < openObjects; i++) {
                             repairedJson += '}';
                         }
-                        
+
                         cleanResponse = repairedJson;
                         this.logger.system('mcp-todo', `[TODO] Repaired JSON: ${cleanResponse.length} chars`);
                     }
@@ -1172,7 +1173,7 @@ Context: ${JSON.stringify(context, null, 2)}
                 } else {
                     cleanResponse = response;
                 }
-                
+
                 // Step 2: Clean markdown wrappers
                 cleanResponse = cleanResponse
                     .replace(/^```json\s*/i, '')  // Remove opening ```json
@@ -1184,7 +1185,7 @@ Context: ${JSON.stringify(context, null, 2)}
                 // This handles cases where LLM adds text before/after JSON
                 const firstBrace = cleanResponse.indexOf('{');
                 const lastBrace = cleanResponse.lastIndexOf('}');
-                
+
                 if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
                     cleanResponse = cleanResponse.substring(firstBrace, lastBrace + 1);
                 } else {
@@ -1192,7 +1193,7 @@ Context: ${JSON.stringify(context, null, 2)}
                     // Some models put JSON AFTER <think>, so try original response too
                     const origFirstBrace = response.indexOf('{');
                     const origLastBrace = response.lastIndexOf('}');
-                    
+
                     if (origFirstBrace !== -1 && origLastBrace !== -1 && origLastBrace > origFirstBrace) {
                         cleanResponse = response.substring(origFirstBrace, origLastBrace + 1);
                     } else {
@@ -1201,20 +1202,47 @@ Context: ${JSON.stringify(context, null, 2)}
                 }
             }
 
-            const parsed = typeof cleanResponse === 'string' ? JSON.parse(cleanResponse) : cleanResponse;
+            let parsed;
+            if (typeof cleanResponse === 'string') {
+                try {
+                    parsed = JSON.parse(cleanResponse);
+                } catch (parseError) {
+                    const needsSanitization = /Expected (property name|'|,)/i.test(parseError.message) || parseError.message.includes('Unexpected token') || parseError.message.includes('position');
+                    if (needsSanitization) {
+                        const sanitized = this._sanitizeJsonString(cleanResponse);
+                        try {
+                            parsed = JSON.parse(sanitized);
+                            this.logger.warn('[MCP-TODO] Applied JSON sanitization for tool plan response', {
+                                category: 'mcp-todo',
+                                component: 'mcp-todo',
+                                originalError: parseError.message,
+                                originalLength: cleanResponse.length,
+                                sanitizedLength: sanitized.length
+                            });
+                        } catch (sanitizedError) {
+                            sanitizedError.originalMessage = parseError.message;
+                            throw sanitizedError;
+                        }
+                    } else {
+                        throw parseError;
+                    }
+                }
+            } else {
+                parsed = cleanResponse;
+            }
             return {
                 tool_calls: parsed.tool_calls || [],
                 reasoning: parsed.reasoning || ''
             };
         } catch (error) {
             // Truncate long responses for logging
-            const truncatedResponse = typeof response === 'string' && response.length > 500 
-                ? response.substring(0, 500) + '... [truncated]' 
+            const truncatedResponse = typeof response === 'string' && response.length > 500
+                ? response.substring(0, 500) + '... [truncated]'
                 : response;
-            this.logger.error(`[MCP-TODO] Failed to parse tool plan. Raw response: ${truncatedResponse}`, { 
-                category: 'mcp-todo', 
+            this.logger.error(`[MCP-TODO] Failed to parse tool plan. Raw response: ${truncatedResponse}`, {
+                category: 'mcp-todo',
                 component: 'mcp-todo',
-                parseError: error.message 
+                parseError: error.message
             });
             throw new Error(`Failed to parse tool plan: ${error.message}`);
         }
@@ -1235,7 +1263,7 @@ Context: ${JSON.stringify(context, null, 2)}
                 } else {
                     cleanResponse = response;
                 }
-                
+
                 // Step 2: Clean markdown wrappers
                 cleanResponse = cleanResponse
                     .replace(/^```json\s*/i, '')  // Remove opening ```json
@@ -1246,14 +1274,14 @@ Context: ${JSON.stringify(context, null, 2)}
                 // Step 3: Aggressive JSON extraction - find first { to last }
                 const firstBrace = cleanResponse.indexOf('{');
                 const lastBrace = cleanResponse.lastIndexOf('}');
-                
+
                 if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
                     cleanResponse = cleanResponse.substring(firstBrace, lastBrace + 1);
                 } else {
                     // Try original response
                     const origFirstBrace = response.indexOf('{');
                     const origLastBrace = response.lastIndexOf('}');
-                    
+
                     if (origFirstBrace !== -1 && origLastBrace !== -1 && origLastBrace > origFirstBrace) {
                         cleanResponse = response.substring(origFirstBrace, origLastBrace + 1);
                     } else {
@@ -1270,8 +1298,8 @@ Context: ${JSON.stringify(context, null, 2)}
             };
         } catch (error) {
             // НОВИНКА 14.10.2025 - Better error handling with fallback
-            const truncatedResponse = typeof response === 'string' && response.length > 500 
-                ? response.substring(0, 500) + '... [truncated]' 
+            const truncatedResponse = typeof response === 'string' && response.length > 500
+                ? response.substring(0, 500) + '... [truncated]'
                 : response;
             this.logger.error(`[MCP-TODO] Failed to parse verification. Raw response: ${truncatedResponse}`, {
                 category: 'mcp-todo',
@@ -1297,7 +1325,7 @@ Context: ${JSON.stringify(context, null, 2)}
                 } else {
                     cleanResponse = response;
                 }
-                
+
                 // Step 2: Clean markdown wrappers
                 cleanResponse = cleanResponse
                     .replace(/^```json\s*/i, '')  // Remove opening ```json
@@ -1308,14 +1336,14 @@ Context: ${JSON.stringify(context, null, 2)}
                 // Step 3: Aggressive JSON extraction - find first { to last }
                 const firstBrace = cleanResponse.indexOf('{');
                 const lastBrace = cleanResponse.lastIndexOf('}');
-                
+
                 if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
                     cleanResponse = cleanResponse.substring(firstBrace, lastBrace + 1);
                 } else {
                     // Fallback: Try original response
                     const origFirstBrace = response.indexOf('{');
                     const origLastBrace = response.lastIndexOf('}');
-                    
+
                     if (origFirstBrace !== -1 && origLastBrace !== -1 && origLastBrace > origFirstBrace) {
                         cleanResponse = response.substring(origFirstBrace, origLastBrace + 1);
                     } else {
@@ -1331,8 +1359,8 @@ Context: ${JSON.stringify(context, null, 2)}
                 reasoning: parsed.reasoning || ''
             };
         } catch (error) {
-            const truncatedResponse = typeof response === 'string' && response.length > 500 
-                ? response.substring(0, 500) + '... [truncated]' 
+            const truncatedResponse = typeof response === 'string' && response.length > 500
+                ? response.substring(0, 500) + '... [truncated]'
                 : response;
             this.logger.error(`[MCP-TODO] Failed to parse adjustment. Raw response: ${truncatedResponse}`, {
                 category: 'mcp-todo',
@@ -1343,11 +1371,65 @@ Context: ${JSON.stringify(context, null, 2)}
         }
     }
 
+    _sanitizeJsonString(rawPayload) {
+        if (typeof rawPayload !== 'string') {
+            throw new TypeError('Expected string payload for JSON sanitization');
+        }
+
+        let sanitized = rawPayload.trim()
+            .replace(/\uFEFF/g, '')
+            .replace(/[‘‛’`´]/g, "'")
+            .replace(/[“”]/g, '"');
+
+        // Quote property names that are missing double quotes.
+        sanitized = sanitized.replace(/([,{]\s*)([A-Za-z0-9_]+)\s*:/g, '$1"$2":');
+
+        // Remove trailing commas before closing braces/brackets.
+        sanitized = sanitized.replace(/,\s*([}\]])/g, '$1');
+
+        try {
+            JSON.parse(sanitized);
+            return sanitized;
+        } catch (firstError) {
+            // Attempt to convert single-quoted strings to double-quoted strings.
+            const withDoubleQuotedStrings = sanitized.replace(/:\s*'([^'\\]*(?:\\.[^'\\]*)*)'/g, (_, inner) => {
+                const escaped = inner
+                    .replace(/\\/g, '\\\\')
+                    .replace(/"/g, '\\"');
+                return `: "${escaped}"`;
+            }).replace(/\[\s*'([^'\\]*(?:\\.[^'\\]*)*)'/g, (match, inner) => {
+                const escaped = inner
+                    .replace(/\\/g, '\\\\')
+                    .replace(/"/g, '\\"');
+                return `[ "${escaped}"`;
+            }).replace(/,\s*'([^'\\]*(?:\\.[^'\\]*)*)'/g, (match, inner) => {
+                const escaped = inner
+                    .replace(/\\/g, '\\\\')
+                    .replace(/"/g, '\\"');
+                return `, "${escaped}"`;
+            });
+
+            try {
+                JSON.parse(withDoubleQuotedStrings);
+                return withDoubleQuotedStrings;
+            } catch (secondError) {
+                try {
+                    const evaluated = vm.runInNewContext(`(${sanitized})`, {}, { timeout: 50 });
+                    return JSON.stringify(evaluated);
+                } catch (vmError) {
+                    secondError.originalError = firstError.message;
+                    secondError.vmError = vmError.message;
+                    throw secondError;
+                }
+            }
+        }
+    }
+
     _generatePlanTTS(plan, item) {
         // ENHANCED 14.10.2025 NIGHT - More informative TTS phrases
         const toolCount = plan.tool_calls.length;
         const actionVerb = item.action.split(' ')[0];
-        
+
         // Tetyana speaks about what she's planning to do
         if (toolCount === 1) {
             return `${actionVerb}`;
@@ -1361,7 +1443,7 @@ Context: ${JSON.stringify(context, null, 2)}
         if (allSuccessful) {
             // Extract key result with more context
             const mainAction = item.action.toLowerCase();
-            
+
             // Specific action feedback
             if (mainAction.includes('створ') && mainAction.includes('файл')) {
                 return 'Файл створено';
@@ -1384,11 +1466,11 @@ Context: ${JSON.stringify(context, null, 2)}
             if (mainAction.includes('скріншот') || mainAction.includes('screenshot')) {
                 return 'Скріншот зроблено';
             }
-            
+
             // Generic successful execution
             return 'Виконано';
         }
-        
+
         // Partial success - be specific
         const successCount = results.filter(r => r.success).length;
         return `Виконано ${successCount} з ${results.length}`;
@@ -1410,29 +1492,29 @@ Context: ${JSON.stringify(context, null, 2)}
             ...options,
             agent: options.agent || 'tetyana'  // Default to Tetyana for execution
         };
-        
+
         // Debug TTS availability (ADDED 15.10.2025)
         this.logger.system('mcp-todo', `[TODO] 🔍 TTS check: tts=${!!this.tts}, speak=${this.tts ? typeof this.tts.speak : 'N/A'}`);
-        
+
         // НОВИНКА 15.10.2025 - Відправляємо TTS фразу у чат як повідомлення від агента
         const agentName = ttsOptions.agent.toUpperCase();
         this._sendChatMessage(`[${agentName}] ${phrase}`, 'agent');
-        
+
         if (this.tts && typeof this.tts.speak === 'function') {
             try {
                 this.logger.system('mcp-todo', `[TODO] 🔊 Requesting TTS: "${phrase}" (agent: ${ttsOptions.agent})`);
                 await this.tts.speak(phrase, ttsOptions);
                 this.logger.system('mcp-todo', `[TODO] ✅ TTS completed successfully`);
             } catch (ttsError) {
-                this.logger.warn(`[MCP-TODO] TTS failed: ${ttsError.message}`, { 
-                    category: 'mcp-todo', 
+                this.logger.warn(`[MCP-TODO] TTS failed: ${ttsError.message}`, {
+                    category: 'mcp-todo',
                     component: 'mcp-todo',
                     stack: ttsError.stack
                 });
             }
         } else {
-            this.logger.warn(`[MCP-TODO] TTS not available - tts=${!!this.tts}, speak=${this.tts ? typeof this.tts.speak : 'N/A'}`, { 
-                category: 'mcp-todo', 
+            this.logger.warn(`[MCP-TODO] TTS not available - tts=${!!this.tts}, speak=${this.tts ? typeof this.tts.speak : 'N/A'}`, {
+                category: 'mcp-todo',
                 component: 'mcp-todo'
             });
         }
@@ -1448,7 +1530,7 @@ Context: ${JSON.stringify(context, null, 2)}
      */
     _extractTaskDescription(request) {
         const lowerRequest = request.toLowerCase();
-        
+
         // Extract main action keywords
         if (lowerRequest.includes('калькулятор')) return 'калькулятор';
         if (lowerRequest.includes('браузер')) return 'браузер';
@@ -1458,7 +1540,7 @@ Context: ${JSON.stringify(context, null, 2)}
         if (lowerRequest.includes('створ')) return 'створення';
         if (lowerRequest.includes('відкр')) return 'відкриття';
         if (lowerRequest.includes('збер')) return 'збереження';
-        
+
         // Fallback: take first 3-4 words
         const words = request.split(' ').slice(0, 4).join(' ');
         return words.length > 30 ? words.substring(0, 30) + '...' : words;
