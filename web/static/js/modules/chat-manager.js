@@ -465,6 +465,9 @@ export class ChatManager {
   async handleAgentMessage(messageData) {
     const { content, agent, ttsContent, voice, messageId, mode, ttsOptimized } = messageData;
 
+    // FIXED 15.10.2025 - Add diagnostic logging for TTS debugging
+    this.logger.info(`[TTS-DIAG] handleAgentMessage: agent=${agent}, has_ttsContent=${!!ttsContent}, has_content=${!!content}, ttsContent_length=${ttsContent?.length || 0}, content_length=${content?.length || 0}, voice=${voice || 'undefined'}, mode=${mode || 'undefined'}`);
+
     // Додаємо лог у веб-інтерфейс
     if (window.atlasLogger) {
       const agentName = agent.toUpperCase();
