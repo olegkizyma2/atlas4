@@ -1031,21 +1031,28 @@ Context: ${JSON.stringify(context, null, 2)}
             // FIXED 13.10.2025 - Clean markdown wrappers before parsing
             // FIXED 14.10.2025 - Extract JSON from text if LLM added explanation
             // FIXED 14.10.2025 - Handle <think> tags from reasoning models (phi-4-reasoning)
+            // FIXED 14.10.2025 - Aggressive extraction: handle unclosed tags and extract JSON
             let cleanResponse = response;
             if (typeof response === 'string') {
-                // Remove <think> tags from reasoning models
+                // Step 1: Remove ALL <think> content (even unclosed tags)
+                // Match from <think> to </think>, or from <think> to end if no closing tag
                 cleanResponse = response
-                    .replace(/<think>[\s\S]*?<\/think>/gi, '')  // Remove <think>...</think> blocks
+                    .replace(/<think>[\s\S]*?(<\/think>|$)/gi, '')  // Remove <think> blocks (closed or unclosed)
                     .replace(/^```json\s*/i, '')  // Remove opening ```json
                     .replace(/^```\s*/i, '')       // Remove opening ```
                     .replace(/\s*```$/i, '')       // Remove closing ```
                     .trim();
 
-                // Extract JSON object from text (starts with '{' and ends with '}')
-                // Look for JSON with "tool_calls" field
-                const jsonMatch = cleanResponse.match(/\{[\s\S]*"tool_calls"[\s\S]*\}/);
-                if (jsonMatch) {
-                    cleanResponse = jsonMatch[0];
+                // Step 2: Aggressive JSON extraction - find first { to last }
+                // This handles cases where LLM adds text before/after JSON
+                const firstBrace = cleanResponse.indexOf('{');
+                const lastBrace = cleanResponse.lastIndexOf('}');
+                
+                if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+                    cleanResponse = cleanResponse.substring(firstBrace, lastBrace + 1);
+                } else {
+                    // No JSON found in response
+                    throw new Error('No JSON object found in response (no curly braces)');
                 }
             }
 
@@ -1072,21 +1079,25 @@ Context: ${JSON.stringify(context, null, 2)}
         try {
             // FIXED 13.10.2025 - Clean markdown wrappers before parsing
             // FIXED 14.10.2025 - Handle <think> tags from reasoning models
+            // FIXED 14.10.2025 - Aggressive extraction: handle unclosed tags
             let cleanResponse = response;
             if (typeof response === 'string') {
-                // Remove <think> tags from reasoning models
+                // Step 1: Remove ALL <think> content (even unclosed tags)
                 cleanResponse = response
-                    .replace(/<think>[\s\S]*?<\/think>/gi, '')  // Remove <think>...</think> blocks
+                    .replace(/<think>[\s\S]*?(<\/think>|$)/gi, '')  // Remove <think> blocks (closed or unclosed)
                     .replace(/^```json\s*/i, '')  // Remove opening ```json
                     .replace(/^```\s*/i, '')       // Remove opening ```
                     .replace(/\s*```$/i, '')       // Remove closing ```
                     .trim();
 
-                // FIXED 14.10.2025 - Extract JSON from text if LLM added explanation
-                // Шукаємо JSON object в тексті (починається з '{' та закінчується '}')
-                const jsonMatch = cleanResponse.match(/\{[\s\S]*"verified"[\s\S]*\}/);
-                if (jsonMatch) {
-                    cleanResponse = jsonMatch[0];
+                // Step 2: Aggressive JSON extraction - find first { to last }
+                const firstBrace = cleanResponse.indexOf('{');
+                const lastBrace = cleanResponse.lastIndexOf('}');
+                
+                if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+                    cleanResponse = cleanResponse.substring(firstBrace, lastBrace + 1);
+                } else {
+                    throw new Error('No JSON object found in response (no curly braces)');
                 }
             }
 
@@ -1121,19 +1132,25 @@ Context: ${JSON.stringify(context, null, 2)}
         try {
             // FIXED 13.10.2025 - Clean markdown wrappers before parsing
             // FIXED 14.10.2025 - Extract JSON from text if LLM added explanation
+            // FIXED 14.10.2025 - Aggressive extraction: handle unclosed tags
             let cleanResponse = response;
             if (typeof response === 'string') {
+                // Step 1: Remove <think> tags
                 cleanResponse = response
+                    .replace(/<think>[\s\S]*?(<\/think>|$)/gi, '')
                     .replace(/^```json\s*/i, '')  // Remove opening ```json
                     .replace(/^```\s*/i, '')       // Remove opening ```
                     .replace(/\s*```$/i, '')       // Remove closing ```
                     .trim();
 
-                // Extract JSON object from text (starts with '{' and ends with '}')
-                // Look for JSON with "strategy" field
-                const jsonMatch = cleanResponse.match(/\{[\s\S]*"strategy"[\s\S]*\}/);
-                if (jsonMatch) {
-                    cleanResponse = jsonMatch[0];
+                // Step 2: Aggressive JSON extraction - find first { to last }
+                const firstBrace = cleanResponse.indexOf('{');
+                const lastBrace = cleanResponse.lastIndexOf('}');
+                
+                if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+                    cleanResponse = cleanResponse.substring(firstBrace, lastBrace + 1);
+                } else {
+                    throw new Error('No JSON object found in response (no curly braces)');
                 }
             }
 
