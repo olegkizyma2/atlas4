@@ -54,15 +54,15 @@ export const AI_MODEL_CONFIG = {
   // API endpoint для system stages
   apiEndpoint: 'http://localhost:4000/v1/chat/completions',
 
-  // Моделі для різних типів завдань
+  // Моделі для різних типів завдань (ТІЛЬКИ доступні через localhost:4000!)
   models: {
     // Класифікація та швидкі рішення
     // PATTERN-BASED: Clear action patterns with examples
     classification: {
-      model: 'openai/gpt-4o-mini',  // FIXED 14.10.2025 - використовуємо mini для уникнення 429
+      model: 'openai/gpt-4o-mini',
       temperature: 0.1,  // Нижча T для точної класифікації
       max_tokens: 50,
-      description: 'GPT-4o-mini для швидкої класифікації без rate limits'
+      description: 'GPT-4o-mini для швидкої класифікації'
     },
     
     // Чат та розмова
@@ -70,15 +70,15 @@ export const AI_MODEL_CONFIG = {
       model: 'openai/gpt-4o-mini',
       temperature: 0.7,
       max_tokens: 500,
-      description: 'Оптимальна модель для nature розмов'
+      description: 'GPT-4o-mini для природних розмов'
     },
 
     // Аналіз та reasoning
     analysis: {
-      model: 'anthropic/claude-3-5-sonnet-20241022',  // FIXED 14.10.2025 - Claude для reasoning
+      model: 'openai/o1-mini',  // FIXED 14.10.2025 - o1-mini для reasoning (доступний!)
       temperature: 0.3,
       max_tokens: 1000,
-      description: 'Claude Sonnet для якісного аналізу та reasoning'
+      description: 'OpenAI o1-mini для якісного аналізу та reasoning'
     },
 
     // TTS оптимізація
@@ -86,7 +86,7 @@ export const AI_MODEL_CONFIG = {
       model: 'openai/gpt-4o-mini',
       temperature: 0.2,
       max_tokens: 300,
-      description: 'Модель для оптимізації тексту для озвучки'
+      description: 'GPT-4o-mini для оптимізації тексту для озвучки'
     }
   },
 
@@ -129,13 +129,13 @@ export const MCP_MODEL_CONFIG = {
     
     // Stage 1-MCP: Atlas TODO Planning
     todo_planning: {
-      get model() { return process.env.MCP_MODEL_TODO_PLANNING || 'anthropic/claude-3-5-sonnet-20241022'; },
+      get model() { return process.env.MCP_MODEL_TODO_PLANNING || 'openai/o1-mini'; },  // FIXED 14.10.2025 - o1-mini для reasoning
       get temperature() { return parseFloat(process.env.MCP_TEMP_TODO_PLANNING || '0.3'); },
       max_tokens: 2000,
-      description: 'Critical planning - потрібен якісний reasoning'
+      description: 'Critical planning - o1-mini для якісного reasoning'
     },
     
-    // Stage 2.1-MCP: Tetyana Plan Tools
+        // Stage 2.1-MCP: Tetyana Plan Tools
     // OPTIMIZED 14.10.2025 - Повернено gpt-4o-mini після оптимізації prompt (summary замість full schemas)
     plan_tools: {
       get model() { return process.env.MCP_MODEL_PLAN_TOOLS || 'openai/gpt-4o-mini'; },
@@ -154,10 +154,10 @@ export const MCP_MODEL_CONFIG = {
     
     // Stage 3-MCP: Atlas Adjust TODO
     adjust_todo: {
-      get model() { return process.env.MCP_MODEL_ADJUST_TODO || 'anthropic/claude-3-5-haiku-20241022'; },
+      get model() { return process.env.MCP_MODEL_ADJUST_TODO || 'openai/gpt-4o-mini'; },  // FIXED 14.10.2025 - доступна модель
       get temperature() { return parseFloat(process.env.MCP_TEMP_ADJUST_TODO || '0.3'); },
       max_tokens: 1000,
-      description: 'Корекція TODO - mid-level reasoning'
+      description: 'Корекція TODO - gpt-4o-mini (mid-level reasoning)'
     },
     
     // Stage 8-MCP: Final Summary
