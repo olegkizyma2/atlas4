@@ -112,22 +112,32 @@ export class MCPTodoManager {
      * @private
      */
     _sendChatMessage(message, type = 'info') {
+        // DEBUG 14.10.2025 - Log every call
+        this.logger.system('mcp-todo', `[TODO] _sendChatMessage called: "${message}" (type: ${type}, wsManager: ${!!this.wsManager})`);
+        
         if (!this.wsManager) {
+            this.logger.warn(`[MCP-TODO] WebSocket Manager not available, skipping chat message`, {
+                category: 'mcp-todo',
+                component: 'mcp-todo'
+            });
             return; // Gracefully skip if WebSocket not available
         }
 
         try {
             // FIXED 14.10.2025 - Use broadcastToSubscribers instead of broadcastToSession
+            this.logger.system('mcp-todo', `[TODO] Broadcasting to subscribers: chat/chat_message`);
             this.wsManager.broadcastToSubscribers('chat', 'chat_message', {
                 message,
                 messageType: type,
                 sessionId: this.currentSessionId,
                 timestamp: new Date().toISOString()
             });
+            this.logger.system('mcp-todo', `[TODO] ✅ Chat message sent successfully`);
         } catch (error) {
             this.logger.warn(`[MCP-TODO] Failed to send chat message: ${error.message}`, {
                 category: 'mcp-todo',
-                component: 'mcp-todo'
+                component: 'mcp-todo',
+                stack: error.stack
             });
         }
     }
@@ -866,6 +876,7 @@ Context: ${JSON.stringify(context, null, 2)}
         // Expected JSON format from LLM
         try {
             // FIXED 13.10.2025 - Strip markdown code blocks (```json ... ```)
+            // FIXED 14.10.2025 - Extract JSON from text if LLM added explanation
             let cleanResponse = response;
             if (typeof response === 'string') {
                 // Remove ```json and ``` wrappers
@@ -874,6 +885,13 @@ Context: ${JSON.stringify(context, null, 2)}
                     .replace(/^```\s*/i, '')       // Remove opening ```
                     .replace(/\s*```$/i, '')       // Remove closing ```
                     .trim();
+
+                // Extract JSON object from text (starts with '{' and ends with '}')
+                // Look for JSON with "mode" or "items" field
+                const jsonMatch = cleanResponse.match(/\{[\s\S]*"(mode|items)"[\s\S]*\}/);
+                if (jsonMatch) {
+                    cleanResponse = jsonMatch[0];
+                }
             }
 
             const parsed = typeof cleanResponse === 'string' ? JSON.parse(cleanResponse) : cleanResponse;
@@ -944,6 +962,7 @@ Context: ${JSON.stringify(context, null, 2)}
     _parseToolPlan(response) {
         try {
             // FIXED 13.10.2025 - Clean markdown wrappers before parsing
+            // FIXED 14.10.2025 - Extract JSON from text if LLM added explanation
             let cleanResponse = response;
             if (typeof response === 'string') {
                 cleanResponse = response
@@ -951,6 +970,13 @@ Context: ${JSON.stringify(context, null, 2)}
                     .replace(/^```\s*/i, '')       // Remove opening ```
                     .replace(/\s*```$/i, '')       // Remove closing ```
                     .trim();
+
+                // Extract JSON object from text (starts with '{' and ends with '}')
+                // Look for JSON with "tool_calls" field
+                const jsonMatch = cleanResponse.match(/\{[\s\S]*"tool_calls"[\s\S]*\}/);
+                if (jsonMatch) {
+                    cleanResponse = jsonMatch[0];
+                }
             }
 
             const parsed = typeof cleanResponse === 'string' ? JSON.parse(cleanResponse) : cleanResponse;
@@ -998,6 +1024,7 @@ Context: ${JSON.stringify(context, null, 2)}
     _parseAdjustment(response) {
         try {
             // FIXED 13.10.2025 - Clean markdown wrappers before parsing
+            // FIXED 14.10.2025 - Extract JSON from text if LLM added explanation
             let cleanResponse = response;
             if (typeof response === 'string') {
                 cleanResponse = response
@@ -1005,6 +1032,13 @@ Context: ${JSON.stringify(context, null, 2)}
                     .replace(/^```\s*/i, '')       // Remove opening ```
                     .replace(/\s*```$/i, '')       // Remove closing ```
                     .trim();
+
+                // Extract JSON object from text (starts with '{' and ends with '}')
+                // Look for JSON with "strategy" field
+                const jsonMatch = cleanResponse.match(/\{[\s\S]*"strategy"[\s\S]*\}/);
+                if (jsonMatch) {
+                    cleanResponse = jsonMatch[0];
+                }
             }
 
             const parsed = typeof cleanResponse === 'string' ? JSON.parse(cleanResponse) : cleanResponse;

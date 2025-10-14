@@ -238,8 +238,9 @@ export default class AgentStageProcessor {
       });
 
       // Викликаємо API з ПОВНИМ контекстом розмови
+      // OPTIMIZED 14.10.2025 - ministral-3b замість gpt-4o-mini (45 req/min)
       const response = await axios.post('http://localhost:4000/v1/chat/completions', {
-        model: 'openai/gpt-4o-mini',
+        model: 'mistral-ai/ministral-3b',
         temperature: 0.7, // Вища температура для природної розмови
         max_tokens: 500,
         messages: contextMessages // ✅ ПЕРЕДАЄМО ВЕСЬ КОНТЕКСТ!

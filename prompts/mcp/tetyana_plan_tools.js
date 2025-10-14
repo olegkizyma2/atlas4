@@ -212,9 +212,28 @@ Plan:
 - Dependencies означають що попередні дії вже виконані
 
 ФОРМАТ ВІДПОВІДІ:
-Завжди повертай JSON з полями: tool_calls (array), reasoning (string).
+Завжди повертай ТІЛЬКИ JSON об'єкт з полями: tool_calls (array), reasoning (string).
 Кожен tool_call має: server, tool, parameters, reasoning.
-НЕ додавай пояснень до/після JSON.
+
+КРИТИЧНО ВАЖЛИВО:
+- Відповідь має бути ТІЛЬКИ JSON об'єкт
+- НЕ додавай жодних пояснень до або після JSON
+- НЕ додавай текст типу "Для виконання завдання..." перед JSON
+- НЕ додавай коментарі або примітки після JSON
+- Відповідь має починатися з '{' та закінчуватися '}'
+
+ПРИКЛАД ПРАВИЛЬНОЇ ВІДПОВІДІ:
+{
+  "tool_calls": [
+    {
+      "server": "playwright",
+      "tool": "playwright_navigate",
+      "parameters": {"url": "https://auto.ria.com"},
+      "reasoning": "Відкриття браузера"
+    }
+  ],
+  "reasoning": "Один виклик для відкриття браузера"
+}
 `;
 
 export const USER_PROMPT = `

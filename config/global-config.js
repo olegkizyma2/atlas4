@@ -58,19 +58,21 @@ export const AI_MODEL_CONFIG = {
   models: {
     // Класифікація та швидкі рішення
     // PATTERN-BASED: Clear action patterns with examples
+    // OPTIMIZED 14.10.2025 - ministral-3b замість gpt-4o-mini (45 req/min vs 35 req/min)
     classification: {
-      model: 'openai/gpt-4o-mini',
+      model: 'mistral-ai/ministral-3b',
       temperature: 0.1,  // Нижча T для точної класифікації
       max_tokens: 50,
-      description: 'GPT-4o-mini для швидкої класифікації'
+      description: 'ministral-3b для швидкої класифікації (45 req/min)'
     },
 
     // Чат та розмова
+    // OPTIMIZED 14.10.2025 - ministral-3b замість gpt-4o-mini
     chat: {
-      model: 'openai/gpt-4o-mini',
+      model: 'mistral-ai/ministral-3b',
       temperature: 0.7,
       max_tokens: 500,
-      description: 'GPT-4o-mini для природних розмов'
+      description: 'ministral-3b для природних розмов (45 req/min)'
     },
 
     // Аналіз та reasoning
@@ -83,10 +85,10 @@ export const AI_MODEL_CONFIG = {
 
     // TTS оптимізація
     tts_optimization: {
-      model: 'openai/gpt-4o-mini',
+      model: 'mistral-ai/ministral-3b',
       temperature: 0.2,
       max_tokens: 300,
-      description: 'GPT-4o-mini для оптимізації тексту для озвучки'
+      description: 'ministral-3b для оптимізації тексту для озвучки (45 req/min)'
     }
   },
 
@@ -113,59 +115,59 @@ export const MCP_MODEL_CONFIG = {
   stages: {
     // Stage 0: Mode Selection (task vs chat)
     mode_selection: {
-      get model() { return process.env.MCP_MODEL_MODE_SELECTION || 'openai/gpt-4o-mini'; },
+      get model() { return process.env.MCP_MODEL_MODE_SELECTION || 'mistral-ai/ministral-3b'; },
       get temperature() { return parseFloat(process.env.MCP_TEMP_MODE_SELECTION || '0.1'); },
       max_tokens: 50,
-      description: 'Бінарна класифікація - швидка легка модель'
+      description: 'Бінарна класифікація - швидка легка модель (45 req/min)'
     },
 
     // Stage 0.5: Backend Selection (goose vs mcp)
     backend_selection: {
-      get model() { return process.env.MCP_MODEL_BACKEND_SELECTION || 'openai/gpt-4o-mini'; },
+      get model() { return process.env.MCP_MODEL_BACKEND_SELECTION || 'mistral-ai/ministral-3b'; },
       get temperature() { return parseFloat(process.env.MCP_TEMP_BACKEND_SELECTION || '0.1'); },
       max_tokens: 50,
-      description: 'Keyword-based routing - швидко'
+      description: 'Keyword-based routing - швидко (45 req/min)'
     },
 
     // Stage 1-MCP: Atlas TODO Planning
     todo_planning: {
-      get model() { return process.env.MCP_MODEL_TODO_PLANNING || 'openai/o1-mini'; },  // FIXED 14.10.2025 - o1-mini для reasoning
+      get model() { return process.env.MCP_MODEL_TODO_PLANNING || 'mistral-ai/mistral-small-2503'; },  // OPTIMIZED 14.10.2025 - mistral-small для швидкості (40 req/min)
       get temperature() { return parseFloat(process.env.MCP_TEMP_TODO_PLANNING || '0.3'); },
       max_tokens: 2000,
-      description: 'Critical planning - o1-mini для якісного reasoning'
+      description: 'Critical planning - mistral-small для балансу швидкості та якості'
     },
 
     // Stage 2.1-MCP: Tetyana Plan Tools
-    // OPTIMIZED 14.10.2025 - Повернено gpt-4o-mini після оптимізації prompt (summary замість full schemas)
+    // OPTIMIZED 14.10.2025 - ministral-3b для найкращого rate limit (45 req/min)
     plan_tools: {
-      get model() { return process.env.MCP_MODEL_PLAN_TOOLS || 'openai/gpt-4o-mini'; },
+      get model() { return process.env.MCP_MODEL_PLAN_TOOLS || 'mistral-ai/ministral-3b'; },
       get temperature() { return parseFloat(process.env.MCP_TEMP_PLAN_TOOLS || '0.2'); },
       max_tokens: 800,
-      description: 'Tool matching - оптимізовано (тільки name+description, без schemas)'
+      description: 'Tool matching - швидка модель з високим rate limit'
     },
 
     // Stage 2.3-MCP: Grisha Verify Item
     verify_item: {
-      get model() { return process.env.MCP_MODEL_VERIFY_ITEM || 'openai/gpt-4o-mini'; },
+      get model() { return process.env.MCP_MODEL_VERIFY_ITEM || 'mistral-ai/ministral-3b'; },
       get temperature() { return parseFloat(process.env.MCP_TEMP_VERIFY_ITEM || '0.2'); },
       max_tokens: 300,
-      description: 'Проста верифікація success/fail'
+      description: 'Проста верифікація success/fail (45 req/min)'
     },
 
     // Stage 3-MCP: Atlas Adjust TODO
     adjust_todo: {
-      get model() { return process.env.MCP_MODEL_ADJUST_TODO || 'openai/gpt-4o-mini'; },  // FIXED 14.10.2025 - доступна модель
+      get model() { return process.env.MCP_MODEL_ADJUST_TODO || 'mistral-ai/ministral-3b'; },  // OPTIMIZED 14.10.2025 - швидка модель
       get temperature() { return parseFloat(process.env.MCP_TEMP_ADJUST_TODO || '0.3'); },
       max_tokens: 1000,
-      description: 'Корекція TODO - gpt-4o-mini (mid-level reasoning)'
+      description: 'Корекція TODO - швидка модель з високим rate limit (45 req/min)'
     },
 
     // Stage 8-MCP: Final Summary
     final_summary: {
-      get model() { return process.env.MCP_MODEL_FINAL_SUMMARY || 'openai/gpt-4o-mini'; },
+      get model() { return process.env.MCP_MODEL_FINAL_SUMMARY || 'mistral-ai/ministral-3b'; },
       get temperature() { return parseFloat(process.env.MCP_TEMP_FINAL_SUMMARY || '0.5'); },
       max_tokens: 500,
-      description: 'User-facing summary - природна мова'
+      description: 'User-facing summary - природна мова (45 req/min)'
     }
   },
 
@@ -299,7 +301,7 @@ export const AI_BACKEND_CONFIG = {
       llm: {
         provider: 'openai',
         apiEndpoint: 'http://localhost:4000/v1/chat/completions',
-        model: 'openai/gpt-4o-mini',
+        model: 'mistral-ai/ministral-3b',  // OPTIMIZED 14.10.2025
         temperature: 0.3
       },
 
