@@ -192,6 +192,11 @@ export class MCPTodoManager {
 
             const response = apiResponse.data.choices[0].message.content;
 
+            // LOG RAW RESPONSE (ADDED 14.10.2025 - Debugging truncated responses)
+            this.logger.system('mcp-todo', `[TODO] Raw LLM response length: ${response.length} chars`);
+            this.logger.system('mcp-todo', `[TODO] Response preview: ${response.substring(0, 300)}...`);
+            this.logger.system('mcp-todo', `[TODO] Response suffix: ...${response.substring(Math.max(0, response.length - 300))}`);
+
             const todo = this._parseTodoResponse(response, request);
 
             // Validate TODO structure
@@ -908,6 +913,42 @@ Context: ${JSON.stringify(context, null, 2)}
                 if (jsonMatch) {
                     cleanResponse = jsonMatch[0];
                 }
+                
+                // FIXED 14.10.2025 - Handling truncated JSON responses
+                // If JSON is incomplete (e.g., ends with `..."prices": [...],`), try to repair it
+                if (cleanResponse && !cleanResponse.trim().endsWith('}')) {
+                    this.logger.warn(`[MCP-TODO] Detected truncated JSON response, attempting repair`, { 
+                        category: 'mcp-todo', 
+                        component: 'mcp-todo',
+                        lastChars: cleanResponse.substring(cleanResponse.length - 50)
+                    });
+                    
+                    // Find the last complete item in the array
+                    // Strategy: Find last complete {...} object before truncation
+                    const lastCompleteItemMatch = cleanResponse.lastIndexOf('}');
+                    if (lastCompleteItemMatch > 0) {
+                        // Cut off incomplete data after last complete item
+                        let repairedJson = cleanResponse.substring(0, lastCompleteItemMatch + 1);
+                        
+                        // Close the items array and JSON object
+                        // Count open brackets to determine what needs closing
+                        const openArrays = (repairedJson.match(/\[/g) || []).length - (repairedJson.match(/\]/g) || []).length;
+                        const openObjects = (repairedJson.match(/\{/g) || []).length - (repairedJson.match(/\}/g) || []).length;
+                        
+                        // Close arrays
+                        for (let i = 0; i < openArrays; i++) {
+                            repairedJson += ']';
+                        }
+                        
+                        // Close objects
+                        for (let i = 0; i < openObjects; i++) {
+                            repairedJson += '}';
+                        }
+                        
+                        cleanResponse = repairedJson;
+                        this.logger.system('mcp-todo', `[TODO] Repaired JSON: ${cleanResponse.length} chars`);
+                    }
+                }
             }
 
             const parsed = typeof cleanResponse === 'string' ? JSON.parse(cleanResponse) : cleanResponse;
@@ -945,6 +986,16 @@ Context: ${JSON.stringify(context, null, 2)}
                 }
             };
         } catch (error) {
+            // FIXED 14.10.2025 - Better error logging with response preview
+            this.logger.error(`[MCP-TODO] Failed to parse TODO response: ${error.message}`, {
+                category: 'mcp-todo',
+                component: 'mcp-todo',
+                errorName: error.name,
+                responseLength: response?.length || 0,
+                responsePreview: response?.substring(0, 200) || 'N/A',
+                responseSuffix: response?.substring(Math.max(0, (response?.length || 0) - 100)) || 'N/A',
+                stack: error.stack
+            });
             throw new Error(`Failed to parse TODO response: ${error.message}`);
         }
     }
