@@ -201,10 +201,11 @@ export function registerMCPWorkflowServices(container) {
             mcpManager: c.resolve('mcpManager'),
             llmClient: null,  // Will be lazy-loaded when needed
             ttsSyncManager: c.resolve('ttsSyncManager'),
+            wsManager: c.resolve('wsManager'),  // ADDED 14.10.2025 - For chat updates
             logger: c.resolve('logger')
         });
     }, {
-        dependencies: ['mcpManager', 'ttsSyncManager', 'logger'],
+        dependencies: ['mcpManager', 'ttsSyncManager', 'wsManager', 'logger'],
         metadata: { category: 'workflow', priority: 50 },
         lifecycle: {
             onInit: async function () {
