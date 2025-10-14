@@ -454,6 +454,10 @@ Previous items: ${JSON.stringify(todo.items.slice(0, item.id - 1).map(i => ({ id
                 // Wait for rate limit (ADDED 14.10.2025)
                 await this._waitForRateLimit();
 
+                // FIXED 14.10.2025 - Increase timeout for reasoning models
+                const isReasoningModel = modelConfig.model.includes('reasoning') || modelConfig.model.includes('phi-4');
+                const timeoutMs = isReasoningModel ? 120000 : 60000;  // 120s for reasoning, 60s for others
+                
                 apiResponse = await axios.post(MCP_MODEL_CONFIG.apiEndpoint, {
                     model: modelConfig.model,
                     messages: [
@@ -470,7 +474,7 @@ Previous items: ${JSON.stringify(todo.items.slice(0, item.id - 1).map(i => ({ id
                     max_tokens: modelConfig.max_tokens
                 }, {
                     headers: { 'Content-Type': 'application/json' },
-                    timeout: 60000,  // FIXED 14.10.2025 - Збільшено до 60s для повільних LLM відповідей
+                    timeout: timeoutMs,
                     maxContentLength: 50 * 1024 * 1024,  // 50MB
                     maxBodyLength: 50 * 1024 * 1024  // 50MB
                 });
@@ -648,6 +652,10 @@ Execution Results: ${JSON.stringify(truncatedResults, null, 2)}
             // Wait for rate limit (ADDED 14.10.2025)
             await this._waitForRateLimit();
 
+            // FIXED 14.10.2025 - Increase timeout for reasoning models
+            const isReasoningModel = modelConfig.model.includes('reasoning') || modelConfig.model.includes('phi-4');
+            const timeoutMs = isReasoningModel ? 120000 : 60000;  // 120s for reasoning, 60s for others
+
             const apiResponse = await axios.post(MCP_MODEL_CONFIG.apiEndpoint, {
                 model: modelConfig.model,
                 messages: [
@@ -664,7 +672,7 @@ Execution Results: ${JSON.stringify(truncatedResults, null, 2)}
                 max_tokens: modelConfig.max_tokens
             }, {
                 headers: { 'Content-Type': 'application/json' },
-                timeout: 60000,  // FIXED 14.10.2025 - Збільшено до 60s для verification
+                timeout: timeoutMs,
                 maxContentLength: 50 * 1024 * 1024,  // 50MB
                 maxBodyLength: 50 * 1024 * 1024  // 50MB
             });
@@ -971,9 +979,12 @@ Context: ${JSON.stringify(context, null, 2)}
         try {
             // FIXED 13.10.2025 - Clean markdown wrappers before parsing
             // FIXED 14.10.2025 - Extract JSON from text if LLM added explanation
+            // FIXED 14.10.2025 - Handle <think> tags from reasoning models (phi-4-reasoning)
             let cleanResponse = response;
             if (typeof response === 'string') {
+                // Remove <think> tags from reasoning models
                 cleanResponse = response
+                    .replace(/<think>[\s\S]*?<\/think>/gi, '')  // Remove <think>...</think> blocks
                     .replace(/^```json\s*/i, '')  // Remove opening ```json
                     .replace(/^```\s*/i, '')       // Remove opening ```
                     .replace(/\s*```$/i, '')       // Remove closing ```
@@ -993,7 +1004,15 @@ Context: ${JSON.stringify(context, null, 2)}
                 reasoning: parsed.reasoning || ''
             };
         } catch (error) {
-            this.logger.error(`[MCP-TODO] Failed to parse tool plan. Raw response: ${response}`, { category: 'mcp-todo', component: 'mcp-todo' });
+            // Truncate long responses for logging
+            const truncatedResponse = typeof response === 'string' && response.length > 500 
+                ? response.substring(0, 500) + '... [truncated]' 
+                : response;
+            this.logger.error(`[MCP-TODO] Failed to parse tool plan. Raw response: ${truncatedResponse}`, { 
+                category: 'mcp-todo', 
+                component: 'mcp-todo',
+                parseError: error.message 
+            });
             throw new Error(`Failed to parse tool plan: ${error.message}`);
         }
     }
@@ -1001,9 +1020,12 @@ Context: ${JSON.stringify(context, null, 2)}
     _parseVerification(response) {
         try {
             // FIXED 13.10.2025 - Clean markdown wrappers before parsing
+            // FIXED 14.10.2025 - Handle <think> tags from reasoning models
             let cleanResponse = response;
             if (typeof response === 'string') {
+                // Remove <think> tags from reasoning models
                 cleanResponse = response
+                    .replace(/<think>[\s\S]*?<\/think>/gi, '')  // Remove <think>...</think> blocks
                     .replace(/^```json\s*/i, '')  // Remove opening ```json
                     .replace(/^```\s*/i, '')       // Remove opening ```
                     .replace(/\s*```$/i, '')       // Remove closing ```
