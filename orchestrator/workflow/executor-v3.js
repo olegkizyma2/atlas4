@@ -337,6 +337,22 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
             logger.warn(`Tool planning failed for item ${item.id}: ${planResult.error}`, {
               sessionId: session.id
             });
+            
+            // FIXED 14.10.2025 - Send error message to user when tool planning fails
+            if (res.writable && !res.writableEnded) {
+              res.write(`data: ${JSON.stringify({
+                type: 'mcp_item_planning_failed',
+                data: {
+                  itemId: item.id,
+                  action: item.action,
+                  attempt: attempt,
+                  maxAttempts: maxAttempts,
+                  error: planResult.error,
+                  summary: planResult.summary || `⚠️ Помилка планування інструментів (спроба ${attempt}/${maxAttempts}): ${planResult.error}`
+                }
+              })}\n\n`);
+            }
+            
             attempt++;
             continue;
           }
