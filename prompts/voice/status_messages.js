@@ -7,7 +7,7 @@
  * @date 2025-10-08
  */
 
-module.exports = {
+const statusMessages = {
   name: 'agent_status_messages',
   description: 'Статусні повідомлення для агентів системи ATLAS',
   version: '4.0.0',
@@ -17,7 +17,7 @@ module.exports = {
      * Генерує коротке статусне повідомлення
      */
   generateShortStatus: (agent, stage, action) => {
-    const messages = module.exports.statusMessages;
+    const messages = statusMessages.statusMessages;
     return (messages[agent]?.[stage]) || `${agent} виконує ${stage}`;
   },
 
@@ -76,3 +76,6 @@ module.exports = {
     network_error: 'Помилка мережевого з\'єднання'
   }
 };
+
+// ES6 export
+export default statusMessages;

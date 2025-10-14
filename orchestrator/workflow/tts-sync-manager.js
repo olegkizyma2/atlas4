@@ -281,13 +281,19 @@ export class TTSSyncManager {
                 try {
                     this.logger.system('tts-sync', `[TTS-SYNC] 🗣️ Speaking [${item.mode}]: "${item.phrase}"`);
 
-                    // Call TTS service
-                    await this.ttsService.speak(item.phrase, {
-                        maxDuration: item.duration
-                    });
+                    // FIXED: Перевірка наявності TTS service
+                    if (this.ttsService && typeof this.ttsService.speak === 'function') {
+                        // Call TTS service
+                        await this.ttsService.speak(item.phrase, {
+                            maxDuration: item.duration
+                        });
 
-                    const actualDuration = Date.now() - startTime;
-                    this.logger.system('tts-sync', `[TTS-SYNC] ✅ Completed in ${actualDuration}ms [${item.mode}]: "${item.phrase}"`);
+                        const actualDuration = Date.now() - startTime;
+                        this.logger.system('tts-sync', `[TTS-SYNC] ✅ Completed in ${actualDuration}ms [${item.mode}]: "${item.phrase}"`);
+                    } else {
+                        // TTS service not available - skip gracefully
+                        this.logger.warn('tts-sync', `[TTS-SYNC] ⚠️ TTS service not available, skipping: "${item.phrase}"`);
+                    }
 
                     // Resolve promise
                     if (item.resolve) {

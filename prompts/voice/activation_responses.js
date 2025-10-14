@@ -7,7 +7,7 @@
  * @date 2025-10-08
  */
 
-module.exports = {
+const activationResponses = {
   name: 'atlas_activation_responses',
   description: 'Список відповідей ATLAS при активації через голосові команди',
   version: '4.0.0',
@@ -17,7 +17,7 @@ module.exports = {
      * Отримати випадкову відповідь при активації
      */
   getRandomResponse: () => {
-    const responses = module.exports.responses;
+    const responses = activationResponses.responses;
     return responses[Math.floor(Math.random() * responses.length)];
   },
 
@@ -82,3 +82,6 @@ module.exports = {
     'готовий працювати, Олег Миколайович'
   ]
 };
+
+// ES6 export
+export default activationResponses;

@@ -7,7 +7,7 @@
  * @date 2025-10-08
  */
 
-module.exports = {
+const workflowStages = {
   name: 'workflow_stages',
   description: 'Визначення всіх етапів workflow системи ATLAS',
   version: '4.0.0',
@@ -17,7 +17,7 @@ module.exports = {
      * Отримати опис етапу
      */
   getStageDescription: (stageName) => {
-    const stage = module.exports.stages.find(s => s.name === stageName);
+    const stage = workflowStages.stages.find(s => s.name === stageName);
     return stage?.description || 'Опис етапу не знайдено';
   },
 
@@ -25,14 +25,14 @@ module.exports = {
      * Отримати етап за номером
      */
   getStageByNumber: (stageNumber) => {
-    return module.exports.stages.find(s => s.stage === stageNumber);
+    return workflowStages.stages.find(s => s.stage === stageNumber);
   },
 
   /**
      * Отримати очікувані стани етапу
      */
   getExpectedStates: (stageName) => {
-    const stage = module.exports.stages.find(s => s.name === stageName);
+    const stage = workflowStages.stages.find(s => s.name === stageName);
     return stage?.expectedStates || [];
   },
 
@@ -211,3 +211,6 @@ module.exports = {
     agent_response_for_tts: 'Відповідь агента потребує TTS оптимізації'
   }
 };
+
+// ES6 export
+export default workflowStages;

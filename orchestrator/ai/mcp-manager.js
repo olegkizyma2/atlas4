@@ -175,6 +175,68 @@ class MCPServer {
     });
 
     logger.system('mcp-server', `[MCP ${this.name}] ✅ Ready`);
+
+    // FIXED: Після ініціалізації запитати список tools
+    await this.requestToolsList();
+  }
+
+  /**
+   * Запитати список доступних tools у MCP server
+   * @private
+   */
+  async requestToolsList() {
+    logger.debug('mcp-server', `[MCP ${this.name}] Requesting tools list...`);
+
+    const messageId = ++this.messageId;
+    const listMessage = {
+      jsonrpc: '2.0',
+      id: messageId,
+      method: 'tools/list',
+      params: {}
+    };
+
+    // Створити pending request для tools/list
+    if (!this.pendingRequests) {
+      this.pendingRequests = new Map();
+    }
+
+    const toolsPromise = new Promise((resolve, reject) => {
+      this.pendingRequests.set(messageId, { 
+        resolve: (result) => {
+          // Витягти tools з response
+          if (result && Array.isArray(result.tools)) {
+            this.tools = result.tools;
+            logger.system('mcp-server', `[MCP ${this.name}] ✅ Loaded ${this.tools.length} tools`);
+            if (this.tools.length > 0) {
+              logger.debug('mcp-server', `[MCP ${this.name}] Tools: ${this.tools.map(t => t.name).join(', ')}`);
+            }
+          } else {
+            logger.warn('mcp-server', `[MCP ${this.name}] ⚠️ No tools returned`);
+            this.tools = [];
+          }
+          resolve();
+        },
+        reject 
+      });
+
+      // Timeout 10s
+      setTimeout(() => {
+        if (this.pendingRequests.has(messageId)) {
+          this.pendingRequests.delete(messageId);
+          logger.warn('mcp-server', `[MCP ${this.name}] ⚠️ Tools list request timeout`);
+          this.tools = []; // Fallback на пустий масив
+          resolve(); // НЕ reject - сервер може працювати без tools
+        }
+      }, 10000);
+    });
+
+    try {
+      this.process.stdin.write(JSON.stringify(listMessage) + '\n');
+      await toolsPromise;
+    } catch (error) {
+      logger.warn('mcp-server', `[MCP ${this.name}] ⚠️ Failed to get tools list: ${error.message}`);
+      this.tools = []; // Fallback
+    }
   }
 
   /**
