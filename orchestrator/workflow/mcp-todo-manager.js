@@ -477,10 +477,39 @@ export class MCPTodoManager {
             const { MCP_PROMPTS } = await import('../../prompts/mcp/index.js');
             const planPrompt = MCP_PROMPTS.TETYANA_PLAN_TOOLS;
 
+            // FIXED 15.10.2025 - Truncate execution_results to prevent 413 errors
+            const previousItemsSummary = todo.items.slice(0, item.id - 1).map(i => {
+                const summary = { 
+                    id: i.id, 
+                    action: i.action, 
+                    status: i.status 
+                };
+                
+                // Include truncated execution_results if available
+                if (i.execution_results && i.execution_results.results) {
+                    summary.results_summary = i.execution_results.results.map(r => {
+                        const truncated = { tool: r.tool, success: r.success };
+                        // Truncate content/text to 200 chars max
+                        if (r.content && typeof r.content === 'string') {
+                            truncated.content = r.content.substring(0, 200) + (r.content.length > 200 ? '...[truncated]' : '');
+                        }
+                        if (r.text && typeof r.text === 'string') {
+                            truncated.text = r.text.substring(0, 200) + (r.text.length > 200 ? '...[truncated]' : '');
+                        }
+                        if (r.error) {
+                            truncated.error = typeof r.error === 'string' ? r.error.substring(0, 100) : 'error';
+                        }
+                        return truncated;
+                    });
+                }
+                
+                return summary;
+            });
+
             const userMessage = `
 TODO Item: ${item.action}
 Available MCP Tools: ${JSON.stringify(toolsSummary, null, 2)}
-Previous items: ${JSON.stringify(todo.items.slice(0, item.id - 1).map(i => ({ id: i.id, action: i.action, status: i.status })), null, 2)}
+Previous items: ${JSON.stringify(previousItemsSummary, null, 2)}
 
 Визнач які інструменти потрібні та параметри для виконання.
 `;
@@ -664,20 +693,22 @@ Previous items: ${JSON.stringify(todo.items.slice(0, item.id - 1).map(i => ({ id
 
             // FIXED 14.10.2025 - Truncate long content to avoid token limits
             // FIXED 14.10.2025 - Also truncate error messages and stacks to avoid JSON parsing issues
+            // FIXED 15.10.2025 - Reduce truncate limit from 1000 to 300 to prevent 413 errors
             const truncatedResults = execution.results.map(result => {
                 const truncated = { ...result };
-                if (truncated.content && typeof truncated.content === 'string' && truncated.content.length > 1000) {
-                    truncated.content = truncated.content.substring(0, 1000) + '... [truncated]';
+                if (truncated.content && typeof truncated.content === 'string' && truncated.content.length > 300) {
+                    truncated.content = truncated.content.substring(0, 300) + '... [truncated]';
                 }
-                if (truncated.text && typeof truncated.text === 'string' && truncated.text.length > 1000) {
-                    truncated.text = truncated.text.substring(0, 1000) + '... [truncated]';
+                if (truncated.text && typeof truncated.text === 'string' && truncated.text.length > 300) {
+                    truncated.text = truncated.text.substring(0, 300) + '... [truncated]';
                 }
                 // НОВИНКА 14.10.2025 - Truncate error messages to avoid JSON parsing issues
-                if (truncated.error && typeof truncated.error === 'string' && truncated.error.length > 500) {
-                    truncated.error = truncated.error.substring(0, 500) + '... [truncated]';
+                // FIXED 15.10.2025 - Reduce from 500 to 200
+                if (truncated.error && typeof truncated.error === 'string' && truncated.error.length > 200) {
+                    truncated.error = truncated.error.substring(0, 200) + '... [truncated]';
                 }
-                if (truncated.stack && typeof truncated.stack === 'string' && truncated.stack.length > 500) {
-                    truncated.stack = truncated.stack.substring(0, 500) + '... [truncated]';
+                if (truncated.stack && typeof truncated.stack === 'string' && truncated.stack.length > 200) {
+                    truncated.stack = truncated.stack.substring(0, 200) + '... [truncated]';
                 }
                 return truncated;
             });

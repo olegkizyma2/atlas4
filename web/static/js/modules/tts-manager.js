@@ -182,7 +182,11 @@ export class TTSManager {
   }
 
   async synthesize(text, voice = TTS_CONFIG.defaultVoice, options = {}) {
+    // FIXED 15.10.2025 - Add diagnostic logging for TTS issues
+    this.logger.info(`[TTS-DIAG] synthesize() called: enabled=${this.enabled}, voice=${voice}, text_length=${text?.length || 0}`);
+    
     if (!this.enabled) {
+      this.logger.error('[TTS-DIAG] TTS service not available, throwing error');
       throw new Error('TTS service not available');
     }
 
@@ -228,6 +232,7 @@ export class TTSManager {
 
         try {
           this.logger.info(`[TTS] Synthesis attempt ${attempt}/${maxAttempts} for voice ${voice}`);
+          this.logger.info(`[TTS-DIAG] Sending TTS request to server: text="${processedText.substring(0, 50)}...", voice=${voice}`);
 
           const { data } = await ttsClient.request('/tts', {
             method: 'POST',
@@ -242,6 +247,7 @@ export class TTSManager {
 
           // Успіх - повертаємо результат
           this.logger.info(`[TTS] Synthesis successful on attempt ${attempt}`);
+          this.logger.info(`[TTS-DIAG] Received audio blob: size=${data?.size || 'unknown'} bytes, type=${data?.type || 'unknown'}`);
           return data;
 
         } catch (error) {
@@ -278,6 +284,9 @@ export class TTSManager {
   }
 
   async playAudio(audioBlob, agent = 'atlas') {
+    // FIXED 15.10.2025 - Add diagnostic logging
+    this.logger.info(`[TTS-DIAG] playAudio() called: agent=${agent}, blob_size=${audioBlob?.size || 'unknown'}, blob_type=${audioBlob?.type || 'unknown'}`);
+
     // Ensure autoplay unlocking is armed
     this._attachAutoplayUnlockHandlers();
 
@@ -288,6 +297,7 @@ export class TTSManager {
       this.logger.info(`Creating audio URL for ${agent}, blob size: ${audioBlob?.size || 'unknown'}`);
 
       const audioUrl = URL.createObjectURL(audioBlob);
+      this.logger.info(`[TTS-DIAG] Created audio URL: ${audioUrl}`);
       const audio = new Audio(audioUrl);
 
       // Встановлюємо максимальну гучність для забезпечення чутності
