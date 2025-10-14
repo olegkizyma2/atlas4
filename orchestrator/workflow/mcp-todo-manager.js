@@ -65,20 +65,23 @@ export class MCPTodoManager {
      * @param {Object} dependencies.mcpManager - MCP Manager instance
      * @param {Object} dependencies.llmClient - LLM Client for reasoning
      * @param {Object} dependencies.ttsSyncManager - TTS Sync Manager
+     * @param {Object} dependencies.wsManager - WebSocket Manager for chat updates
      * @param {Object} dependencies.logger - Logger instance
      */
-    constructor({ mcpManager, llmClient, ttsSyncManager, logger: loggerInstance }) {
+    constructor({ mcpManager, llmClient, ttsSyncManager, wsManager, logger: loggerInstance }) {
         this.mcpManager = mcpManager;
         this.llmClient = llmClient;
         this.tts = ttsSyncManager;
+        this.wsManager = wsManager;  // ADDED 14.10.2025 - For chat updates
         this.logger = loggerInstance || logger;
 
         this.activeTodos = new Map(); // todoId -> TodoList
         this.completedTodos = new Map(); // todoId -> results
+        this.currentSessionId = null;  // ADDED 14.10.2025 - Track current session
 
         // Rate limiting state (ADDED 14.10.2025)
         this.lastApiCall = 0;
-        this.minApiDelay = 500; // 500ms between API calls
+        this.minApiDelay = 2000; // INCREASED 14.10.2025 - 2000ms between API calls to avoid rate limits
     }
 
     /**
@@ -101,6 +104,35 @@ export class MCPTodoManager {
     }
 
     /**
+     * Send message to chat via WebSocket
+     * ADDED 14.10.2025 - Enable chat updates during workflow
+     * 
+     * @param {string} message - Message to send
+     * @param {string} type - Message type (info, success, error, progress)
+     * @private
+     */
+    _sendChatMessage(message, type = 'info') {
+        if (!this.wsManager) {
+            return; // Gracefully skip if WebSocket not available
+        }
+
+        try {
+            // FIXED 14.10.2025 - Use broadcastToSubscribers instead of broadcastToSession
+            this.wsManager.broadcastToSubscribers('chat', 'chat_message', {
+                message,
+                messageType: type,
+                sessionId: this.currentSessionId,
+                timestamp: new Date().toISOString()
+            });
+        } catch (error) {
+            this.logger.warn(`[MCP-TODO] Failed to send chat message: ${error.message}`, {
+                category: 'mcp-todo',
+                component: 'mcp-todo'
+            });
+        }
+    }
+
+    /**
      * Create TODO list from user request
      * 
      * @param {string} request - User request text
@@ -109,6 +141,11 @@ export class MCPTodoManager {
      */
     async createTodo(request, context = {}) {
         this.logger.system('mcp-todo', `[TODO] Creating TODO for request: "${request}"`);
+        
+        // ADDED 14.10.2025 - Store sessionId for WebSocket updates
+        if (context.sessionId) {
+            this.currentSessionId = context.sessionId;
+        }
 
         try {
             // Import full prompt from MCP prompts
@@ -126,6 +163,10 @@ export class MCPTodoManager {
             // FIXED 13.10.2025 - Use FULL prompt with JSON schema and examples
             // FIXED 14.10.2025 - Use MCP_MODEL_CONFIG for per-stage models
             const modelConfig = MCP_MODEL_CONFIG.getStageConfig('todo_planning');
+            
+            // LOG MODEL SELECTION (ADDED 14.10.2025 - Debugging)
+            this.logger.system('mcp-todo', `[TODO] Using model: ${modelConfig.model} (temp: ${modelConfig.temperature}, max_tokens: ${modelConfig.max_tokens})`);
+            
             const apiResponse = await axios.post(MCP_MODEL_CONFIG.apiEndpoint, {
                 model: modelConfig.model,
                 messages: [
@@ -135,7 +176,7 @@ export class MCPTodoManager {
                 temperature: modelConfig.temperature,
                 max_tokens: modelConfig.max_tokens,
                 headers: { 'Content-Type': 'application/json' },
-                timeout: 30000
+                timeout: 60000  // INCREASED 14.10.2025 - 60s для o1-mini reasoning models
             });
 
             const response = apiResponse.data.choices[0].message.content;
@@ -149,6 +190,13 @@ export class MCPTodoManager {
             this.activeTodos.set(todo.id, todo);
 
             this.logger.system('mcp-todo', `[TODO] Created ${todo.mode} TODO with ${todo.items.length} items (complexity: ${todo.complexity}/10)`);
+
+            // Send chat message (ADDED 14.10.2025)
+            const itemsList = todo.items.map((item, idx) => `${idx + 1}. ${item.action}`).join('\n');
+            this._sendChatMessage(
+                `📋 План створено (${todo.items.length} ${this._getPluralForm(todo.items.length, 'пункт', 'пункти', 'пунктів')}):\n${itemsList}`,
+                'info'
+            );
 
             // TTS feedback (optional - skip if TTS not available)
             if (this.tts && typeof this.tts.speak === 'function') {
@@ -248,6 +296,7 @@ export class MCPTodoManager {
      */
     async executeItemWithRetry(item, todo) {
         this.logger.system('mcp-todo', `[TODO] Executing item ${item.id} with max ${item.max_attempts} attempts`);
+        this._sendChatMessage(`🔄 Виконую: ${item.action}`, 'progress');  // ADDED 14.10.2025
 
         item.status = 'in_progress';
         let lastError = null;
@@ -257,6 +306,9 @@ export class MCPTodoManager {
 
             try {
                 this.logger.system('mcp-todo', `[TODO] Item ${item.id} - Attempt ${attempt}/${item.max_attempts}`);
+                if (attempt > 1) {
+                    this._sendChatMessage(`🔁 Спроба ${attempt}/${item.max_attempts}`, 'info');  // ADDED 14.10.2025
+                }
 
                 // Stage 2.1: Plan Tools (Tetyana)
                 const plan = await this.planTools(item, todo);
@@ -277,6 +329,7 @@ export class MCPTodoManager {
                     item.verification = verification;
 
                     this.logger.system('mcp-todo', `[TODO] ✅ Item ${item.id} completed on attempt ${attempt}`);
+                    this._sendChatMessage(`✅ Виконано: ${item.action}`, 'success');  // ADDED 14.10.2025
 
                     await this._safeTTSSpeak('✅ Виконано', { mode: 'quick', duration: 100 });
 
@@ -318,6 +371,7 @@ export class MCPTodoManager {
         item.execution_results = { error: lastError };
 
         this.logger.error(`[MCP-TODO] ❌ Item ${item.id} failed after ${item.max_attempts} attempts`, { category: 'mcp-todo', component: 'mcp-todo' });
+        this._sendChatMessage(`❌ Не вдалося: ${item.action}`, 'error');  // ADDED 14.10.2025
 
         return { status: 'failed', attempts: item.max_attempts, item, error: lastError };
     }
@@ -381,6 +435,9 @@ Previous items: ${JSON.stringify(todo.items.slice(0, item.id - 1).map(i => ({ id
             let apiResponse;
             try {
                 const modelConfig = MCP_MODEL_CONFIG.getStageConfig('plan_tools');
+                
+                // LOG MODEL SELECTION (ADDED 14.10.2025 - Debugging)
+                this.logger.system('mcp-todo', `[TODO] Planning tools with model: ${modelConfig.model} (temp: ${modelConfig.temperature}, max_tokens: ${modelConfig.max_tokens})`);
                 this.logger.system('mcp-todo', `[TODO] Calling LLM API at ${MCP_MODEL_CONFIG.apiEndpoint}...`);
 
                 // Wait for rate limit (ADDED 14.10.2025)
@@ -402,7 +459,9 @@ Previous items: ${JSON.stringify(todo.items.slice(0, item.id - 1).map(i => ({ id
                     max_tokens: modelConfig.max_tokens
                 }, {
                     headers: { 'Content-Type': 'application/json' },
-                    timeout: 30000  // FIXED 14.10.2025 - Збільшено з 15s до 30s для повільних LLM відповідей
+                    timeout: 60000,  // FIXED 14.10.2025 - Збільшено до 60s для повільних LLM відповідей
+                    maxContentLength: 50 * 1024 * 1024,  // 50MB
+                    maxBodyLength: 50 * 1024 * 1024  // 50MB
                 });
 
                 this.logger.system('mcp-todo', `[TODO] LLM API responded successfully`);
@@ -543,10 +602,23 @@ Previous items: ${JSON.stringify(todo.items.slice(0, item.id - 1).map(i => ({ id
             const { MCP_PROMPTS } = await import('../../prompts/mcp/index.js');
             const verifyPrompt = MCP_PROMPTS.GRISHA_VERIFY_ITEM;
 
+            // FIXED 14.10.2025 - Truncate execution results to prevent HTTP 413
+            const truncatedResults = execution.results.map(result => {
+                const truncated = { ...result };
+                // Truncate large content fields
+                if (truncated.content && typeof truncated.content === 'string' && truncated.content.length > 1000) {
+                    truncated.content = truncated.content.substring(0, 1000) + '... [truncated]';
+                }
+                if (truncated.text && typeof truncated.text === 'string' && truncated.text.length > 1000) {
+                    truncated.text = truncated.text.substring(0, 1000) + '... [truncated]';
+                }
+                return truncated;
+            });
+
             const userMessage = `
 TODO Item: ${item.action}
 Success Criteria: ${item.success_criteria}
-Execution Results: ${JSON.stringify(execution.results, null, 2)}
+Execution Results: ${JSON.stringify(truncatedResults, null, 2)}
 
 Перевір чи виконано успішно. Використовуй MCP інструменти для перевірки (скріншот, file read, etc).
 `;
@@ -574,7 +646,9 @@ Execution Results: ${JSON.stringify(execution.results, null, 2)}
                 max_tokens: modelConfig.max_tokens
             }, {
                 headers: { 'Content-Type': 'application/json' },
-                timeout: 30000  // FIXED 14.10.2025 - Збільшено з 15s до 30s для verification
+                timeout: 60000,  // FIXED 14.10.2025 - Збільшено до 60s для verification
+                maxContentLength: 50 * 1024 * 1024,  // 50MB
+                maxBodyLength: 50 * 1024 * 1024  // 50MB
             });
 
             const response = apiResponse.data.choices[0].message.content;
