@@ -613,15 +613,22 @@ Previous items: ${JSON.stringify(todo.items.slice(0, item.id - 1).map(i => ({ id
             const { MCP_PROMPTS } = await import('../../prompts/mcp/index.js');
             const verifyPrompt = MCP_PROMPTS.GRISHA_VERIFY_ITEM;
 
-            // FIXED 14.10.2025 - Truncate execution results to prevent HTTP 413
+            // FIXED 14.10.2025 - Truncate long content to avoid token limits
+            // FIXED 14.10.2025 - Also truncate error messages and stacks to avoid JSON parsing issues
             const truncatedResults = execution.results.map(result => {
                 const truncated = { ...result };
-                // Truncate large content fields
                 if (truncated.content && typeof truncated.content === 'string' && truncated.content.length > 1000) {
                     truncated.content = truncated.content.substring(0, 1000) + '... [truncated]';
                 }
                 if (truncated.text && typeof truncated.text === 'string' && truncated.text.length > 1000) {
                     truncated.text = truncated.text.substring(0, 1000) + '... [truncated]';
+                }
+                // НОВИНКА 14.10.2025 - Truncate error messages to avoid JSON parsing issues
+                if (truncated.error && typeof truncated.error === 'string' && truncated.error.length > 500) {
+                    truncated.error = truncated.error.substring(0, 500) + '... [truncated]';
+                }
+                if (truncated.stack && typeof truncated.stack === 'string' && truncated.stack.length > 500) {
+                    truncated.stack = truncated.stack.substring(0, 500) + '... [truncated]';
                 }
                 return truncated;
             });
@@ -1017,8 +1024,23 @@ Context: ${JSON.stringify(context, null, 2)}
                 evidence: parsed.evidence || {}
             };
         } catch (error) {
-            this.logger.error(`[MCP-TODO] Failed to parse verification. Raw response: ${response}`, { category: 'mcp-todo', component: 'mcp-todo' });
-            throw new Error(`Failed to parse verification: ${error.message}`);
+            // НОВИНКА 14.10.2025 - Better error handling with fallback
+            const truncatedResponse = typeof response === 'string' && response.length > 500 
+                ? response.substring(0, 500) + '... [truncated]' 
+                : response;
+            
+            this.logger.error(`[MCP-TODO] Failed to parse verification. Raw response: ${truncatedResponse}`, { 
+                category: 'mcp-todo', 
+                component: 'mcp-todo',
+                parseError: error.message 
+            });
+            
+            // Fallback: return failed verification with error details
+            return {
+                verified: false,
+                reason: `JSON parsing failed: ${error.message}`,
+                evidence: { parseError: error.message, responsePreview: truncatedResponse }
+            };
         }
     }
 
