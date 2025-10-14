@@ -196,8 +196,9 @@ export class TetyanaПlanToolsProcessor {
         // Check each tool call
         for (const call of plan.tool_calls) {
             // Check if tool exists
+            // FIXED 14.10.2025 - MCP tools have 'name' property, not 'tool'
             const toolExists = availableTools.some(
-                t => t.server === call.server && t.tool === call.tool
+                t => t.server === call.server && t.name === call.tool
             );
 
             if (!toolExists) {

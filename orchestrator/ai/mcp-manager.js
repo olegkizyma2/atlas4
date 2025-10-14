@@ -223,15 +223,16 @@ class MCPServer {
         reject
       });
 
-      // Timeout 10s
+      // Timeout 20s (INCREASED 14.10.2025 - some MCP servers are slow to list tools)
       setTimeout(() => {
         if (this.pendingRequests.has(messageId)) {
           this.pendingRequests.delete(messageId);
-          logger.warn('mcp-server', `[MCP ${this.name}] ⚠️ Tools list request timeout`);
+          logger.warn('mcp-server', `[MCP ${this.name}] ⚠️ Tools list request timeout after 20s`);
+          logger.debug('mcp-server', `[MCP ${this.name}] This may indicate the MCP server doesn't support tools/list or is too slow`);
           this.tools = []; // Fallback на пустий масив
           resolve(); // НЕ reject - сервер може працювати без tools
         }
-      }, 10000);
+      }, 20000);
     });
 
     try {
@@ -277,13 +278,14 @@ class MCPServer {
     const resultPromise = new Promise((resolve, reject) => {
       this.pendingRequests.set(messageId, { resolve, reject });
 
-      // Timeout 30s
+      // Timeout 60s (INCREASED 14.10.2025 - playwright operations can be slow)
       setTimeout(() => {
         if (this.pendingRequests.has(messageId)) {
           this.pendingRequests.delete(messageId);
-          reject(new Error(`Tool ${toolName} timeout`));
+          logger.error('mcp-server', `[MCP ${this.name}] ❌ Tool ${toolName} timeout after 60s`);
+          reject(new Error(`Tool ${toolName} timeout after 60s`));
         }
-      }, 30000);
+      }, 60000);
     });
 
     // Відправити request
