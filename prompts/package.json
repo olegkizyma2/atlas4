@@ -1,3 +1,4 @@
 {
-  "description": "CommonJS modules for ATLAS prompts system"
+  "type": "module",
+  "description": "ES6 modules for ATLAS prompts system"
 }
