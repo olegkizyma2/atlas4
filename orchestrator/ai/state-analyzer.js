@@ -53,8 +53,8 @@ Return ONLY a valid JSON object with these exact fields:
 }
 DO NOT include any additional text, markdown formatting or explanation.`;
 
-  // Використовуємо GPT-4o-mini для аналізу (оптимальний баланс якості та швидкості)
-  const MODEL = 'openai/gpt-4o-mini';
+  // OPTIMIZED 14.10.2025 - ministral-3b замість gpt-4o-mini (45 req/min vs 35 req/min)
+  const MODEL = 'mistral-ai/ministral-3b';
 
   // Формуємо чіткий prompt для аналізу
   const userPrompt = `

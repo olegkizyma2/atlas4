@@ -19,6 +19,15 @@ import SystemStageProcessor from './stages/system-stage-processor.js';
 import AgentStageProcessor from './stages/agent-stage-processor.js';
 import WorkflowConditions from './conditions.js';
 
+// Helper function for Ukrainian plurals (ADDED 14.10.2025)
+function getPluralForm(count, one, few, many) {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod10 === 1 && mod100 !== 11) return one;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return few;
+  return many;
+}
+
 // MCP Stage Processors (Phase 4)
 import {
     BackendSelectionProcessor,
@@ -185,6 +194,9 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
     userMessage: userMessage.substring(0, 100)
   });
 
+  // Get WebSocket Manager for chat updates (ADDED 14.10.2025)
+  const wsManager = container.resolve('wsManager');
+  
   const workflowStart = Date.now();
   
   // ✅ PHASE 4 TASK 3: Timeout protection (max 5 minutes)
@@ -241,7 +253,7 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
       }))
     });
 
-    // Send TODO plan to frontend
+    // Send TODO plan to frontend via SSE
     if (res.writable && !res.writableEnded) {
       res.write(`data: ${JSON.stringify({
         type: 'mcp_todo_created',
@@ -253,6 +265,21 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
       })}\n\n`);
     }
 
+    // Send TODO plan to chat via WebSocket (ADDED 14.10.2025)
+    if (wsManager) {
+      try {
+        const itemsList = todo.items.map((item, idx) => `${idx + 1}. ${item.action}`).join('\n');
+        wsManager.broadcastToSubscribers('chat', 'chat_message', {
+          message: `📋 План створено (${todo.items.length} ${getPluralForm(todo.items.length, 'пункт', 'пункти', 'пунктів')}):\n${itemsList}`,
+          messageType: 'info',
+          sessionId: session.id,
+          timestamp: new Date().toISOString()
+        });
+      } catch (error) {
+        logger.warn(`Failed to send WebSocket message: ${error.message}`);
+      }
+    }
+
     // Execute TODO items one by one
     for (let i = 0; i < todo.items.length; i++) {
       const item = todo.items[i];
@@ -260,6 +287,20 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
         sessionId: session.id,
         itemId: item.id
       });
+
+      // Send item start message via WebSocket (ADDED 14.10.2025)
+      if (wsManager) {
+        try {
+          wsManager.broadcastToSubscribers('chat', 'chat_message', {
+            message: `🔄 Виконую: ${item.action}`,
+            messageType: 'progress',
+            sessionId: session.id,
+            timestamp: new Date().toISOString()
+          });
+        } catch (error) {
+          logger.warn(`Failed to send WebSocket message: ${error.message}`);
+        }
+      }
 
       let attempt = 1;
       const maxAttempts = item.max_attempts || 3;
@@ -362,6 +403,20 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
               sessionId: session.id,
               attempts: attempt
             });
+
+            // Send success message via WebSocket (ADDED 14.10.2025)
+            if (wsManager) {
+              try {
+                wsManager.broadcastToSubscribers('chat', 'chat_message', {
+                  message: `✅ Виконано: ${item.action}`,
+                  messageType: 'success',
+                  sessionId: session.id,
+                  timestamp: new Date().toISOString()
+                });
+              } catch (error) {
+                logger.warn(`Failed to send WebSocket message: ${error.message}`);
+              }
+            }
 
             break; // Exit retry loop
           }

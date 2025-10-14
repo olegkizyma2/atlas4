@@ -20,7 +20,7 @@ export class LLMClient {
     this.config = config;
     this.provider = config.provider || 'openai';
     this.endpoint = config.apiEndpoint || 'http://localhost:4000/v1/chat/completions';
-    this.model = config.model || 'openai/gpt-4o-mini';
+    this.model = config.model || 'mistral-ai/ministral-3b';  // OPTIMIZED 14.10.2025 - 45 req/min
     this.temperature = config.temperature || 0.3;
   }
 
