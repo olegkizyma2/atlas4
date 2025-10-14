@@ -662,13 +662,16 @@ Attempt: ${attempt}/${item.max_attempts}
 
         const successRate = Math.round((completedItems.length / todo.items.length) * 100);
 
+        // FIXED 14.10.2025 - Safe access to execution.total_attempts with fallback
+        const totalAttempts = todo.execution?.total_attempts || 0;
+
         const prompt = `
 Original Request: ${todo.request}
 TODO Items: ${todo.items.length}
 Completed: ${completedItems.length}
 Failed: ${failedItems.length}
 Skipped: ${skippedItems.length}
-Total Attempts: ${todo.execution.total_attempts}
+Total Attempts: ${totalAttempts}
 
 Results: ${JSON.stringify(todo.items.map(i => ({
     id: i.id,
@@ -714,7 +717,7 @@ Results: ${JSON.stringify(todo.items.map(i => ({
             completed_items: completedItems.length,
             failed_items: failedItems.length,
             skipped_items: skippedItems.length,
-            total_attempts: todo.execution.total_attempts,
+            total_attempts: totalAttempts,  // FIXED 14.10.2025 - Use safe variable
             summary: llmText,
             key_results: completedItems.map(i => ({
                 action: i.action,
@@ -785,7 +788,14 @@ Context: ${JSON.stringify(context, null, 2)}
                         failure: item.tts?.failure || '❌ Помилка',
                         verify: item.tts?.verify || 'Перевіряю...'
                     }
-                }))
+                })),
+                // FIXED 14.10.2025 - Initialize execution object to prevent undefined errors
+                execution: {
+                    start_time: Date.now(),
+                    end_time: null,
+                    total_attempts: 0,
+                    status: 'pending'
+                }
             };
         } catch (error) {
             throw new Error(`Failed to parse TODO response: ${error.message}`);
