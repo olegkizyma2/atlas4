@@ -72,10 +72,10 @@ export class MCPTodoManager {
         this.llmClient = llmClient;
         this.tts = ttsSyncManager;
         this.logger = loggerInstance || logger;
-        
+
         this.activeTodos = new Map(); // todoId -> TodoList
         this.completedTodos = new Map(); // todoId -> results
-        
+
         // Rate limiting state (ADDED 14.10.2025)
         this.lastApiCall = 0;
         this.minApiDelay = 500; // 500ms between API calls
@@ -90,13 +90,13 @@ export class MCPTodoManager {
     async _waitForRateLimit() {
         const now = Date.now();
         const timeSinceLastCall = now - this.lastApiCall;
-        
+
         if (timeSinceLastCall < this.minApiDelay) {
             const delay = this.minApiDelay - timeSinceLastCall;
             this.logger.system('mcp-todo', `[RATE-LIMIT] Waiting ${delay}ms before API call`);
             await new Promise(resolve => setTimeout(resolve, delay));
         }
-        
+
         this.lastApiCall = Date.now();
     }
 
@@ -114,15 +114,15 @@ export class MCPTodoManager {
             // Import full prompt from MCP prompts
             const { MCP_PROMPTS } = await import('../../prompts/mcp/index.js');
             const todoPrompt = MCP_PROMPTS.ATLAS_TODO_PLANNING;
-            
+
             // Build user message with context
             const userMessage = todoPrompt.userPrompt
                 .replace('{{request}}', request)
                 .replace('{{context}}', JSON.stringify(context, null, 2));
-            
+
             // Wait for rate limit (ADDED 14.10.2025)
             await this._waitForRateLimit();
-            
+
             // FIXED 13.10.2025 - Use FULL prompt with JSON schema and examples
             // FIXED 14.10.2025 - Use MCP_MODEL_CONFIG for per-stage models
             const modelConfig = MCP_MODEL_CONFIG.getStageConfig('todo_planning');
@@ -141,15 +141,15 @@ export class MCPTodoManager {
             const response = apiResponse.data.choices[0].message.content;
 
             const todo = this._parseTodoResponse(response, request);
-            
+
             // Validate TODO structure
             this._validateTodo(todo);
-            
+
             // Store active TODO
             this.activeTodos.set(todo.id, todo);
-            
+
             this.logger.system('mcp-todo', `[TODO] Created ${todo.mode} TODO with ${todo.items.length} items (complexity: ${todo.complexity}/10)`);
-            
+
             // TTS feedback (optional - skip if TTS not available)
             if (this.tts && typeof this.tts.speak === 'function') {
                 try {
@@ -277,9 +277,9 @@ export class MCPTodoManager {
                     item.verification = verification;
 
                     this.logger.system('mcp-todo', `[TODO] ✅ Item ${item.id} completed on attempt ${attempt}`);
-                    
+
                     await this._safeTTSSpeak('✅ Виконано', { mode: 'quick', duration: 100 });
-                    
+
                     return { status: 'completed', attempts: attempt, item };
                 }
 
@@ -290,10 +290,10 @@ export class MCPTodoManager {
                 // Stage 3: Adjust TODO (if attempts remain)
                 if (attempt < item.max_attempts) {
                     const adjustment = await this.adjustTodoItem(item, verification, attempt);
-                    
+
                     // Apply adjustments
                     Object.assign(item, adjustment.updated_todo_item);
-                    
+
                     await this._safeTTSSpeak('Коригую та повторюю...', { mode: 'normal', duration: 1000 });
                 } else {
                     // Final attempt failed
@@ -554,10 +554,10 @@ Execution Results: ${JSON.stringify(execution.results, null, 2)}
             // FIXED 13.10.2025 - Use correct API call format
             // FIXED 14.10.2025 - Use MCP_MODEL_CONFIG for per-stage models
             const modelConfig = MCP_MODEL_CONFIG.getStageConfig('verify_item');
-            
+
             // Wait for rate limit (ADDED 14.10.2025)
             await this._waitForRateLimit();
-            
+
             const apiResponse = await axios.post(MCP_MODEL_CONFIG.apiEndpoint, {
                 model: modelConfig.model,
                 messages: [
@@ -584,7 +584,7 @@ Execution Results: ${JSON.stringify(execution.results, null, 2)}
             this.logger.system('mcp-todo', `[TODO] Verification result for item ${item.id}: ${verification.verified ? 'PASS' : 'FAIL'}`);
 
             return verification;
-            
+
         } catch (error) {
             // FIXED 14.10.2025 - Use correct logger signature for error() method
             this.logger.error(`[MCP-TODO] Failed to verify item ${item.id}: ${error.message}`, {
@@ -626,10 +626,10 @@ Attempt: ${attempt}/${item.max_attempts}
             // FIXED 13.10.2025 - Use correct API call format
             // FIXED 14.10.2025 - Use MCP_MODEL_CONFIG for per-stage models
             const modelConfig = MCP_MODEL_CONFIG.getStageConfig('adjust_todo');
-            
+
             // Wait for rate limit (ADDED 14.10.2025)
             await this._waitForRateLimit();
-            
+
             const apiResponse = await axios.post(MCP_MODEL_CONFIG.apiEndpoint, {
                 model: modelConfig.model,
                 messages: [
@@ -655,7 +655,7 @@ Attempt: ${attempt}/${item.max_attempts}
             this.logger.system('mcp-todo', `[TODO] Adjustment strategy for item ${item.id}: ${adjustment.strategy}`);
 
             return adjustment;
-            
+
         } catch (error) {
             this.logger.error(`[MCP-TODO] Failed to adjust item ${item.id}: ${error.message}`, { category: 'mcp-todo', component: 'mcp-todo' });
             throw new Error(`Adjustment failed: ${error.message}`);
@@ -676,7 +676,7 @@ Attempt: ${attempt}/${item.max_attempts}
 
         for (const depId of item.dependencies) {
             const depItem = todo.items.find(i => i.id === depId);
-            
+
             if (!depItem || depItem.status !== 'completed') {
                 this.logger.warn(`[MCP-TODO] Dependency ${depId} not completed for item ${item.id}`, { category: 'mcp-todo', component: 'mcp-todo' });
                 return false;
@@ -713,11 +713,11 @@ Skipped: ${skippedItems.length}
 Total Attempts: ${totalAttempts}
 
 Results: ${JSON.stringify(todo.items.map(i => ({
-    id: i.id,
-    action: i.action,
-    status: i.status,
-    verification: i.verification
-})), null, 2)}
+            id: i.id,
+            action: i.action,
+            status: i.status,
+            verification: i.verification
+        })), null, 2)}
 
 Створи підсумковий звіт виконання.
 `;
@@ -727,10 +727,10 @@ Results: ${JSON.stringify(todo.items.map(i => ({
         let llmText = '';
         try {
             const modelConfig = MCP_MODEL_CONFIG.getStageConfig('final_summary');
-            
+
             // Wait for rate limit (ADDED 14.10.2025)
             await this._waitForRateLimit();
-            
+
             const apiResponse = await axios.post(MCP_MODEL_CONFIG.apiEndpoint, {
                 model: modelConfig.model,
                 messages: [
@@ -801,9 +801,9 @@ Context: ${JSON.stringify(context, null, 2)}
                     .replace(/\s*```$/i, '')       // Remove closing ```
                     .trim();
             }
-            
+
             const parsed = typeof cleanResponse === 'string' ? JSON.parse(cleanResponse) : cleanResponse;
-            
+
             return {
                 id: `todo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                 request,
@@ -878,7 +878,7 @@ Context: ${JSON.stringify(context, null, 2)}
                     .replace(/\s*```$/i, '')       // Remove closing ```
                     .trim();
             }
-            
+
             const parsed = typeof cleanResponse === 'string' ? JSON.parse(cleanResponse) : cleanResponse;
             return {
                 tool_calls: parsed.tool_calls || [],
@@ -900,8 +900,15 @@ Context: ${JSON.stringify(context, null, 2)}
                     .replace(/^```\s*/i, '')       // Remove opening ```
                     .replace(/\s*```$/i, '')       // Remove closing ```
                     .trim();
+
+                // FIXED 14.10.2025 - Extract JSON from text if LLM added explanation
+                // Шукаємо JSON object в тексті (починається з '{' та закінчується '}')
+                const jsonMatch = cleanResponse.match(/\{[\s\S]*"verified"[\s\S]*\}/);
+                if (jsonMatch) {
+                    cleanResponse = jsonMatch[0];
+                }
             }
-            
+
             const parsed = typeof cleanResponse === 'string' ? JSON.parse(cleanResponse) : cleanResponse;
             return {
                 verified: parsed.verified === true,
@@ -925,7 +932,7 @@ Context: ${JSON.stringify(context, null, 2)}
                     .replace(/\s*```$/i, '')       // Remove closing ```
                     .trim();
             }
-            
+
             const parsed = typeof cleanResponse === 'string' ? JSON.parse(cleanResponse) : cleanResponse;
             return {
                 strategy: parsed.strategy || 'retry',
@@ -978,7 +985,7 @@ Context: ${JSON.stringify(context, null, 2)}
     _getPluralForm(count, one, few, many) {
         const mod10 = count % 10;
         const mod100 = count % 100;
-        
+
         if (mod10 === 1 && mod100 !== 11) return one;
         if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return few;
         return many;

@@ -119,6 +119,9 @@ export class ApiClient {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
 
+      // ✅ JSON Buffer для incomplete chunks (FIXED 14.10.2025)
+      let incompleteLineBuffer = '';
+
       while (true) {
         const { done, value } = await reader.read();
 
@@ -133,21 +136,30 @@ export class ApiClient {
         resetTimeout();
 
         const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n').filter(line => line.trim());
+
+        // ✅ Додаємо chunk до буфера та розбиваємо на рядки
+        const fullText = incompleteLineBuffer + chunk;
+        const lines = fullText.split('\n');
+
+        // ✅ Останній рядок може бути неповним - зберігаємо в буфер
+        incompleteLineBuffer = lines.pop() || '';
 
         for (const line of lines) {
+          const trimmedLine = line.trim();
+          if (!trimmedLine) continue;
+
           try {
             // SSE format: lines start with "data: " prefix
             // Remove it before parsing JSON
-            const jsonString = line.startsWith('data: ') ? line.substring(6) : line;
+            const jsonString = trimmedLine.startsWith('data: ') ? trimmedLine.substring(6) : trimmedLine;
             const message = JSON.parse(jsonString);
             // Тихо ігноруємо keepalive повідомлення
             if (message.type === 'keepalive') continue;
             if (onMessage) onMessage(message);
           } catch {
             // Логуємо тільки якщо це не схоже на keepalive
-            if (!line.includes('keepalive')) {
-              this.logger.warn('Failed to parse stream message', line);
+            if (!trimmedLine.includes('keepalive')) {
+              this.logger.warn('Failed to parse stream message', trimmedLine);
             }
           }
         }

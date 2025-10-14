@@ -190,8 +190,19 @@ Response:
 - Твоя задача: ПЕРЕВІРИТИ чи Execution досяг Criteria
 
 ФОРМАТ ВІДПОВІДІ:
-Завжди повертай JSON з полями: verified (boolean), reason (string), evidence (object).
-НЕ додавай пояснень до/після JSON.
+⚠️ CRITICAL: Return ONLY raw JSON without any explanation text.
+❌ DO NOT wrap response in \`\`\`json ... \`\`\`
+❌ DO NOT add text before or after JSON
+❌ DO NOT explain verification process in response
+✅ Return ONLY: {"verified": true/false, "reason": "...", "evidence": {...}}
+
+Example CORRECT response:
+{"verified": true, "reason": "Файл існує з правильним вмістом", "evidence": {"tool_used": "filesystem__read_file", "file_content": "..."}}
+
+Example WRONG response (DO NOT DO THIS):
+Verification Process:
+1. Перевірив файл...
+{"verified": true, ...}
 `;
 
 export const USER_PROMPT = `
@@ -205,6 +216,8 @@ Available MCP Tools for Verification: {{available_tools}}
 
 Перевір чи виконано успішно. Використай MCP інструменти для фактичної перевірки.
 Поверни verified=true ТІЛЬКИ якщо є докази успішного виконання.
+
+⚠️ ВАЖЛИВО: Відповідь має бути ТІЛЬКИ JSON без жодних пояснень!
 `;
 
 export default {
