@@ -181,16 +181,18 @@ export function registerMCPWorkflowServices(container) {
     });
 
     // TTSSyncManager - TTS synchronization для MCP workflow
+    // FIXED 14.10.2025 NIGHT - Pass wsManager as ttsService for WebSocket TTS delivery
     container.singleton('ttsSyncManager', (c) => {
         return new TTSSyncManager({
+            ttsService: c.resolve('wsManager'),  // FIXED: Use wsManager for WebSocket TTS
             logger: c.resolve('logger')
         });
     }, {
-        dependencies: ['logger'],
+        dependencies: ['wsManager', 'logger'],  // FIXED: Added wsManager dependency
         metadata: { category: 'workflow', priority: 60 },
         lifecycle: {
             onInit: async function () {
-                logger.system('startup', '[DI] TTSSyncManager initialized');
+                logger.system('startup', '[DI] TTSSyncManager initialized with WebSocket TTS');
             }
         }
     });

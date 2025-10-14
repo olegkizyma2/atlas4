@@ -1372,10 +1372,9 @@ Context: ${JSON.stringify(context, null, 2)}
      * @returns {Promise<void>}
      */
     async _safeTTSSpeak(phrase, options = {}) {
-        // FIXED 14.10.2025 NIGHT - Always pass wsManager to TTS for frontend delivery
+        // FIXED 14.10.2025 NIGHT v2 - TTSSyncManager has wsManager internally now
         const ttsOptions = {
             ...options,
-            wsManager: this.wsManager,
             agent: options.agent || 'tetyana'  // Default to Tetyana for execution
         };
         
