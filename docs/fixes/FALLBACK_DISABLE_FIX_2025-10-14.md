@@ -240,7 +240,46 @@ const apiResponse = await axios.post(endpoint, {
 });
 ```
 
+## Додаткове виправлення 2: JSON Parsing Error в Verification
+
+### Проблема
+LLM повертав дуже довгі error messages в JSON, які обривалися і створювали невалідний JSON:
+```
+"error": "Tool 'playwright_search' not available... [ДУЖЕ ДОВГИЙ СПИСОК TOOLS]",
+"stack": "Error: Tool 'playwright_search' not available... [ОБРИВАЄТЬСЯ]
+```
+
+**Помилка**: `Unterminated string in JSON at position 1384`
+
+### Виправлення
+
+1. **Truncate error/stack fields** перед відправкою в LLM:
+```javascript
+// Truncate error messages to avoid JSON parsing issues
+if (truncated.error && typeof truncated.error === 'string' && truncated.error.length > 500) {
+    truncated.error = truncated.error.substring(0, 500) + '... [truncated]';
+}
+if (truncated.stack && typeof truncated.stack === 'string' && truncated.stack.length > 500) {
+    truncated.stack = truncated.stack.substring(0, 500) + '... [truncated]';
+}
+```
+
+2. **Fallback замість throw** при JSON parsing error:
+```javascript
+catch (error) {
+    // Fallback: return failed verification with error details
+    return {
+        verified: false,
+        reason: `JSON parsing failed: ${error.message}`,
+        evidence: { parseError: error.message, responsePreview: truncatedResponse }
+    };
+}
+```
+
+**Файл**: `orchestrator/workflow/mcp-todo-manager.js`
+
 ## Статус
 
 ✅ **ВИПРАВЛЕНО** - Всі 5 точок fallback тепер перевіряють `disableFallback`  
-✅ **ВИПРАВЛЕНО** - Timeout 60s тепер працює правильно для MCP TODO Planning
+✅ **ВИПРАВЛЕНО** - Timeout 60s тепер працює правильно для MCP TODO Planning  
+✅ **ВИПРАВЛЕНО** - JSON parsing errors тепер обробляються gracefully з fallback

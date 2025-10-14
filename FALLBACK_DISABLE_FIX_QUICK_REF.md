@@ -55,11 +55,15 @@ npm run restart-orchestrator
 tail -f logs/orchestrator.log | grep -i fallback
 ```
 
-## Додаткове виправлення
+## Додаткові виправлення
 
 ✅ **Timeout в MCP TODO Planning** - виправлено передачу timeout параметра  
 - Було: timeout в data об'єкті (не працював)
 - Стало: timeout в config об'єкті (працює)
+
+✅ **JSON Parsing Error в Verification** - виправлено обробку довгих error messages  
+- Було: довгі error/stack обривалися → невалідний JSON → crash
+- Стало: truncate error/stack до 500 chars + fallback замість throw
 
 ## Файли
 
