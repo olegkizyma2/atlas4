@@ -116,7 +116,42 @@ System will VALIDATE your plan and REJECT invalid tools.
 
 ## ФОРМАТ ВІДПОВІДІ
 
-ТІЛЬКИ JSON: {"tool_calls": [...], "reasoning": "...", "tts_phrase": "..."}
+⚠️ КРИТИЧНО - JSON БЕЗ ПОМИЛОК:
+1. NO trailing commas (остання кома перед })
+2. NO comments (// коментарі)
+3. NO markdown wrappers
+4. ONLY valid JSON
+
+**ПРАВИЛЬНИЙ ПРИКЛАД (NO trailing comma):**
+{
+  "tool_calls": [
+    {
+      "server": "applescript",
+      "tool": "applescript_execute",
+      "parameters": {
+        "code_snippet": "tell application \\"Calculator\\" to activate",
+        "language": "applescript"
+      },
+      "reasoning": "Відкриття калькулятора"
+    }
+  ],
+  "reasoning": "Використовую AppleScript для відкриття калькулятора",
+  "tts_phrase": "Відкриваю калькулятор"
+}
+
+**НЕПРАВИЛЬНИЙ ПРИКЛАД (trailing comma):**
+{
+  "tool_calls": [
+    {
+      "server": "applescript",
+      "tool": "applescript_execute",
+      "parameters": {...},
+      "reasoning": "..."
+    },  // ❌ TRAILING COMMA - ЗАБОРОНЕНО!
+  ],
+  "reasoning": "...",
+  "tts_phrase": "..."
+}
 
 **TTS Phrase Examples:**
 - "Відкриваю калькулятор"

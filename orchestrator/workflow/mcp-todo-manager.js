@@ -358,6 +358,7 @@ export class MCPTodoManager {
 
                 // Stage 2.2: Execute Tools (Tetyana)
                 const execution = await this.executeTools(plan, item);
+                this._sendChatMessage(`✅ Виконано: "${item.action}"`, 'tetyana');
                 await this._safeTTSSpeak(execution.tts_phrase, { mode: 'normal', duration: 800, agent: 'tetyana' });
 
                 // Stage 2.3: Verify Item (Grisha)
@@ -372,7 +373,7 @@ export class MCPTodoManager {
                     item.verification = verification;
 
                     this.logger.system('mcp-todo', `[TODO] ✅ Item ${item.id} completed on attempt ${attempt}`);
-                    this._sendChatMessage(`✅ Виконано: ${item.action}`, 'success');  // ADDED 14.10.2025
+                    this._sendChatMessage(`✅ Перевірено: "${item.action}"\nПідтвердження: ${verification.reason}`, 'grisha');
 
                     // FIXED 14.10.2025 NIGHT - Grisha confirms success
                     await this._safeTTSSpeak('✅ Виконано', { mode: 'quick', duration: 100, agent: 'grisha' });
@@ -382,6 +383,7 @@ export class MCPTodoManager {
 
                 // Verification failed
                 this.logger.warn(`[MCP-TODO] Item ${item.id} verification failed: ${verification.reason}`, { category: 'mcp-todo', component: 'mcp-todo' });
+                this._sendChatMessage(`⚠️ Не підтверджено: "${item.action}"\nПричина: ${verification.reason}`, 'grisha');
                 lastError = verification.reason;
 
                 // Stage 3: Adjust TODO (if attempts remain)

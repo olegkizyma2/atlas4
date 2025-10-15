@@ -733,7 +733,7 @@ export class ChatManager {
       // Format summary object as readable text
       const summary = typeof data.summary === 'string'
         ? data.summary
-        : `Завершено: ${data.summary.completed || 0}/${data.summary.total || 0} пунктів успішно`;
+        : `Завершено: ${data.summary.completed_items || 0}/${data.summary.completed_items + data.summary.failed_items + data.summary.skipped_items || 0} пунктів (${data.summary.success_rate || 0}% успіху)`;
       this.addMessage(`🎉 ${summary}`, 'system');
     }
   }
