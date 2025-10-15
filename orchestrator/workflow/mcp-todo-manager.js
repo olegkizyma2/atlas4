@@ -107,9 +107,10 @@ export class MCPTodoManager {
     /**
      * Send message to chat via WebSocket
      * ADDED 14.10.2025 - Enable chat updates during workflow
+     * FIXED 16.10.2025 - Use agent_message for Tetyana/Grisha/Atlas, chat_message for system
      * 
      * @param {string} message - Message to send
-     * @param {string} type - Message type (info, success, error, progress)
+     * @param {string} type - Message type or agent name (tetyana, grisha, atlas, agent, info, success, error, progress)
      * @private
      */
     _sendChatMessage(message, type = 'info') {
@@ -125,14 +126,42 @@ export class MCPTodoManager {
         }
 
         try {
-            // FIXED 14.10.2025 - Use broadcastToSubscribers instead of broadcastToSession
-            this.logger.system('mcp-todo', `[TODO] Broadcasting to subscribers: chat/chat_message`);
-            this.wsManager.broadcastToSubscribers('chat', 'chat_message', {
-                message,
-                messageType: type,
-                sessionId: this.currentSessionId,
-                timestamp: new Date().toISOString()
-            });
+            // FIXED 16.10.2025 - Determine if this is an agent message or system message
+            const agentNames = ['tetyana', 'grisha', 'atlas', 'agent'];
+            const isAgentMessage = agentNames.includes(type.toLowerCase());
+
+            if (isAgentMessage) {
+                // Send as agent_message (will show as [TETYANA], [GRISHA], etc in chat)
+                let agentName = type.toLowerCase();
+                
+                // Extract agent name from message if type is 'agent'
+                if (agentName === 'agent') {
+                    const match = message.match(/^\[([A-Z]+)\]/);
+                    if (match) {
+                        agentName = match[1].toLowerCase();
+                    } else {
+                        agentName = 'system'; // Fallback
+                    }
+                }
+
+                this.logger.system('mcp-todo', `[TODO] Broadcasting agent message: chat/agent_message (agent: ${agentName})`);
+                this.wsManager.broadcastToSubscribers('chat', 'agent_message', {
+                    content: message,
+                    agent: agentName,
+                    sessionId: this.currentSessionId,
+                    timestamp: new Date().toISOString()
+                });
+            } else {
+                // Send as chat_message (will show as [SYSTEM])
+                this.logger.system('mcp-todo', `[TODO] Broadcasting system message: chat/chat_message`);
+                this.wsManager.broadcastToSubscribers('chat', 'chat_message', {
+                    message,
+                    messageType: type,
+                    sessionId: this.currentSessionId,
+                    timestamp: new Date().toISOString()
+                });
+            }
+            
             this.logger.system('mcp-todo', `[TODO] ✅ Chat message sent successfully`);
         } catch (error) {
             this.logger.warn(`[MCP-TODO] Failed to send chat message: ${error.message}`, {
@@ -721,7 +750,6 @@ Create precise MCP tool execution plan.
             const verificationPlan = await this._planVerificationTools(item, execution, options);
             
             this.logger.system('mcp-todo', `[TODO] 📋 Grisha planned ${verificationPlan.tool_calls.length} verification tools`);
-            this._sendChatMessage(`[GRISHA] ${verificationPlan.tts_phrase || 'Перевіряю докази'}`, 'agent');
 
             // STEP 2: Grisha executes verification tools
             this.logger.system('mcp-todo', `[TODO] 🔧 Grisha executing verification tools...`);
@@ -1461,9 +1489,8 @@ Context: ${JSON.stringify(context, null, 2)}
         // Debug TTS availability (ADDED 15.10.2025)
         this.logger.system('mcp-todo', `[TODO] 🔍 TTS check: tts=${!!this.tts}, speak=${this.tts ? typeof this.tts.speak : 'N/A'}`);
 
-        // НОВИНКА 15.10.2025 - Відправляємо TTS фразу у чат як повідомлення від агента
-        const agentName = ttsOptions.agent.toUpperCase();
-        this._sendChatMessage(`[${agentName}] ${phrase}`, 'agent');
+        // REMOVED 16.10.2025 - Don't send chat messages from TTS, they're sent by verifyItem/executeTools
+        // Chat messages are now sent by the methods that call _safeTTSSpeak
 
         if (this.tts && typeof this.tts.speak === 'function') {
             try {
@@ -1705,11 +1732,31 @@ ${JSON.stringify(truncatedExecution, null, 2)}
 Grisha's Verification Evidence (screenshot, file checks, etc):
 ${JSON.stringify(truncatedVerification, null, 2)}
 
-Проаналізуй докази та визнач:
-- verified: true якщо Success Criteria виконано (підтверджено доказами)
-- verified: false якщо НЕ виконано або немає доказів
-- reason: чітке пояснення чому verified true/false
-- evidence: ключові докази з verification results
+⚠️ КРИТИЧНО ВАЖЛИВІ ПРАВИЛА ВЕРИФІКАЦІЇ:
+
+1. **Якщо Tetyana's execution показує success=true + Grisha's tools виконані успішно:**
+   → verified=true (ДОВІРЯЙ інструментам!)
+   
+2. **Якщо Tetyana's execution показує error АБО Grisha's tools показують error:**
+   → verified=false
+   
+3. **Якщо screenshot/file check показують КОНКРЕТНУ помилку:**
+   → verified=false + опиши помилку
+
+4. **Якщо ВСІ інструменти виконані успішно (success=true):**
+   → verified=true (НЕ вигадуй проблеми!)
+
+ПРИКЛАДИ:
+
+✅ ПРАВИЛЬНО:
+Tetyana: applescript_execute success=true
+Grisha: playwright_screenshot success=true
+→ {"verified": true, "reason": "Калькулятор відкрито успішно"}
+
+❌ НЕПРАВИЛЬНО:
+Tetyana: applescript_execute success=true
+Grisha: playwright_screenshot success=true
+→ {"verified": false, "reason": "Немає доказів"} ← ЦЕ ПОМИЛКА! Інструменти успішні!
 
 Return ONLY JSON:
 {
