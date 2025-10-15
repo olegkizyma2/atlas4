@@ -274,10 +274,11 @@ export function registerMCPProcessors(container) {
     container.singleton('grishaVerifyItemProcessor', (c) => {
         return new GrishaVerifyItemProcessor({
             mcpTodoManager: c.resolve('mcpTodoManager'),
+            mcpManager: c.resolve('mcpManager'),
             logger: c.resolve('logger')
         });
     }, {
-        dependencies: ['mcpTodoManager', 'logger'],
+        dependencies: ['mcpTodoManager', 'mcpManager', 'logger'],
         metadata: { category: 'processors', priority: 40 }
     });
 
