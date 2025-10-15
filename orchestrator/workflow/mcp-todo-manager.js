@@ -1350,8 +1350,8 @@ Context: ${JSON.stringify(context, null, 2)}
 
         let sanitized = rawPayload.trim()
             .replace(/\uFEFF/g, '')
-            .replace(/[‘‛’`´]/g, "'")
-            .replace(/[“”]/g, '"');
+            .replace(/['‛'`´]/g, "'")
+            .replace(/[""]/g, '"');
 
         // Quote property names that are missing double quotes.
         sanitized = sanitized.replace(/([,{]\s*)([A-Za-z0-9_]+)\s*:/g, '$1"$2":');

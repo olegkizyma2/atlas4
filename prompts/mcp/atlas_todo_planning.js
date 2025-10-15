@@ -62,7 +62,7 @@ export const SYSTEM_PROMPT = `Ти Atlas - інтелектуальний пла
    - **applescript** (1 tool) - macOS GUI automation
    - **git** (27 tools) - версійний контроль
    - **memory** (9 tools) - збереження даних між сесіями
-8. ✅ Tools: конкретні назви з MCP (read_file, playwright_navigate, git_commit, execute_applescript, etc.)
+8. ✅ Tools: конкретні назви з MCP (read_file, playwright_navigate, git_commit, applescript_execute, etc.)
 9. ✅ Використовуй memory для збереження важливих даних
 10. ✅ Використовуй applescript для macOS GUI tasks
 11. ❌ НЕ змішувати дії в одному пункті
