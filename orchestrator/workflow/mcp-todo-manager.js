@@ -373,17 +373,17 @@ export class MCPTodoManager {
                     item.verification = verification;
 
                     this.logger.system('mcp-todo', `[TODO] ✅ Item ${item.id} completed on attempt ${attempt}`);
-                    this._sendChatMessage(`✅ Перевірено: "${item.action}"\nПідтвердження: ${verification.reason}`, 'grisha');
+                    // Chat message already sent by verifyItem()
 
                     // FIXED 14.10.2025 NIGHT - Grisha confirms success
-                    await this._safeTTSSpeak('✅ Виконано', { mode: 'quick', duration: 100, agent: 'grisha' });
+                    await this._safeTTSSpeak(verification.tts_phrase || '✅ Виконано', { mode: 'quick', duration: 100, agent: 'grisha' });
 
                     return { status: 'completed', attempts: attempt, item };
                 }
 
                 // Verification failed
                 this.logger.warn(`[MCP-TODO] Item ${item.id} verification failed: ${verification.reason}`, { category: 'mcp-todo', component: 'mcp-todo' });
-                this._sendChatMessage(`⚠️ Не підтверджено: "${item.action}"\nПричина: ${verification.reason}`, 'grisha');
+                // Chat message already sent by verifyItem()
                 lastError = verification.reason;
 
                 // Stage 3: Adjust TODO (if attempts remain)
@@ -705,132 +705,42 @@ Create precise MCP tool execution plan.
 
     /**
      * Verify item execution (Stage 2.3 - Grisha)
+     * REDESIGNED 16.10.2025 - Grisha now EXECUTES MCP tools for verification (screenshot, file checks, etc)
      * 
      * @param {TodoItem} item - Item to verify
-     * @param {Object} execution - Execution results
+     * @param {Object} execution - Execution results from Tetyana
      * @returns {Promise<Object>} Verification result
      */
     async verifyItem(item, execution, options = {}) {
-        this.logger.system('mcp-todo', `[TODO] Verifying item ${item.id}`);
+        this.logger.system('mcp-todo', `[TODO] 🔍 Grisha verifying item ${item.id}`);
+        this._sendChatMessage(`🔍 Перевіряю: "${item.action}"`, 'grisha');
 
         try {
-            // OPTIMIZATION 15.10.2025 - Use compact tools summary
-            let toolsSummary;
-            if (options.toolsSummary) {
-                toolsSummary = options.toolsSummary;
-                this.logger.system('mcp-todo', `[TODO] Using provided tools summary for verification`);
-            } else {
-                toolsSummary = this.mcpManager.getToolsSummary();
-                this.logger.system('mcp-todo', `[TODO] Generated tools summary for verification`);
-            }
+            // STEP 1: Grisha plans which verification tools to use (screenshot is mandatory)
+            this.logger.system('mcp-todo', `[TODO] 📋 Grisha planning verification tools...`);
+            const verificationPlan = await this._planVerificationTools(item, execution, options);
+            
+            this.logger.system('mcp-todo', `[TODO] 📋 Grisha planned ${verificationPlan.tool_calls.length} verification tools`);
+            this._sendChatMessage(`[GRISHA] ${verificationPlan.tts_phrase || 'Перевіряю докази'}`, 'agent');
 
-            // Import Grisha Verify Item prompt
-            const { MCP_PROMPTS } = await import('../../prompts/mcp/index.js');
-            const verifyPrompt = MCP_PROMPTS.GRISHA_VERIFY_ITEM;
+            // STEP 2: Grisha executes verification tools
+            this.logger.system('mcp-todo', `[TODO] 🔧 Grisha executing verification tools...`);
+            const verificationResults = await this._executeVerificationTools(verificationPlan, item);
+            
+            this.logger.system('mcp-todo', `[TODO] 🔧 Verification tools executed: ${verificationResults.all_successful ? 'SUCCESS' : 'PARTIAL'}`);
 
-            // OPTIMIZATION 15.10.2025 - Substitute {{AVAILABLE_TOOLS}} placeholder
-            let systemPrompt = verifyPrompt.systemPrompt || verifyPrompt.SYSTEM_PROMPT;
-            if (systemPrompt.includes('{{AVAILABLE_TOOLS}}')) {
-                systemPrompt = systemPrompt.replace('{{AVAILABLE_TOOLS}}', toolsSummary);
-                this.logger.system('mcp-todo', `[TODO] Substituted {{AVAILABLE_TOOLS}} in verify prompt`);
-            }
+            // STEP 3: Grisha analyzes results and makes final decision
+            this.logger.system('mcp-todo', `[TODO] 🧠 Grisha analyzing verification results...`);
+            const verification = await this._analyzeVerificationResults(item, execution, verificationResults, options);
 
-            // FIXED 14.10.2025 - Truncate long content to avoid token limits
-            // FIXED 14.10.2025 - Also truncate error messages and stacks to avoid JSON parsing issues
-            // FIXED 15.10.2025 - Reduce truncate limit from 1000 to 300 to prevent 413 errors
-            const truncatedResults = execution.results.map(result => {
-                const truncated = { ...result };
-                if (truncated.content && typeof truncated.content === 'string' && truncated.content.length > 300) {
-                    truncated.content = truncated.content.substring(0, 300) + '... [truncated]';
-                }
-                if (truncated.text && typeof truncated.text === 'string' && truncated.text.length > 300) {
-                    truncated.text = truncated.text.substring(0, 300) + '... [truncated]';
-                }
-                // НОВИНКА 14.10.2025 - Truncate error messages to avoid JSON parsing issues
-                // FIXED 15.10.2025 - Reduce from 500 to 200
-                if (truncated.error && typeof truncated.error === 'string' && truncated.error.length > 200) {
-                    truncated.error = truncated.error.substring(0, 200) + '... [truncated]';
-                }
-                if (truncated.stack && typeof truncated.stack === 'string' && truncated.stack.length > 200) {
-                    truncated.stack = truncated.stack.substring(0, 200) + '... [truncated]';
-                }
-                return truncated;
-            });
-
-            const userMessage = `
-TODO Item: ${item.action}
-Success Criteria: ${item.success_criteria}
-Execution Results: ${JSON.stringify(truncatedResults, null, 2)}
-
-Verify if execution was successful. Use MCP tools for verification if needed (screenshot, file read, etc).
-`;
-
-            // FIXED 13.10.2025 - Use correct API call format
-            // FIXED 14.10.2025 - Use MCP_MODEL_CONFIG for per-stage models
-            const modelConfig = MCP_MODEL_CONFIG.getStageConfig('verify_item');
-
-            // Wait for rate limit (ADDED 14.10.2025)
-            await this._waitForRateLimit();
-
-            // FIXED 14.10.2025 - Increase timeout for reasoning models
-            // FIXED 15.10.2025 - Increase to 180s for ALL models (verification може потребувати часу)
-            const isReasoningModel = modelConfig.model.includes('reasoning') || modelConfig.model.includes('phi-4');
-            const timeoutMs = isReasoningModel ? 180000 : 120000;  // 180s for reasoning, 120s for others
-
-            const apiResponse = await axios.post(MCP_MODEL_CONFIG.apiEndpoint, {
-                model: modelConfig.model,
-                messages: [
-                    {
-                        role: 'system',
-                        content: systemPrompt  // FIXED 15.10.2025 - Use substituted prompt
-                    },
-                    {
-                        role: 'user',
-                        content: userMessage
-                    }
-                ],
-                temperature: modelConfig.temperature,
-                max_tokens: modelConfig.max_tokens
-            }, {
-                headers: { 'Content-Type': 'application/json' },
-                timeout: timeoutMs,
-                maxContentLength: 50 * 1024 * 1024,  // 50MB
-                maxBodyLength: 50 * 1024 * 1024  // 50MB
-            });
-
-            // FIXED 15.10.2025 - Safe response extraction with validation
-            if (!apiResponse.data || !apiResponse.data.choices || !apiResponse.data.choices[0]) {
-                throw new Error('Invalid API response structure - missing choices array');
-            }
-            const choice = apiResponse.data.choices[0];
-            if (!choice.message || typeof choice.message.content === 'undefined') {
-                throw new Error('Invalid API response - message.content is undefined');
-            }
-
-            const response = choice.message.content;
-            const verification = this._parseVerification(response);
-
-            // ENHANCED 14.10.2025 NIGHT - More informative Grisha verification phrases
+            // Send chat message from Grisha
             if (verification.verified) {
-                // Grisha confirms with context
-                const mainAction = item.action.toLowerCase();
-                if (mainAction.includes('створ')) {
-                    verification.tts_phrase = 'Створення підтверджено';
-                } else if (mainAction.includes('відкр')) {
-                    verification.tts_phrase = 'Відкриття підтверджено';
-                } else if (mainAction.includes('збер')) {
-                    verification.tts_phrase = 'Збереження підтверджено';
-                } else if (mainAction.includes('введ')) {
-                    verification.tts_phrase = 'Введення підтверджено';
-                } else {
-                    verification.tts_phrase = 'Підтверджено';
-                }
+                this._sendChatMessage(`✅ Перевірено: "${item.action}"\nПідтвердження: ${verification.reason}`, 'grisha');
             } else {
-                // Grisha reports failure with context
-                verification.tts_phrase = 'Виконання не підтверджено';
+                this._sendChatMessage(`⚠️ Не підтверджено: "${item.action}"\nПричина: ${verification.reason}`, 'grisha');
             }
 
-            this.logger.system('mcp-todo', `[TODO] Verification result for item ${item.id}: ${verification.verified ? 'PASS' : 'FAIL'}`);
+            this.logger.system('mcp-todo', `[TODO] 🔍 Grisha verification result for item ${item.id}: ${verification.verified ? '✅ PASS' : '❌ FAIL'}`);
 
             return verification;
 
@@ -1181,24 +1091,35 @@ Context: ${JSON.stringify(context, null, 2)}
                 try {
                     parsed = JSON.parse(cleanResponse);
                 } catch (parseError) {
-                    const needsSanitization = /Expected (property name|'|,)/i.test(parseError.message) || parseError.message.includes('Unexpected token') || parseError.message.includes('position');
-                    if (needsSanitization) {
+                    // FIXED 15.10.2025 - ALWAYS attempt sanitization on ANY parse error
+                    // Previous logic only sanitized for specific error patterns, missing some cases
+                    this.logger.warn(`[MCP-TODO] Initial JSON parse failed: ${parseError.message}. Attempting sanitization...`, {
+                        category: 'mcp-todo',
+                        component: 'mcp-todo',
+                        errorPosition: parseError.message.match(/position (\d+)/)?.[1] || 'unknown'
+                    });
+                    
+                    try {
                         const sanitized = this._sanitizeJsonString(cleanResponse);
-                        try {
-                            parsed = JSON.parse(sanitized);
-                            this.logger.warn('[MCP-TODO] Applied JSON sanitization for tool plan response', {
-                                category: 'mcp-todo',
-                                component: 'mcp-todo',
-                                originalError: parseError.message,
-                                originalLength: cleanResponse.length,
-                                sanitizedLength: sanitized.length
-                            });
-                        } catch (sanitizedError) {
-                            sanitizedError.originalMessage = parseError.message;
-                            throw sanitizedError;
-                        }
-                    } else {
-                        throw parseError;
+                        parsed = JSON.parse(sanitized);
+                        this.logger.warn('[MCP-TODO] ✅ JSON sanitization successful for tool plan response', {
+                            category: 'mcp-todo',
+                            component: 'mcp-todo',
+                            originalError: parseError.message,
+                            originalLength: cleanResponse.length,
+                            sanitizedLength: sanitized.length
+                        });
+                    } catch (sanitizedError) {
+                        // Log both original and sanitized responses for debugging
+                        this.logger.error(`[MCP-TODO] ❌ JSON sanitization also failed. Original error: ${parseError.message}. Sanitized error: ${sanitizedError.message}`, {
+                            category: 'mcp-todo',
+                            component: 'mcp-todo',
+                            originalResponse: cleanResponse.substring(0, 500),
+                            originalError: parseError.message,
+                            sanitizedError: sanitizedError.message
+                        });
+                        sanitizedError.originalMessage = parseError.message;
+                        throw sanitizedError;
                     }
                 }
             } else {
@@ -1264,7 +1185,38 @@ Context: ${JSON.stringify(context, null, 2)}
                 }
             }
 
-            const parsed = typeof cleanResponse === 'string' ? JSON.parse(cleanResponse) : cleanResponse;
+            // FIXED 15.10.2025 - Use sanitization logic like _parseToolPlan
+            let parsed;
+            if (typeof cleanResponse === 'string') {
+                try {
+                    parsed = JSON.parse(cleanResponse);
+                } catch (parseError) {
+                    this.logger.warn(`[MCP-TODO] Verification JSON parse failed: ${parseError.message}. Attempting sanitization...`, {
+                        category: 'mcp-todo',
+                        component: 'mcp-todo'
+                    });
+                    
+                    try {
+                        const sanitized = this._sanitizeJsonString(cleanResponse);
+                        parsed = JSON.parse(sanitized);
+                        this.logger.warn('[MCP-TODO] ✅ Verification JSON sanitization successful', {
+                            category: 'mcp-todo',
+                            component: 'mcp-todo'
+                        });
+                    } catch (sanitizedError) {
+                        this.logger.error(`[MCP-TODO] ❌ Verification JSON sanitization failed: ${sanitizedError.message}`, {
+                            category: 'mcp-todo',
+                            component: 'mcp-todo',
+                            originalResponse: cleanResponse.substring(0, 500)
+                        });
+                        sanitizedError.originalMessage = parseError.message;
+                        throw sanitizedError;
+                    }
+                }
+            } else {
+                parsed = cleanResponse;
+            }
+            
             return {
                 verified: parsed.verified === true,
                 reason: parsed.reason || '',
@@ -1326,7 +1278,38 @@ Context: ${JSON.stringify(context, null, 2)}
                 }
             }
 
-            const parsed = typeof cleanResponse === 'string' ? JSON.parse(cleanResponse) : cleanResponse;
+            // FIXED 15.10.2025 - Use sanitization logic like _parseToolPlan
+            let parsed;
+            if (typeof cleanResponse === 'string') {
+                try {
+                    parsed = JSON.parse(cleanResponse);
+                } catch (parseError) {
+                    this.logger.warn(`[MCP-TODO] Adjustment JSON parse failed: ${parseError.message}. Attempting sanitization...`, {
+                        category: 'mcp-todo',
+                        component: 'mcp-todo'
+                    });
+                    
+                    try {
+                        const sanitized = this._sanitizeJsonString(cleanResponse);
+                        parsed = JSON.parse(sanitized);
+                        this.logger.warn('[MCP-TODO] ✅ Adjustment JSON sanitization successful', {
+                            category: 'mcp-todo',
+                            component: 'mcp-todo'
+                        });
+                    } catch (sanitizedError) {
+                        this.logger.error(`[MCP-TODO] ❌ Adjustment JSON sanitization failed: ${sanitizedError.message}`, {
+                            category: 'mcp-todo',
+                            component: 'mcp-todo',
+                            originalResponse: cleanResponse.substring(0, 500)
+                        });
+                        sanitizedError.originalMessage = parseError.message;
+                        throw sanitizedError;
+                    }
+                }
+            } else {
+                parsed = cleanResponse;
+            }
+            
             return {
                 strategy: parsed.strategy || 'retry',
                 updated_todo_item: parsed.updated_todo_item || {},
@@ -1358,8 +1341,16 @@ Context: ${JSON.stringify(context, null, 2)}
         // Quote property names that are missing double quotes.
         sanitized = sanitized.replace(/([,{]\s*)([A-Za-z0-9_]+)\s*:/g, '$1"$2":');
 
-        // Remove trailing commas before closing braces/brackets.
-        sanitized = sanitized.replace(/,\s*([}\]])/g, '$1');
+        // ENHANCED 15.10.2025 - More aggressive trailing comma removal
+        // Remove trailing commas before closing braces/brackets (handles newlines and multiple spaces)
+        sanitized = sanitized.replace(/,(\s*[\r\n]+\s*)([}\]])/g, '$1$2');  // comma before newline and }]
+        sanitized = sanitized.replace(/,\s*([}\]])/g, '$1');  // comma directly before }]
+        
+        // ADDED 15.10.2025 - Remove multiple consecutive commas
+        sanitized = sanitized.replace(/,\s*,+/g, ',');
+        
+        // ADDED 15.10.2025 - Remove trailing commas at end of lines
+        sanitized = sanitized.replace(/,(\s*[\r\n])/g, '$1');
 
         try {
             JSON.parse(sanitized);
@@ -1527,6 +1518,243 @@ Context: ${JSON.stringify(context, null, 2)}
         if (mod10 === 1 && mod100 !== 11) return one;
         if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return few;
         return many;
+    }
+
+    /**
+     * Plan verification tools for Grisha (NEW 16.10.2025)
+     * Grisha decides which MCP tools to use for verification (screenshot is mandatory)
+     * 
+     * @param {TodoItem} item - Item being verified
+     * @param {Object} execution - Tetyana's execution results
+     * @param {Object} options - Options (toolsSummary, etc)
+     * @returns {Promise<Object>} Verification tool plan
+     * @private
+     */
+    async _planVerificationTools(item, execution, options = {}) {
+        this.logger.system('mcp-todo', `[TODO] 🔍 Grisha planning verification tools for item ${item.id}`);
+
+        try {
+            // Get tools summary
+            const toolsSummary = options.toolsSummary || this.mcpManager.getToolsSummary();
+
+            // Build prompt for Grisha to plan verification tools
+            const planPrompt = `Ти Гриша - верифікатор. Визнач які MCP інструменти потрібні для перевірки виконання.
+
+⚠️ ОБОВ'ЯЗКОВО: ЗАВЖДИ включай screenshot для візуальної перевірки!
+
+TODO Item: ${item.action}
+Success Criteria: ${item.success_criteria}
+Tetyana's Execution Results: ${JSON.stringify(execution.results, null, 2)}
+
+Доступні MCP інструменти:
+${toolsSummary}
+
+Обери МІНІМАЛЬНИЙ набір інструментів для перевірки. Screenshot ОБОВ'ЯЗКОВИЙ.
+
+Приклади:
+- Для "Відкрити калькулятор" → [{"server": "shell", "tool": "run_shell_command", "parameters": {"command": "screencapture -x /tmp/verify_calc.png"}}]
+- Для "Створити файл" → [{"server": "filesystem", "tool": "read_file", "parameters": {"path": "..."}}]
+
+Return ONLY JSON:
+{
+  "tool_calls": [
+    {"server": "...", "tool": "...", "parameters": {...}, "reasoning": "..."}
+  ],
+  "reasoning": "...",
+  "tts_phrase": "Перевіряю докази"
+}`;
+
+            await this._waitForRateLimit();
+
+            const modelConfig = MCP_MODEL_CONFIG.getStageConfig('verify_item');
+            const apiResponse = await axios.post(MCP_MODEL_CONFIG.apiEndpoint, {
+                model: modelConfig.model,
+                messages: [
+                    { role: 'system', content: 'You are a JSON-only API. Return ONLY valid JSON, no markdown, no explanations.' },
+                    { role: 'user', content: planPrompt }
+                ],
+                temperature: 0.3,  // Lower temperature for precise tool selection
+                max_tokens: 2000
+            }, {
+                headers: { 'Content-Type': 'application/json' },
+                timeout: 60000
+            });
+
+            const response = apiResponse.data.choices[0].message.content;
+            const plan = this._parseToolPlan(response);  // Reuse existing parser
+
+            this.logger.system('mcp-todo', `[TODO] 🔍 Grisha planned ${plan.tool_calls.length} verification tools`);
+
+            return plan;
+
+        } catch (error) {
+            this.logger.error(`[MCP-TODO] Grisha failed to plan verification tools: ${error.message}`, {
+                category: 'mcp-todo',
+                component: 'mcp-todo',
+                stack: error.stack
+            });
+            throw new Error(`Verification tool planning failed: ${error.message}`);
+        }
+    }
+
+    /**
+     * Execute verification tools for Grisha (NEW 16.10.2025)
+     * Grisha executes MCP tools (screenshot, file checks, etc) to gather evidence
+     * 
+     * @param {Object} plan - Verification tool plan
+     * @param {TodoItem} item - Item being verified
+     * @returns {Promise<Object>} Verification execution results
+     * @private
+     */
+    async _executeVerificationTools(plan, item) {
+        this.logger.system('mcp-todo', `[TODO] 🔧 Grisha executing ${plan.tool_calls.length} verification tools`);
+
+        const results = [];
+        let allSuccessful = true;
+
+        for (const toolCall of plan.tool_calls) {
+            try {
+                this.logger.system('mcp-todo', `[TODO] 🔧 Grisha calling ${toolCall.tool} on ${toolCall.server}`);
+
+                const result = await this.mcpManager.executeTool(
+                    toolCall.server,
+                    toolCall.tool,
+                    toolCall.parameters || {}
+                );
+
+                results.push({
+                    tool: toolCall.tool,
+                    server: toolCall.server,
+                    success: true,
+                    result
+                });
+
+                this.logger.system('mcp-todo', `[TODO] ✅ Grisha tool ${toolCall.tool} succeeded`);
+
+            } catch (error) {
+                this.logger.error(`[MCP-TODO] Grisha tool ${toolCall.tool} failed: ${error.message}`, {
+                    category: 'mcp-todo',
+                    component: 'mcp-todo',
+                    toolCall,
+                    stack: error.stack
+                });
+
+                results.push({
+                    tool: toolCall.tool,
+                    server: toolCall.server,
+                    success: false,
+                    error: error.message
+                });
+
+                allSuccessful = false;
+            }
+        }
+
+        return {
+            results,
+            all_successful: allSuccessful
+        };
+    }
+
+    /**
+     * Analyze verification results and make final decision (NEW 16.10.2025)
+     * Grisha analyzes evidence from MCP tools and decides if item is verified
+     * 
+     * @param {TodoItem} item - Item being verified
+     * @param {Object} execution - Tetyana's execution results
+     * @param {Object} verificationResults - Results from Grisha's verification tools
+     * @param {Object} options - Options
+     * @returns {Promise<Object>} Final verification decision
+     * @private
+     */
+    async _analyzeVerificationResults(item, execution, verificationResults, options = {}) {
+        this.logger.system('mcp-todo', `[TODO] 🧠 Grisha analyzing verification evidence`);
+
+        try {
+            // Truncate results to avoid token limits
+            const truncatedExecution = execution.results.map(result => {
+                const truncated = { ...result };
+                if (truncated.content && typeof truncated.content === 'string' && truncated.content.length > 300) {
+                    truncated.content = truncated.content.substring(0, 300) + '... [truncated]';
+                }
+                if (truncated.error && typeof truncated.error === 'string' && truncated.error.length > 200) {
+                    truncated.error = truncated.error.substring(0, 200) + '... [truncated]';
+                }
+                return truncated;
+            });
+
+            const truncatedVerification = verificationResults.results.map(result => {
+                const truncated = { ...result };
+                if (truncated.result && typeof truncated.result === 'object') {
+                    // Truncate screenshot paths and large content
+                    if (truncated.result.content && typeof truncated.result.content === 'string' && truncated.result.content.length > 500) {
+                        truncated.result.content = truncated.result.content.substring(0, 500) + '... [truncated]';
+                    }
+                }
+                return truncated;
+            });
+
+            const analysisPrompt = `Ти Гриша - верифікатор. Проаналізуй докази та визнач чи виконано завдання.
+
+TODO Item: ${item.action}
+Success Criteria: ${item.success_criteria}
+
+Tetyana's Execution Results:
+${JSON.stringify(truncatedExecution, null, 2)}
+
+Grisha's Verification Evidence (screenshot, file checks, etc):
+${JSON.stringify(truncatedVerification, null, 2)}
+
+Проаналізуй докази та визнач:
+- verified: true якщо Success Criteria виконано (підтверджено доказами)
+- verified: false якщо НЕ виконано або немає доказів
+- reason: чітке пояснення чому verified true/false
+- evidence: ключові докази з verification results
+
+Return ONLY JSON:
+{
+  "verified": boolean,
+  "reason": "string",
+  "evidence": {...},
+  "tts_phrase": "Підтверджено" або "Не підтверджено"
+}`;
+
+            await this._waitForRateLimit();
+
+            const modelConfig = MCP_MODEL_CONFIG.getStageConfig('verify_item');
+            const apiResponse = await axios.post(MCP_MODEL_CONFIG.apiEndpoint, {
+                model: modelConfig.model,
+                messages: [
+                    { role: 'system', content: 'You are a JSON-only API. Return ONLY valid JSON, no markdown, no explanations.' },
+                    { role: 'user', content: analysisPrompt }
+                ],
+                temperature: 0.2,  // Very low temperature for precise verification
+                max_tokens: 1000
+            }, {
+                headers: { 'Content-Type': 'application/json' },
+                timeout: 60000
+            });
+
+            const response = apiResponse.data.choices[0].message.content;
+            const verification = this._parseVerification(response);
+
+            // Add TTS phrase if not provided
+            if (!verification.tts_phrase) {
+                verification.tts_phrase = verification.verified ? 'Підтверджено' : 'Не підтверджено';
+            }
+
+            this.logger.system('mcp-todo', `[TODO] 🧠 Grisha analysis: ${verification.verified ? '✅ VERIFIED' : '❌ NOT VERIFIED'}`);
+
+            return verification;
+
+        } catch (error) {
+            this.logger.error(`[MCP-TODO] Grisha failed to analyze verification results: ${error.message}`, {
+                category: 'mcp-todo',
+                component: 'mcp-todo',
+                stack: error.stack
+            });
+            throw new Error(`Verification analysis failed: ${error.message}`);
+        }
     }
 }
 
