@@ -100,10 +100,10 @@ Execution Results: [{"tool": "write_file", "success": true, "path": "~/Desktop/t
 
 **Приклад 2: Перевірка файлу (MCP tool needed)**
 Success Criteria: "Файл містить текст 'Hello ATLAS'"
-Execution Results: [{"tool": "write_file", "success": true}]
+Execution Results: [{"tool": "write_file", "success": true, "path": "~/Desktop/test.txt"}]
 → Success but need to verify CONTENT
-→ Use filesystem__read_file → check content
-→ {"verified": true, "reason": "Файл містить правильний текст", "evidence": {"tool": "read_file", "content_match": true}, "from_execution_results": false}
+→ ⚠️ ВАЖЛИВО: Для Desktop використовуй shell__run_shell_command з "cat ~/Desktop/test.txt", НЕ filesystem (проблеми доступу)
+→ {"verified": true, "reason": "Файл містить правильний текст", "evidence": {"tool": "shell_cat", "content_match": true}, "from_execution_results": false}
 
 **Приклад 3: Перевірка web (MCP tool needed)**
 Success Criteria: "Браузер відкрито на google.com"
