@@ -97,17 +97,17 @@ Return ONLY JSON starting with '{'.
 `;
 
 export default {
-    name: 'tetyana_plan_tools',
-    version: '4.1.0',
-    agent: 'tetyana',
-    stage: 'stage2.1-mcp',
-    systemPrompt: SYSTEM_PROMPT,
-    userPrompt: USER_PROMPT,
-    metadata: {
-        purpose: 'Select optimal MCP tools for TODO item execution',
-        output_format: 'JSON tool execution plan',
-        considers_context: true,
-        uses_dynamic_tools: true,  // NEW: промпт використовує runtime tools list
-        optimization: 'Reduced from 313 to ~150 LOC by removing hardcoded tool lists'
-    }
+  name: 'tetyana_plan_tools',
+  version: '4.1.0',
+  agent: 'tetyana',
+  stage: 'stage2.1-mcp',
+  systemPrompt: SYSTEM_PROMPT,
+  userPrompt: USER_PROMPT,
+  metadata: {
+    purpose: 'Select optimal MCP tools for TODO item execution',
+    output_format: 'JSON tool execution plan',
+    considers_context: true,
+    uses_dynamic_tools: true,  // NEW: промпт використовує runtime tools list
+    optimization: 'Reduced from 313 to ~150 LOC by removing hardcoded tool lists'
+  }
 };
