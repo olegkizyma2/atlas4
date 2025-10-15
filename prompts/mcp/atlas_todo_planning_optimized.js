@@ -68,11 +68,11 @@ export const SYSTEM_PROMPT = `Ти Atlas - інтелектуальний пла
 12. ❌ ЗАБОРОНЕНО використовувати коментарі у JSON (жодних /* ... */)
 13. ❌ НЕ додавай коментарі у масивах чи об'єктах
 
-## Доступні MCP інструменти:
+## Доступні MCP інструменти (динамічний список):
 
 {{AVAILABLE_TOOLS}}
 
-⚠️ ВАЖЛИВО: Обирай tools виходячи з доступних серверів вище. Tetyana буде використовувати ЦІ САМІ tools для виконання.
+⚠️ ВАЖЛИВО: Використовуй ТІЛЬКИ назви та сервери зі списку вище. Список оновлюється в реальному часі.
 
 ПРИКЛАД Standard TODO (complexity 3):
 
@@ -208,19 +208,19 @@ Context: {{context}}
 `;
 
 export default {
-    name: 'atlas_todo_planning',
-    version: '4.0.1',
-    agent: 'atlas',
-    stage: 'stage1-mcp',
-    systemPrompt: SYSTEM_PROMPT,
-    userPrompt: USER_PROMPT,
-    SYSTEM_PROMPT,
-    USER_PROMPT,
-    metadata: {
-        purpose: 'Create dynamic TODO lists for MCP workflow execution',
-        modes: ['standard', 'extended'],
-        output_format: 'JSON TodoList structure',
-        uses_dynamic_tools: true,
-        optimization: 'Reduced from 278 to ~120 LOC by using {{AVAILABLE_TOOLS}} placeholder'
-    }
+  name: 'atlas_todo_planning',
+  version: '4.0.1',
+  agent: 'atlas',
+  stage: 'stage1-mcp',
+  systemPrompt: SYSTEM_PROMPT,
+  userPrompt: USER_PROMPT,
+  SYSTEM_PROMPT,
+  USER_PROMPT,
+  metadata: {
+    purpose: 'Create dynamic TODO lists for MCP workflow execution',
+    modes: ['standard', 'extended'],
+    output_format: 'JSON TodoList structure',
+    uses_dynamic_tools: true,
+    optimization: 'Reduced from 278 to ~120 LOC by using {{AVAILABLE_TOOLS}} placeholder'
+  }
 };
