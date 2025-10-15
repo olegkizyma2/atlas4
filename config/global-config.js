@@ -250,7 +250,7 @@ export const AI_BACKEND_CONFIG = {
           command: 'npx',
           args: ['-y', '@executeautomation/playwright-mcp-server'],
           env: {
-            HEADLESS: 'false'
+            HEADLESS: 'true'  // FIXED 16.10.2025 - Run in headless mode to avoid browser popup
           }
         },
 

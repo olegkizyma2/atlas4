@@ -1,12 +1,28 @@
 # Agent Messages & Verification Logic Fix
 
 **Date**: 2025-10-16  
-**Status**: ✅ Fixed  
+**Status**: ✅ Fixed (Updated 00:42)  
 **Priority**: Critical
 
-## Problems
+## Problems (Updated 00:42)
 
-### 1. Повідомлення йдуть від [SYSTEM] замість [TETYANA]/[GRISHA]
+### 1. Playwright відкриває вікно браузера Chromium при кожному screenshot
+
+Кожного разу коли Гріша робить screenshot для перевірки, відкривається вікно браузера `about:blank`.
+
+**Причина**: `HEADLESS: 'false'` в конфігурації Playwright MCP server.
+
+### 2. Помилка доступу до файлу при перевірці файлів на Desktop
+
+Гріша не може перевірити файли на Desktop через filesystem MCP server:
+```
+⚠️ ❌ Не підтверджено: "Зберегти результат в файл ritto.txt на робочому столі"
+Причина: Помилка доступу до файлу
+```
+
+**Причина**: filesystem MCP server має обмежений доступ до `~/Desktop`, потрібно використовувати shell команди.
+
+### 3. Повідомлення йдуть від [SYSTEM] замість [TETYANA]/[GRISHA] (FIXED EARLIER)
 
 Всі повідомлення в чаті показувалися як `[SYSTEM]`:
 ```
@@ -36,9 +52,102 @@
 
 **Причина**: Промпт для аналізу був занадто суворий і не містив правил "якщо інструменти успішні → verified=true".
 
-## Solutions
+## Solutions (Updated 00:42)
 
-### 1. Виправлено `_sendChatMessage()` - використання правильних типів повідомлень
+### 1. Встановлено HEADLESS=true для Playwright
+
+**Файл**: `config/global-config.js`
+
+**До:**
+```javascript
+playwright: {
+  command: 'npx',
+  args: ['-y', '@executeautomation/playwright-mcp-server'],
+  env: {
+    HEADLESS: 'false'  // ❌ Browser window opens
+  }
+}
+```
+
+**Після:**
+```javascript
+playwright: {
+  command: 'npx',
+  args: ['-y', '@executeautomation/playwright-mcp-server'],
+  env: {
+    HEADLESS: 'true'  // ✅ FIXED 16.10.2025 - Run in headless mode
+  }
+}
+```
+
+**Результат**: Браузер більше не відкривається при screenshot, все працює в фоновому режимі.
+
+### 2. Виправлено доступ до файлів на Desktop
+
+**Файли**: 
+- `orchestrator/workflow/mcp-todo-manager.js` (Lines 1581-1586)
+- `prompts/mcp/grisha_verify_item_optimized.js` (Lines 101-106)
+
+**Проблема**: Гріша використовував `filesystem__read_file` для файлів на Desktop, що викликало помилки доступу.
+
+**Виправлення**: Додано інструкції використовувати shell команди для Desktop:
+
+```javascript
+// mcp-todo-manager.js - Grisha's verification tool planning
+Приклади:
+- Для "Відкрити калькулятор" → [{"server": "shell", "tool": "run_shell_command", "parameters": {"command": "screencapture -x /tmp/verify_calc.png"}}]
+- Для "Створити файл на Desktop" → [{"server": "shell", "tool": "run_shell_command", "parameters": {"command": "cat ~/Desktop/filename.txt"}}]
+- Для "Створити файл в /tmp" → [{"server": "filesystem", "tool": "read_file", "parameters": {"path": "/tmp/filename.txt"}}]
+
+⚠️ ВАЖЛИВО: Для файлів на Desktop використовуй shell (cat ~/Desktop/file), НЕ filesystem (проблеми з доступом)
+```
+
+```javascript
+// grisha_verify_item_optimized.js - Verification examples
+**Приклад 2: Перевірка файлу (MCP tool needed)**
+Success Criteria: "Файл містить текст 'Hello ATLAS'"
+Execution Results: [{"tool": "write_file", "success": true, "path": "~/Desktop/test.txt"}]
+→ Success but need to verify CONTENT
+→ ⚠️ ВАЖЛИВО: Для Desktop використовуй shell__run_shell_command з "cat ~/Desktop/test.txt", НЕ filesystem (проблеми доступу)
+→ {"verified": true, "reason": "Файл містить правильний текст", "evidence": {"tool": "shell_cat", "content_match": true}, "from_execution_results": false}
+```
+
+**Результат**: Гріша тепер використовує `shell__run_shell_command` з `cat ~/Desktop/file` для перевірки файлів на Desktop.
+
+### 3. Виправлено підписи агентів для повідомлень (FIXED 00:51)
+
+**Файл**: `orchestrator/workflow/mcp-todo-manager.js`
+
+**Проблема**: Всі повідомлення йшли від `[SYSTEM]` замість від відповідних агентів.
+
+**Зміни**:
+- Додано подвійні емодзі для кращої видимості (📋 📋, ✅ ✅, ❌ ❌)
+- Видалено зайві проміжні повідомлення (progress, retry)
+- **КРИТИЧНО**: Змінено типи повідомлень на правильні агенти:
+  - План виконання → `'atlas'` (було `'info'`)
+  - Виконано → `'tetyana'` (було `'info'`)
+  - Перевірено/Не підтверджено → `'grisha'` (було `'info'`)
+  - Завершено → `'atlas'` (було `'success'/'info'/'error'`)
+
+**До:**
+```javascript
+this._sendChatMessage(todoMessage, 'info');  // ❌ [SYSTEM]
+this._sendChatMessage(`✅ ✅ Виконано: "${item.action}"`, 'info');  // ❌ [SYSTEM]
+this._sendChatMessage(`✅ ✅ Перевірено: "${item.action}"`, 'info');  // ❌ [SYSTEM]
+this._sendChatMessage(`🎉 Завершено: ...`, 'success');  // ❌ [SYSTEM]
+```
+
+**Після:**
+```javascript
+this._sendChatMessage(todoMessage, 'atlas');  // ✅ [ATLAS]
+this._sendChatMessage(`✅ ✅ Виконано: "${item.action}"`, 'tetyana');  // ✅ [TETYANA]
+this._sendChatMessage(`✅ ✅ Перевірено: "${item.action}"`, 'grisha');  // ✅ [GRISHA]
+this._sendChatMessage(`🎉 Завершено: ...`, 'atlas');  // ✅ [ATLAS]
+```
+
+**Результат**: Кожне повідомлення тепер йде від правильного агента з подвійними емодзі.
+
+### 4. Виправлено `_sendChatMessage()` - використання правильних типів повідомлень (EARLIER FIX)
 
 **До:**
 ```javascript
@@ -164,16 +273,27 @@ async _safeTTSSpeak(phrase, options = {}) {
 }
 ```
 
-## Files Modified
+## Files Modified (Updated 00:42)
 
-1. **orchestrator/workflow/mcp-todo-manager.js**
-   - Updated `_sendChatMessage()` - Lines 116-173 (agent_message vs chat_message)
-   - Updated `_analyzeVerificationResults()` - Lines 1737-1769 (stricter verification rules)
-   - Updated `_safeTTSSpeak()` - Lines 1493-1494 (removed duplicate messages)
-   - Updated `verifyItem()` - Line 752 (removed redundant message)
+1. **config/global-config.js**
+   - Line 253: Changed `HEADLESS: 'false'` → `HEADLESS: 'true'` for Playwright
 
-2. **docs/fixes/AGENT_MESSAGES_FIX_2025-10-16.md**
-   - This documentation file
+2. **orchestrator/workflow/mcp-todo-manager.js**
+   - Lines 1581-1586: Added Desktop file access instructions for Grisha
+   - Line 243: Changed plan message to 'atlas' (was 'info') ✅ [ATLAS]
+   - Line 388: Changed execution message to 'tetyana' (was 'info') ✅ [TETYANA]
+   - Lines 764-766: Changed verification messages to 'grisha' (was 'info') ✅ [GRISHA]
+   - Line 335: Changed final summary to 'atlas' (was 'success'/'info'/'error') ✅ [ATLAS]
+   - Line 459: Changed failure message with double emoji (❌ ❌)
+   - Lines 370, 380, 743: Removed verbose progress messages
+   - Updated `_sendChatMessage()` - Lines 116-173 (agent_message vs chat_message) [EARLIER]
+   - Updated `_analyzeVerificationResults()` - Lines 1737-1769 (stricter verification rules) [EARLIER]
+
+3. **prompts/mcp/grisha_verify_item_optimized.js**
+   - Lines 101-106: Updated Example 2 with Desktop file access instructions
+
+4. **docs/fixes/AGENT_MESSAGES_FIX_2025-10-16.md**
+   - This documentation file (updated with new fixes)
 
 ## Testing
 
@@ -188,12 +308,27 @@ Logs:
 🧠 Grisha analysis: ❌ NOT VERIFIED
 ```
 
-### After Fix (Expected)
+### After Fix (Expected) - UPDATED 00:51
 ```
-00:18:47 [TETYANA] ✅ Виконано: "Відкрити калькулятор"
-00:18:51 [GRISHA] 🔍 Перевіряю: "Відкрити калькулятор"
-00:18:52 [GRISHA] ✅ Перевірено: "Відкрити калькулятор"
+00:34:15 [ATLAS] 📋 📋 Розширений план виконання (3 пункти):
+         1. Відкрити калькулятор
+         2. Перемножити 333 на 2 в калькуляторі
+         3. Зберегти результат в файл ritto.txt на робочому столі
+         ⏱️ Орієнтовний час виконання: 24 секунд
+
+00:34:21 [TETYANA] ✅ ✅ Виконано: "Відкрити калькулятор"
+00:34:25 [GRISHA] ✅ ✅ Перевірено: "Відкрити калькулятор"
          Підтвердження: Калькулятор відкрито успішно
+
+00:34:33 [TETYANA] ✅ ✅ Виконано: "Перемножити 333 на 2 в калькуляторі"
+00:34:38 [GRISHA] ✅ ✅ Перевірено: "Перемножити 333 на 2 в калькуляторі"
+         Підтвердження: Результат 666 підтверджено
+
+00:34:45 [TETYANA] ✅ ✅ Виконано: "Зберегти результат в файл ritto.txt на робочому столі"
+00:34:50 [GRISHA] ✅ ✅ Перевірено: "Зберегти результат в файл ritto.txt на робочому столі"
+         Підтвердження: Файл містить правильний текст (666)
+
+00:34:56 [ATLAS] 🎉 Завершено: 3/3 пунктів (100% успіху)
 
 Logs:
 ✅ Grisha tool playwright_screenshot succeeded
@@ -269,8 +404,18 @@ tail -f logs/orchestrator.log | grep -E "(TETYANA|GRISHA|agent_message|verified)
 - Кожне повідомлення від правильного агента
 - Легше відстежувати хто що робить
 
-## Success Criteria
+## Success Criteria (Updated 00:42)
 
+**New Fixes (00:42):**
+- [x] Playwright працює в headless mode (HEADLESS=true)
+- [x] Гріша використовує shell для файлів на Desktop
+- [x] Всі повідомлення мають подвійні емодзі (📋 📋, ✅ ✅, ❌ ❌)
+- [x] Видалено зайві проміжні повідомлення (progress, retry)
+- [x] Покращено фінальне повідомлення (🎉 Завершено: X/Y пунктів)
+- [ ] Тестування: браузер не відкривається при screenshot
+- [ ] Тестування: файли на Desktop перевіряються успішно
+
+**Earlier Fixes:**
 - [x] `_sendChatMessage()` використовує `agent_message` для агентів
 - [x] `_sendChatMessage()` використовує `chat_message` для системи
 - [x] Промпт Гріші містить правила довіри до інструментів
@@ -291,18 +436,20 @@ tail -f logs/orchestrator.log | grep -E "(TETYANA|GRISHA|agent_message|verified)
 
 Watch for these patterns in chat:
 
-**Good signs:**
+**Good signs (UPDATED 00:51):**
 ```
-[TETYANA] ✅ Виконано: "..."
-[GRISHA] 🔍 Перевіряю: "..."
-[GRISHA] ✅ Перевірено: "..."
-[ATLAS] 🔄 Коригую стратегію
+[ATLAS] 📋 📋 Розширений план виконання (3 пункти): ...
+[TETYANA] ✅ ✅ Виконано: "..."
+[GRISHA] ✅ ✅ Перевірено: "..."
+[ATLAS] 🎉 Завершено: 3/3 пунктів (100% успіху)
 ```
 
 **Bad signs:**
 ```
+[SYSTEM] 📋 📋 Розширений план виконання ...  ← Should be [ATLAS]
 [SYSTEM] ✅ Виконано: "..."  ← Should be [TETYANA]
 [SYSTEM] ⚠️ Не підтверджено: "..."  ← Should be [GRISHA]
+[SYSTEM] 🎉 Завершено: ...  ← Should be [ATLAS]
 ```
 
 ## Notes

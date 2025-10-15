@@ -237,10 +237,10 @@ export class MCPTodoManager {
 
             this.logger.system('mcp-todo', `[TODO] Created ${todo.mode} TODO with ${todo.items.length} items (complexity: ${todo.complexity}/10)`);
 
-            // Send chat message (ADDED 14.10.2025)
+            // Send chat message (ADDED 14.10.2025, FIXED 16.10.2025 - from Atlas)
             const itemsList = todo.items.map((item, idx) => `  ${idx + 1}. ${item.action}`).join('\n');
-            const todoMessage = `📋 ${todo.mode === 'extended' ? 'Розширений' : 'Стандартний'} план виконання (${todo.items.length} ${this._getPluralForm(todo.items.length, 'пункт', 'пункти', 'пунктів')}):\n\n${itemsList}\n\n⏱️ Орієнтовний час виконання: ${Math.ceil(todo.items.length * 0.2)} ${todo.items.length === 1 ? 'хвилина' : 'хвилини'}`;
-            this._sendChatMessage(todoMessage, 'info');
+            const todoMessage = `📋 📋 ${todo.mode === 'extended' ? 'Розширений' : 'Стандартний'} план виконання (${todo.items.length} ${this._getPluralForm(todo.items.length, 'пункт', 'пункти', 'пунктів')}):\n\n${itemsList}\n\n⏱️ Орієнтовний час виконання: ${Math.ceil(todo.items.length * 8)} секунд`;
+            this._sendChatMessage(todoMessage, 'atlas');
 
             // TTS feedback (optional - skip if TTS not available)
             if (this.tts && typeof this.tts.speak === 'function') {
@@ -331,8 +331,8 @@ export class MCPTodoManager {
             // Send final summary to chat (ADDED 14.10.2025 NIGHT)
             const summaryEmoji = summary.success_rate === 100 ? '✅' : summary.success_rate >= 80 ? '⚠️' : '❌';
             this._sendChatMessage(
-                `${summaryEmoji} Завершено: ${summary.success_rate}% успіху (${summary.completed}/${summary.total})`,
-                summary.success_rate === 100 ? 'success' : summary.success_rate >= 80 ? 'info' : 'error'
+                `🎉 Завершено: ${summary.completed}/${summary.total} пунктів (${summary.success_rate}% успіху)`,
+                'atlas'
             );
 
             // ENHANCED 14.10.2025 NIGHT - Atlas speaks about results with personality
@@ -367,7 +367,7 @@ export class MCPTodoManager {
      */
     async executeItemWithRetry(item, todo) {
         this.logger.system('mcp-todo', `[TODO] Executing item ${item.id} with max ${item.max_attempts} attempts`);
-        this._sendChatMessage(`🔄 Виконую: ${item.action}`, 'progress');  // ADDED 14.10.2025
+        // Skip progress message - too verbose
 
         item.status = 'in_progress';
         let lastError = null;
@@ -377,9 +377,7 @@ export class MCPTodoManager {
 
             try {
                 this.logger.system('mcp-todo', `[TODO] Item ${item.id} - Attempt ${attempt}/${item.max_attempts}`);
-                if (attempt > 1) {
-                    this._sendChatMessage(`🔁 Спроба ${attempt}/${item.max_attempts}`, 'info');  // ADDED 14.10.2025
-                }
+                // Skip retry message - handled by verification
 
                 // Stage 2.1: Plan Tools (Tetyana)
                 const plan = await this.planTools(item, todo);
@@ -387,7 +385,7 @@ export class MCPTodoManager {
 
                 // Stage 2.2: Execute Tools (Tetyana)
                 const execution = await this.executeTools(plan, item);
-                this._sendChatMessage(`✅ Виконано: "${item.action}"`, 'tetyana');
+                this._sendChatMessage(`✅ ✅ Виконано: "${item.action}"`, 'tetyana');
                 await this._safeTTSSpeak(execution.tts_phrase, { mode: 'normal', duration: 800, agent: 'tetyana' });
 
                 // Stage 2.3: Verify Item (Grisha)
@@ -458,7 +456,7 @@ export class MCPTodoManager {
         item.execution_results = { error: lastError };
 
         this.logger.error(`[MCP-TODO] ❌ Item ${item.id} failed after ${item.max_attempts} attempts`, { category: 'mcp-todo', component: 'mcp-todo' });
-        this._sendChatMessage(`❌ Не вдалося: ${item.action}`, 'error');  // ADDED 14.10.2025
+        this._sendChatMessage(`❌ ❌ Не вдалося: ${item.action}`, 'error');
 
         return { status: 'failed', attempts: item.max_attempts, item, error: lastError };
     }
@@ -742,7 +740,7 @@ Create precise MCP tool execution plan.
      */
     async verifyItem(item, execution, options = {}) {
         this.logger.system('mcp-todo', `[TODO] 🔍 Grisha verifying item ${item.id}`);
-        this._sendChatMessage(`🔍 Перевіряю: "${item.action}"`, 'grisha');
+        // Skip verification start message - too verbose
 
         try {
             // STEP 1: Grisha plans which verification tools to use (screenshot is mandatory)
@@ -763,9 +761,9 @@ Create precise MCP tool execution plan.
 
             // Send chat message from Grisha
             if (verification.verified) {
-                this._sendChatMessage(`✅ Перевірено: "${item.action}"\nПідтвердження: ${verification.reason}`, 'grisha');
+                this._sendChatMessage(`✅ ✅ Перевірено: "${item.action}"\nПідтвердження: ${verification.evidence || verification.reason}`, 'grisha');
             } else {
-                this._sendChatMessage(`⚠️ Не підтверджено: "${item.action}"\nПричина: ${verification.reason}`, 'grisha');
+                this._sendChatMessage(`⚠️ ❌ Не підтверджено: "${item.action}"\nПричина: ${verification.reason}`, 'grisha');
             }
 
             this.logger.system('mcp-todo', `[TODO] 🔍 Grisha verification result for item ${item.id}: ${verification.verified ? '✅ PASS' : '❌ FAIL'}`);
@@ -1580,7 +1578,10 @@ ${toolsSummary}
 
 Приклади:
 - Для "Відкрити калькулятор" → [{"server": "shell", "tool": "run_shell_command", "parameters": {"command": "screencapture -x /tmp/verify_calc.png"}}]
-- Для "Створити файл" → [{"server": "filesystem", "tool": "read_file", "parameters": {"path": "..."}}]
+- Для "Створити файл на Desktop" → [{"server": "shell", "tool": "run_shell_command", "parameters": {"command": "cat ~/Desktop/filename.txt"}}]
+- Для "Створити файл в /tmp" → [{"server": "filesystem", "tool": "read_file", "parameters": {"path": "/tmp/filename.txt"}}]
+
+⚠️ ВАЖЛИВО: Для файлів на Desktop використовуй shell (cat ~/Desktop/file), НЕ filesystem (проблеми з доступом)
 
 Return ONLY JSON:
 {
