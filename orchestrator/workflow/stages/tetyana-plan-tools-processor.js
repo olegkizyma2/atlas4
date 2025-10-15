@@ -51,41 +51,64 @@ export class TetyanaПlanToolsProcessor {
         try {
             this.logger.system('tetyana-plan-tools', `[STAGE-2.1-MCP] Item: ${currentItem.id}. ${currentItem.action}`);
 
-            // Get available MCP tools
+            // Get available MCP tools + compact summary for prompt
             const availableTools = await this._getAvailableTools();
+            const toolsSummary = this.mcpManager.getToolsSummary();
 
-            // FIXED 14.10.2025 - Log unique server names only, not all tool instances
+            // Log server names (NOT all tool instances)
             const uniqueServers = [...new Set(availableTools.map(t => t.server))];
-            this.logger.system('tetyana-plan-tools', `[STAGE-2.1-MCP] Available MCP servers: ${uniqueServers.join(', ')} (${availableTools.length} tools total)`);
+            this.logger.system('tetyana-plan-tools', `[STAGE-2.1-MCP] Available: ${uniqueServers.join(', ')} (${availableTools.length} tools)`);
 
-            // Plan tools using MCPTodoManager
+            // OPTIMIZATION (15.10.2025): Pass toolsSummary to planTools for {{AVAILABLE_TOOLS}} substitution
+            this.logger.system('tetyana-plan-tools', `[STAGE-2.1-MCP] Tools summary:\n${toolsSummary}`);
+
+            // Plan tools using MCPTodoManager with dynamic tools list
             this.logger.system('tetyana-plan-tools', `[STAGE-2.1-MCP] Calling mcpTodoManager.planTools()...`);
-            
-            const plan = await this.mcpTodoManager.planTools(currentItem, todo);
-            
+
+            const plan = await this.mcpTodoManager.planTools(currentItem, todo, { toolsSummary });
+
             this.logger.system('tetyana-plan-tools', `[STAGE-2.1-MCP] planTools() returned: ${JSON.stringify(plan).substring(0, 300)}`);
 
             if (!plan || !plan.tool_calls) {
                 throw new Error('MCPTodoManager.planTools() returned invalid plan');
             }
 
+            // Validate plan against available tools (CRITICAL)
+            const validation = this.mcpManager.validateToolCalls(plan.tool_calls);
+
+            if (!validation.valid) {
+                this.logger.warn(`[STAGE-2.1-MCP] ⚠️ Plan validation FAILED:`, { category: 'tetyana-plan-tools', component: 'tetyana-plan-tools' });
+                this.logger.warn(`[STAGE-2.1-MCP]   Errors: ${validation.errors.join(', ')}`, { category: 'tetyana-plan-tools', component: 'tetyana-plan-tools' });
+
+                if (validation.suggestions.length > 0) {
+                    this.logger.warn(`[STAGE-2.1-MCP]   Suggestions: ${validation.suggestions.join(', ')}`, { category: 'tetyana-plan-tools', component: 'tetyana-plan-tools' });
+                }
+
+                // Return error with suggestions for LLM to retry
+                return {
+                    success: false,
+                    error: 'Invalid tools in plan',
+                    validationErrors: validation.errors,
+                    suggestions: validation.suggestions,
+                    summary: `⚠️ План містить невалідні інструменти. ${validation.suggestions[0] || ''}`,
+                    metadata: {
+                        itemId: currentItem.id,
+                        stage: 'tool-planning',
+                        needsRetry: true
+                    }
+                };
+            }
+
             // Log planned tools
             this.logger.system('tetyana-plan-tools', `[STAGE-2.1-MCP] ✅ Planned ${plan.tool_calls.length} tool call(s):`);
-            
+
             for (const call of plan.tool_calls) {
                 this.logger.system('tetyana-plan-tools', `[STAGE-2.1-MCP]    ${call.server}__${call.tool}`);
                 this.logger.system('tetyana-plan-tools', `[STAGE-2.1-MCP]      Parameters: ${JSON.stringify(call.parameters)}`);
-                
+
                 if (call.reasoning) {
                     this.logger.system('tetyana-plan-tools', `[STAGE-2.1-MCP]      Reasoning: ${call.reasoning}`);
                 }
-            }
-
-            // Validate plan against available tools
-            const validation = this._validatePlan(plan, availableTools);
-
-            if (!validation.valid) {
-                this.logger.warn(`[STAGE-2.1-MCP] ⚠️ Plan validation issues: ${validation.issues.join(', ')}`, { category: 'tetyana-plan-tools', component: 'tetyana-plan-tools' });
             }
 
             // Generate summary
@@ -100,7 +123,8 @@ export class TetyanaПlanToolsProcessor {
                     toolCount: plan.tool_calls.length,
                     servers: [...new Set(plan.tool_calls.map(c => c.server))],
                     validation,
-                    prompt: MCP_PROMPTS.TETYANA_PLAN_TOOLS.name
+                    prompt: MCP_PROMPTS.TETYANA_PLAN_TOOLS.name,
+                    optimized: true  // NEW: mark as using optimized prompt
                 }
             };
 
@@ -131,10 +155,10 @@ export class TetyanaПlanToolsProcessor {
         try {
             // Get tools from MCPManager
             const tools = await this.mcpManager.getAvailableTools();
-            
+
             if (!tools || tools.length === 0) {
                 this.logger.warn(`[STAGE-2.1-MCP] No MCP tools available, using default list`, { category: 'tetyana-plan-tools', component: 'tetyana-plan-tools' });
-                
+
                 // Return default tool list if MCPManager not ready
                 return this._getDefaultTools();
             }
@@ -143,7 +167,7 @@ export class TetyanaПlanToolsProcessor {
 
         } catch (error) {
             this.logger.warn(`[STAGE-2.1-MCP] Failed to get tools from MCPManager: ${error.message}`, { category: 'tetyana-plan-tools', component: 'tetyana-plan-tools' });
-            
+
             // Fallback to default tools
             return this._getDefaultTools();
         }
@@ -241,7 +265,7 @@ export class TetyanaПlanToolsProcessor {
         for (let i = 0; i < plan.tool_calls.length; i++) {
             const call = plan.tool_calls[i];
             lines.push(`  ${i + 1}. ${call.server}__${call.tool}`);
-            
+
             // Show key parameters
             const keyParams = this._extractKeyParameters(call.parameters);
             if (keyParams.length > 0) {
@@ -268,12 +292,12 @@ export class TetyanaПlanToolsProcessor {
         for (const key of importantKeys) {
             if (params[key]) {
                 let value = params[key];
-                
+
                 // Truncate long values
                 if (typeof value === 'string' && value.length > 50) {
                     value = value.substring(0, 47) + '...';
                 }
-                
+
                 keyParams.push(`${key}=${value}`);
             }
         }

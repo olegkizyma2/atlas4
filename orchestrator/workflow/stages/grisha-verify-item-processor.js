@@ -57,8 +57,12 @@ export class GrishaVerifyItemProcessor {
             this.logger.system('grisha-verify-item', `[STAGE-2.3-MCP] Item: ${currentItem.id}. ${currentItem.action}`);
             this.logger.system('grisha-verify-item', `[STAGE-2.3-MCP] Success criteria: ${currentItem.success_criteria}`);
 
-            // Verify using MCPTodoManager
-            const verification = await this.mcpTodoManager.verifyItem(currentItem, execution);
+            // OPTIMIZATION 15.10.2025 - Get compact tools summary for verification
+            const toolsSummary = this.mcpManager.getToolsSummary();
+            this.logger.system('grisha-verify-item', `[STAGE-2.3-MCP] Tools summary: ${toolsSummary.length} chars`);
+
+            // Verify using MCPTodoManager with tools summary
+            const verification = await this.mcpTodoManager.verifyItem(currentItem, execution, { toolsSummary });
 
             if (!verification) {
                 throw new Error('MCPTodoManager.verifyItem() returned null/undefined');
@@ -135,14 +139,14 @@ export class GrishaVerifyItemProcessor {
 
         if (verification.verified) {
             lines.push(`✅ Перевірено: "${item.action}"`);
-            
+
             if (verification.evidence) {
                 lines.push(`   Підтвердження: ${verification.evidence}`);
             }
         } else {
             lines.push(`❌ Не підтверджено: "${item.action}"`);
             lines.push(`   Причина: ${verification.reason}`);
-            
+
             if (verification.missing_criteria) {
                 lines.push(`   Не виконано: ${verification.missing_criteria}`);
             }

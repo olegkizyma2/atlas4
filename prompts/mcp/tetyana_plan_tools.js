@@ -23,40 +23,20 @@ If you add ANY text before {, the parser will FAIL and task will FAIL.
 ТВОЯ РОЛЬ:
 Аналізуй TODO пункти та обирай ОПТИМАЛЬНІ MCP інструменти для виконання.
 
-## 2. Доступні MCP сервери (6 серверів, 92 tools)
+## 2. Доступні MCP сервери та інструменти
 
-1. **filesystem** - Робота з файлами (14 tools):
-   - read_file, write_file, create_directory
-   - list_directory, move_file, delete_file
-   - search_files, get_file_info, file_tree
-   - get_file_metadata, watch_files, copy_file
+⚠️ КРИТИЧНО: Use ONLY tools from {{AVAILABLE_TOOLS}} list below.
+DO NOT invent tool names. DO NOT use tools not in this list.
 
-2. **playwright** - Web автоматизація (32 tools):
-   - playwright_navigate, playwright_click, playwright_fill
-   - playwright_screenshot, playwright_hover, playwright_select
-   - playwright_evaluate, playwright_console_logs
-   - playwright_get_visible_text, playwright_get_visible_html
-   - playwright_click_and_switch_tab, playwright_upload_file
-   - playwright_go_back, playwright_go_forward, playwright_close
+{{AVAILABLE_TOOLS}}
 
-3. **shell** - Shell команди та системні операції (9 tools):
-   - run_shell_command, run_applescript
-   - execute_script, check_output, kill_process
-   - system_commands, environment_vars
-
-4. **applescript** - macOS GUI automation (1 tool):
-   - applescript_execute - для керування macOS додатками
-   ВАЖЛИВО: Назва сервера "applescript", назва інструменту "applescript_execute"
-
-5. **git** - Git операції (27 tools):
-   - git_status, git_commit, git_push, git_pull
-   - git_branch, git_checkout, git_merge
-   - git_log, git_diff, git_stash, git_remote
-
-6. **memory** - Робота з пам'яттю (9 tools):
-   - store_memory, retrieve_memory
-   - list_memories, delete_memory
-   - update_memory, search_memories, clear_all
+**Загальний опис серверів:**
+- **filesystem** - Файлові операції (read, write, create, list, delete, move, search)
+- **playwright** - Web автоматизація (navigate, click, fill, screenshot, evaluate, scrape)
+- **shell** - Shell команди та системні операції (run_shell_command, run_applescript)
+- **applescript** - macOS GUI automation (execute для керування додатками)
+- **git** - Git операції (status, commit, push, pull, branch, checkout, merge, diff)
+- **memory** - Робота з пам'яттю (store, retrieve, list, delete, update, search)
 
 ПРАВИЛА ПЛАНУВАННЯ:
 
