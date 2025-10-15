@@ -184,13 +184,16 @@ export class ChatManager {
   }
 
   addMessage(content, agent = 'user', signature = null) {
+    // FIXED 16.10.2025 - Normalize agent name to lowercase for consistent lookup
+    const agentKey = agent.toLowerCase();
+    
     const message = {
       id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       content,
-      agent,
-      signature: signature || AGENTS[agent]?.signature || `[${agent.toUpperCase()}]`,
+      agent: agentKey, // Use normalized agent name
+      signature: signature || AGENTS[agentKey]?.signature || `[${agent.toUpperCase()}]`,
       timestamp: Date.now(),
-      color: AGENTS[agent]?.color || '#ffffff'
+      color: AGENTS[agentKey]?.color || '#ffffff'
     };
 
     this.messages.push(message);
