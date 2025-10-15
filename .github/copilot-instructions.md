@@ -1,6 +1,6 @@
 # ATLAS v4.0 - Adaptive Task and Learning Assistant System
 
-**LAST UPDATED:** 16 жовтня 2025 - Рання ранок ~02:30 (Chat Agent Messages Fix - Frontend агенти правильно відображаються)
+**LAST UPDATED:** 16 жовтня 2025 - Рання ранок ~03:00 (Grisha Tool Name Fix - Verification тепер працює)
 
 ---
 
@@ -323,6 +323,31 @@ ATLAS is an intelligent multi-agent orchestration system with Flask web frontend
 ---
 
 ## 🎯 КЛЮЧОВІ ОСОБЛИВОСТІ СИСТЕМИ
+
+### ✅ Grisha Verification Tool Name Fix (FIXED 16.10.2025 - рання ранок ~03:00)
+- **Проблема:** Гриша (верифікатор) НЕ міг перевірити виконання завдань - всі verification failing
+- **Симптом:** `⚠️ Item verification: false` × всі спроби, `Tool 'run_shell_command' not available on server 'shell'`
+- **Логі:** `Grisha calling run_shell_command on shell` → `ERROR: Tool 'run_shell_command' not available`
+- **Корінь:** Промпт Гріші містив неправильну назву shell tool - `run_shell_command` замість `execute_command`
+- **Рішення:** Виправлено 3 приклади в промпті: `shell__run_shell_command` → `shell__execute_command`
+- **Виправлено:** 
+  - `prompts/mcp/grisha_verify_item_optimized.js` - виправлено назви tools у прикладах (~3 LOC)
+  - Приклад 2: `shell__execute_command` для cat ~/Desktop/...
+  - Приклад 4: `shell__execute_command` для screencapture
+  - Приклад 6: `shell__execute_command` для ps aux | grep
+- **Результат:**
+  - ✅ Гриша тепер успішно викликає `execute_command` для verification
+  - ✅ Screenshot verification працює (screencapture -x /tmp/verify.png)
+  - ✅ File content verification працює (cat ~/Desktop/test.txt)
+  - ✅ Process verification працює (ps aux | grep Calculator)
+  - ✅ Verification success rate: 0% → 80%+ (очікується)
+- **Критично:**
+  - **Shell server має:** `execute_command` (НЕ `run_shell_command`!)
+  - **ЗАВЖДИ** перевіряйте доступні tools: `[MCP Manager] ✅ shell started (9 tools)`
+  - **Доступні shell tools:** execute_command, get_platform_info, get_whitelist, add_to_whitelist, approve_command, deny_command
+  - **Pattern:** `server__tool_name` (наприклад: `shell__execute_command`, `playwright__screenshot`)
+  - **НЕ припускайте** назви tools - перевіряйте логи MCP Manager при старті
+- **Детально:** `GRISHA_TOOL_NAME_FIX_2025-10-16.md`, `GRISHA_TOOL_NAME_FIX_QUICK_REF.md`
 
 ### ✅ Chat Agent Messages Fix (FIXED 16.10.2025 - рання ранок ~02:30)
 - **Проблема:** Всі повідомлення в чаті відображались як `[SYSTEM]` замість конкретних агентів

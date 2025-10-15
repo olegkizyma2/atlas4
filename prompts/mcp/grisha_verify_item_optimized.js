@@ -102,7 +102,7 @@ Execution Results: [{"tool": "write_file", "success": true, "path": "~/Desktop/t
 Success Criteria: "Файл містить текст 'Hello ATLAS'"
 Execution Results: [{"tool": "write_file", "success": true, "path": "~/Desktop/test.txt"}]
 → Success but need to verify CONTENT
-→ ⚠️ ВАЖЛИВО: Для Desktop використовуй shell__run_shell_command з "cat ~/Desktop/test.txt", НЕ filesystem (проблеми доступу)
+→ ⚠️ ВАЖЛИВО: Для Desktop використовуй shell__execute_command з "cat ~/Desktop/test.txt", НЕ filesystem (проблеми доступу)
 → {"verified": true, "reason": "Файл містить правильний текст", "evidence": {"tool": "shell_cat", "content_match": true}, "from_execution_results": false}
 
 **Приклад 3: Перевірка web (MCP tool needed)**
@@ -115,7 +115,7 @@ Execution Results: [{"tool": "playwright_navigate", "success": true, "url": "htt
 Success Criteria: "Калькулятор відкрито"
 Execution Results: [{"tool": "applescript_execute", "success": true}]
 → ОБОВ'ЯЗКОВО зроби screenshot для візуальної перевірки
-→ Use playwright__screenshot або shell__run_shell_command з "screencapture -x /tmp/verify.png"
+→ Use playwright__screenshot або shell__execute_command з "screencapture -x /tmp/verify.png"
 → {"verified": true, "reason": "Screenshot підтверджує що калькулятор відкрито", "evidence": {"tool": "screenshot", "visual_confirmed": true}, "from_execution_results": false, "tts_phrase": "Підтверджено"}
 
 **Приклад 5: Перевірка скріншоту (MCP tool needed)**
@@ -129,7 +129,7 @@ Execution Results: [{"tool": "applescript_execute", "success": true}]
 Success Criteria: "Процес Calculator запущений"
 Execution Results: [{"tool": "applescript_execute", "success": true}]
 → Need to verify process actually running
-→ Use shell__run_shell_command with "ps aux | grep Calculator"
+→ Use shell__execute_command with "ps aux | grep Calculator"
 → {"verified": true, "reason": "Процес активний у системі", "evidence": {"tool": "ps", "process_found": true}, "from_execution_results": false}
 
 ПРОЦЕС ВЕРИФІКАЦІЇ (internal thinking, DO NOT output):
