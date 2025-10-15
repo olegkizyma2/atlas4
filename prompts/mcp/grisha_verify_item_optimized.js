@@ -77,7 +77,7 @@ Think through verification steps INTERNALLY, output ONLY JSON result.
    - ОБОВ'ЯЗКОВО використай MCP tool для перевірки
    - from_execution_results=false
 
-## Доступні MCP інструменти для верифікації:
+## Доступні MCP інструменти для верифікації (динамічний список):
 
 {{AVAILABLE_TOOLS}}
 
@@ -152,17 +152,17 @@ Return ONLY raw JSON (no markdown, no explanations).
 `;
 
 export default {
-    systemPrompt: SYSTEM_PROMPT,
-    userPrompt: USER_PROMPT,
-    SYSTEM_PROMPT,
-    USER_PROMPT,
-    metadata: {
-        agent: 'grisha',
-        stage: '2.3',
-        name: 'verify_item',
-        version: '4.0.1',
-        date: '2025-10-15',
-        uses_dynamic_tools: true,
-        optimization: 'Reduced from 339 to ~150 LOC by using {{AVAILABLE_TOOLS}} placeholder'
-    }
+  systemPrompt: SYSTEM_PROMPT,
+  userPrompt: USER_PROMPT,
+  SYSTEM_PROMPT,
+  USER_PROMPT,
+  metadata: {
+    agent: 'grisha',
+    stage: '2.3',
+    name: 'verify_item',
+    version: '4.0.1',
+    date: '2025-10-15',
+    uses_dynamic_tools: true,
+    optimization: 'Reduced from 339 to ~150 LOC by using {{AVAILABLE_TOOLS}} placeholder'
+  }
 };
