@@ -73,7 +73,14 @@ Think through verification steps INTERNALLY, output ONLY JSON result.
    - verified=true + reason з execution results
    - from_execution_results=true
 
-4. **Якщо execution results показують ERROR АБО results порожні:**
+4. **СПЕЦІАЛЬНЕ ПРАВИЛО для AppleScript GUI дій (keystroke, click):**
+   - AppleScript keystroke НЕ повертає візуального підтвердження
+   - Якщо tool="applescript_execute" + success=true + code_snippet містить "keystroke"
+   - ДОВІРЯЙ execution results БЕЗ додаткової перевірки
+   - verified=true + from_execution_results=true
+   - Reason: "AppleScript команда виконана успішно (GUI дія без візуального підтвердження)"
+
+5. **Якщо execution results показують ERROR АБО results порожні:**
    - ОБОВ'ЯЗКОВО використай MCP tool для перевірки
    - from_execution_results=false
 
@@ -104,14 +111,20 @@ Execution Results: [{"tool": "playwright_navigate", "success": true, "url": "htt
 → Success + URL correct
 → {"verified": true, "reason": "Браузер на правильній сторінці згідно execution results", "from_execution_results": true}
 
-**Приклад 4: Перевірка скріншоту (MCP tool needed)**
-Success Criteria: "Калькулятор показує результат 665.94"
+**Приклад 4: AppleScript GUI дія (keystroke) - NO MCP tool needed**
+Success Criteria: "333 введено в калькулятор"
+Execution Results: [{"tool": "applescript_execute", "success": true, "parameters": {"code_snippet": "tell application \\"System Events\\"\\n  keystroke \\"333\\"\\nend tell"}}]
+→ AppleScript keystroke успішно виконано (GUI дія без візуального підтвердження)
+→ {"verified": true, "reason": "AppleScript команда виконана успішно (GUI дія без візуального підтвердження)", "from_execution_results": true}
+
+**Приклад 5: Перевірка скріншоту (MCP tool needed)**
+Success Criteria: "Калькулятор показує результат 666"
 Execution Results: [{"tool": "applescript_execute", "success": true}]
-→ Success but need VISUAL confirmation
+→ Success but need VISUAL confirmation of RESULT
 → Use playwright__screenshot АБО applescript (check calculator window)
 → {"verified": true, "reason": "Калькулятор показує правильний результат на скріншоті", "evidence": {"tool": "screenshot", "visual_match": true}, "from_execution_results": false}
 
-**Приклад 5: Системна перевірка (MCP tool needed)**
+**Приклад 6: Системна перевірка (MCP tool needed)**
 Success Criteria: "Процес Calculator запущений"
 Execution Results: [{"tool": "applescript_execute", "success": true}]
 → Need to verify process actually running
@@ -121,10 +134,11 @@ Execution Results: [{"tool": "applescript_execute", "success": true}]
 ПРОЦЕС ВЕРИФІКАЦІЇ (internal thinking, DO NOT output):
 1. Читай Success Criteria - що треба перевірити
 2. Аналізуй Execution Results - чи показують успіх
-3. ЯКЩО results SUCCESS + параметри OK → verified=true (from_execution_results=true)
-4. ЯКЩО results ERROR або порожні → обирай MCP tool
-5. Використовуй tool для перевірки
-6. Формуй JSON з доказами
+3. ПЕРЕВІР: чи це AppleScript keystroke/click? Якщо ТАК + success=true → verified=true (from_execution_results=true)
+4. ЯКЩО results SUCCESS + параметри OK → verified=true (from_execution_results=true)
+5. ЯКЩО results ERROR або порожні → обирай MCP tool
+6. Використовуй tool для перевірки
+7. Формуй JSON з доказами
 
 OUTPUT FORMAT (JSON only):
 {
