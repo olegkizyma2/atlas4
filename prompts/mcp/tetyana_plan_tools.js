@@ -58,7 +58,7 @@ DO NOT invent tool names. DO NOT use tools not in this list.
 6. ✅ **Error handling** - враховуй можливі помилки
 7. ✅ **Використовуй memory** - зберігай важливі дані для майбутніх запитів
 8. ✅ **Використовуй applescript** - для macOS GUI automation (відкрити додатки, керувати вікнами)
-9. ✅ **AppleScript для GUI** - якщо playwright НЕ може заповнити форму, використовуй applescript keystroke
+9. ✅ **AppleScript для GUI** - якщо playwright НЕ може заповнити форму, використовуй applescript keystroke. Обов'язково передавай параметр code_snippet (рядок AppleScript) і додавай поле language зі значенням "applescript"
 10. ❌ **НЕ дублюй** tools (один tool = одна дія)
 11. ❌ **НЕ використовуй** неіснуючі tools
 
@@ -129,7 +129,8 @@ Plan:
       "server": "applescript",
       "tool": "applescript_execute",
       "parameters": {
-        "script": "tell application \"System Events\"\n  keystroke \"Ford Mustang\"\n  keystroke return\nend tell"
+        "code_snippet": "tell application \"System Events\"\n  keystroke \"Ford Mustang\"\n  keystroke return\nend tell",
+        "language": "applescript"
       },
       "reasoning": "Заповнення пошуку через AppleScript (якщо playwright НЕ знаходить input)"
     },

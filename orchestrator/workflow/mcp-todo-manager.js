@@ -630,13 +630,31 @@ Create precise MCP tool execution plan.
         let allSuccessful = true;
 
         for (const toolCall of plan.tool_calls) {
+            let parameters = { ...(toolCall.parameters || {}) };
+
             try {
                 this.logger.system('mcp-todo', `[TODO] Calling ${toolCall.tool} on ${toolCall.server}`);
+
+                // Auto-correct AppleScript parameters if LLM used legacy field names
+                if (toolCall.server === 'applescript' && toolCall.tool === 'applescript_execute') {
+                    if (!parameters.code_snippet && typeof parameters.script === 'string') {
+                        parameters.code_snippet = parameters.script;
+                        this.logger.system('mcp-todo', '[TODO] Auto-filled code_snippet from script for applescript_execute');
+                    }
+                    if (!parameters.code_snippet && typeof parameters.code === 'string') {
+                        parameters.code_snippet = parameters.code;
+                        this.logger.system('mcp-todo', '[TODO] Auto-filled code_snippet from code for applescript_execute');
+                    }
+                    if (!parameters.language) {
+                        parameters.language = 'applescript';
+                        this.logger.system('mcp-todo', '[TODO] Defaulted AppleScript language parameter to "applescript"');
+                    }
+                }
 
                 const result = await this.mcpManager.executeTool(
                     toolCall.server,
                     toolCall.tool,
-                    toolCall.parameters
+                    parameters
                 );
 
                 results.push({
@@ -665,7 +683,7 @@ Create precise MCP tool execution plan.
                     success: false,
                     error: error.message,
                     stack: error.stack || null,
-                    metadata: toolCall
+                    metadata: { ...toolCall, parameters }
                 });
 
                 allSuccessful = false;
