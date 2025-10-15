@@ -521,13 +521,19 @@ export class MCPManager {
    * Отримати компактний опис доступних MCP серверів і tools
    * Використовується для підстановки в промпти ({{AVAILABLE_TOOLS}})
    * 
+   * @param {Array<string>} [filterServers] - Опціонально фільтрувати тільки ці сервери (NEW 15.10.2025)
    * @returns {string} Компактний текстовий опис всіх серверів і кількості tools
    */
-  getToolsSummary() {
+  getToolsSummary(filterServers = null) {
     const summary = [];
 
     for (const server of this.servers.values()) {
       if (!Array.isArray(server.tools)) {
+        continue;
+      }
+
+      // OPTIMIZATION (15.10.2025): Фільтр по конкретних серверах
+      if (filterServers && !filterServers.includes(server.name)) {
         continue;
       }
 
@@ -541,6 +547,65 @@ export class MCPManager {
     }
 
     return summary.join('\n');
+  }
+
+  /**
+   * Отримати ДЕТАЛЬНИЙ опис tools для конкретних серверів
+   * Повертає ВСІ tools (не тільки перші 5) для обраних серверів
+   * 
+   * @param {Array<string>} serverNames - Назви серверів
+   * @returns {string} Детальний опис всіх tools
+   * @version 4.2.0
+   * @date 2025-10-15
+   */
+  getDetailedToolsSummary(serverNames) {
+    const summary = [];
+
+    for (const serverName of serverNames) {
+      const server = this.servers.get(serverName);
+
+      if (!server || !Array.isArray(server.tools)) {
+        logger.warn('mcp-manager', `[MCP Manager] Server '${serverName}' not found or has no tools`);
+        continue;
+      }
+
+      const toolsList = server.tools.map(t => `  - ${t.name}: ${t.description || 'No description'}`);
+
+      summary.push(
+        `### **${server.name}** (${server.tools.length} tools)\n${toolsList.join('\n')}`
+      );
+    }
+
+    return summary.join('\n\n');
+  }
+
+  /**
+   * Отримати tools тільки з конкретних серверів
+   * 
+   * @param {Array<string>} serverNames - Назви серверів
+   * @returns {Array<Object>} Tools з цих серверів
+   * @version 4.2.0
+   * @date 2025-10-15
+   */
+  getToolsFromServers(serverNames) {
+    const tools = [];
+
+    for (const serverName of serverNames) {
+      const server = this.servers.get(serverName);
+
+      if (!server || !Array.isArray(server.tools)) {
+        continue;
+      }
+
+      const serverTools = server.tools.map(tool => ({
+        ...tool,
+        server: server.name
+      }));
+
+      tools.push(...serverTools);
+    }
+
+    return tools;
   }
 
   /**
