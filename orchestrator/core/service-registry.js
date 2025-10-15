@@ -18,6 +18,7 @@ import { TTSSyncManager } from '../workflow/tts-sync-manager.js';
 import {
     BackendSelectionProcessor,
     AtlasTodoPlanningProcessor,
+    ServerSelectionProcessor,  // NEW 15.10.2025
     TetyanaПlanToolsProcessor,
     TetyanaExecuteToolsProcessor,
     GrishaVerifyItemProcessor,
@@ -247,6 +248,17 @@ export function registerMCPProcessors(container) {
         metadata: { category: 'processors', priority: 40 }
     });
 
+    // Server Selection Processor (Stage 2.0-MCP) - NEW 15.10.2025
+    container.singleton('serverSelectionProcessor', (c) => {
+        return new ServerSelectionProcessor({
+            mcpManager: c.resolve('mcpManager'),
+            logger: c.resolve('logger')
+        });
+    }, {
+        dependencies: ['mcpManager', 'logger'],
+        metadata: { category: 'processors', priority: 40 }
+    });
+
     // Tetyana Plan Tools Processor (Stage 2.1-MCP)
     container.singleton('tetyanaПlanToolsProcessor', (c) => {
         return new TetyanaПlanToolsProcessor({
@@ -304,7 +316,7 @@ export function registerMCPProcessors(container) {
         metadata: { category: 'processors', priority: 40 }
     });
 
-    logger.system('startup', '[DI] Registered 7 MCP stage processors');
+    logger.system('startup', '[DI] Registered 8 MCP stage processors');  // UPDATED 15.10.2025 (was 7)
 
     return container;
 }

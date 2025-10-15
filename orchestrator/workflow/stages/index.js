@@ -2,12 +2,13 @@
  * @fileoverview MCP Stage Processors - Export Module
  * Centralizes exports for all MCP workflow stage processors
  * 
- * @version 4.0.0
- * @date 2025-10-13
+ * @version 4.2.0
+ * @date 2025-10-15
  */
 
 import { BackendSelectionProcessor } from './backend-selection-processor.js';
 import { AtlasTodoPlanningProcessor } from './atlas-todo-planning-processor.js';
+import { ServerSelectionProcessor } from './server-selection-processor.js';  // NEW 15.10.2025
 import { TetyanaПlanToolsProcessor } from './tetyana-plan-tools-processor.js';
 import { TetyanaExecuteToolsProcessor } from './tetyana-execute-tools-processor.js';
 import { GrishaVerifyItemProcessor } from './grisha-verify-item-processor.js';
@@ -18,6 +19,7 @@ import { McpFinalSummaryProcessor } from './mcp-final-summary-processor.js';
 export {
     BackendSelectionProcessor,
     AtlasTodoPlanningProcessor,
+    ServerSelectionProcessor,  // NEW 15.10.2025
     TetyanaПlanToolsProcessor,
     TetyanaExecuteToolsProcessor,
     GrishaVerifyItemProcessor,
@@ -36,6 +38,9 @@ export const MCP_PROCESSORS = {
     
     // Stage 1-MCP - Atlas TODO Planning
     ATLAS_TODO_PLANNING: AtlasTodoPlanningProcessor,
+    
+    // Stage 2.0-MCP - Server Selection (NEW 15.10.2025)
+    SERVER_SELECTION: ServerSelectionProcessor,
     
     // Stage 2.1-MCP - Tetyana Plan Tools
     TETYANA_PLAN_TOOLS: TetyanaПlanToolsProcessor,

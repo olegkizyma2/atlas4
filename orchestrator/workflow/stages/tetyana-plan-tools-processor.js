@@ -37,12 +37,13 @@ export class TetyanaПlanToolsProcessor {
      * @param {Object} context.currentItem - Current TODO item being planned
      * @param {Object} context.todo - Full TODO list
      * @param {Object} [context.executionContext] - Execution context (results so far)
+     * @param {Array<string>} [context.selected_servers] - Pre-selected MCP servers (NEW 15.10.2025)
      * @returns {Promise<Object>} Planning result with tool calls
      */
     async execute(context) {
         this.logger.system('tetyana-plan-tools', '[STAGE-2.1-MCP] 🛠️ Planning tool selection...');
 
-        const { currentItem, todo, executionContext } = context;
+        const { currentItem, todo, executionContext, selected_servers } = context;
 
         if (!currentItem) {
             throw new Error('currentItem is required for tool planning');
@@ -51,16 +52,33 @@ export class TetyanaПlanToolsProcessor {
         try {
             this.logger.system('tetyana-plan-tools', `[STAGE-2.1-MCP] Item: ${currentItem.id}. ${currentItem.action}`);
 
-            // Get available MCP tools + compact summary for prompt
-            const availableTools = await this._getAvailableTools();
-            const toolsSummary = this.mcpManager.getToolsSummary();
+            // OPTIMIZATION (15.10.2025): Use pre-selected servers if available
+            let toolsSummary;
+            let availableTools;
+            let filteredServers = null;
+
+            if (selected_servers && Array.isArray(selected_servers) && selected_servers.length > 0) {
+                // Use ONLY tools from selected servers
+                filteredServers = selected_servers;
+                availableTools = this.mcpManager.getToolsFromServers(selected_servers);
+                toolsSummary = this.mcpManager.getDetailedToolsSummary(selected_servers);
+
+                this.logger.system('tetyana-plan-tools', `[STAGE-2.1-MCP] 🎯 Using pre-selected servers: ${selected_servers.join(', ')}`);
+                this.logger.system('tetyana-plan-tools', `[STAGE-2.1-MCP] 🎯 Filtered tools: ${availableTools.length} (was 92+)`);
+            } else {
+                // Fallback: Use ALL available tools (legacy behavior)
+                availableTools = await this._getAvailableTools();
+                toolsSummary = this.mcpManager.getToolsSummary();
+
+                this.logger.system('tetyana-plan-tools', `[STAGE-2.1-MCP] ⚠️ No pre-selected servers, using ALL tools (${availableTools.length})`);
+            }
 
             // Log server names (NOT all tool instances)
             const uniqueServers = [...new Set(availableTools.map(t => t.server))];
             this.logger.system('tetyana-plan-tools', `[STAGE-2.1-MCP] Available: ${uniqueServers.join(', ')} (${availableTools.length} tools)`);
 
             // OPTIMIZATION (15.10.2025): Pass toolsSummary to planTools for {{AVAILABLE_TOOLS}} substitution
-            this.logger.system('tetyana-plan-tools', `[STAGE-2.1-MCP] Tools summary:\n${toolsSummary}`);
+            this.logger.debug('tetyana-plan-tools', `[STAGE-2.1-MCP] Tools summary:\n${toolsSummary}`);
 
             // Plan tools using MCPTodoManager with dynamic tools list
             this.logger.system('tetyana-plan-tools', `[STAGE-2.1-MCP] Calling mcpTodoManager.planTools()...`);
@@ -94,7 +112,8 @@ export class TetyanaПlanToolsProcessor {
                     metadata: {
                         itemId: currentItem.id,
                         stage: 'tool-planning',
-                        needsRetry: true
+                        needsRetry: true,
+                        filteredServers  // Track which servers were used
                     }
                 };
             }
@@ -122,6 +141,8 @@ export class TetyanaПlanToolsProcessor {
                     itemId: currentItem.id,
                     toolCount: plan.tool_calls.length,
                     servers: [...new Set(plan.tool_calls.map(c => c.server))],
+                    filteredServers,  // NEW: Track which servers were pre-selected
+                    toolsReduction: filteredServers ? `92+ → ${availableTools.length}` : null,  // NEW: Show optimization
                     validation,
                     prompt: MCP_PROMPTS.TETYANA_PLAN_TOOLS.name,
                     optimized: true  // NEW: mark as using optimized prompt
