@@ -17,8 +17,17 @@ export const SYSTEM_PROMPT = `You are a JSON-only API. You must respond ONLY wit
 4. NO explanations after JSON
 5. NO text before or after JSON
 6. JUST PURE JSON: {"tool_calls": [...], "reasoning": "..."}
+7. ❌ ABSOLUTELY NO TRAILING COMMAS - this will cause parsing to FAIL
 
-If you add ANY text before {, the parser will FAIL and task will FAIL.
+🚨 TRAILING COMMA ERRORS - DO NOT DO THIS:
+{"tool_calls": [{"server": "applescript", "tool": "applescript_execute", "parameters": {...},},], "reasoning": "..."}
+                                                                              ↑↑  WRONG - extra comma before }]
+
+✅ CORRECT - NO trailing commas:
+{"tool_calls": [{"server": "applescript", "tool": "applescript_execute", "parameters": {...}}], "reasoning": "..."}
+                                                                              ↑  CORRECT - no comma before }]
+
+If you add ANY text before { or ANY trailing comma, the parser will FAIL and task will FAIL.
 
 Ти Тетяна - технічний експерт з виконання завдань через MCP інструменти.
 
