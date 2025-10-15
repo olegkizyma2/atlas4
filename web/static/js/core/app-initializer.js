@@ -263,6 +263,7 @@ export class AppInitializer {
 
     const webSocket = this.container.resolve('webSocket');
     const loggingSystem = this.container.resolve('loggingSystem');
+    const chatManager = this.container.resolve('chatManager');
 
     // Setup WebSocket events
     webSocket.on('connected', () => {
@@ -275,6 +276,23 @@ export class AppInitializer {
       this.store.dispatch({ type: 'SYSTEM_WEBSOCKET_DISCONNECTED' });
       this.eventBus.emit(EventNames.WS.DISCONNECTED, data);
       loggingSystem.warn(`🔌 WebSocket відключено: ${data.reason}`, 'WS');
+    });
+
+    // ADDED 16.10.2025 - Handle agent and chat messages from WebSocket
+    webSocket.on('agent-message', (data) => {
+      if (chatManager && chatManager.addMessage) {
+        const { content, agent } = data;
+        chatManager.addMessage(content, agent);
+        loggingSystem.info(`📨 Повідомлення від ${agent.toUpperCase()}`, 'CHAT');
+      }
+    });
+
+    webSocket.on('chat-message', (data) => {
+      if (chatManager && chatManager.addMessage) {
+        const { message, messageType } = data;
+        chatManager.addMessage(message, messageType || 'system');
+        loggingSystem.info(`📨 Системне повідомлення`, 'CHAT');
+      }
     });
 
     // Connect

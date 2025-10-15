@@ -138,6 +138,15 @@ class AtlasWebSocketClient {
         this.emit('state-update', data);
         break;
 
+      // ADDED 16.10.2025 - Handle agent and chat messages from MCP workflow
+      case 'agent_message':
+        this.emit('agent-message', data);
+        break;
+
+      case 'chat_message':
+        this.emit('chat-message', data);
+        break;
+
       case 'subscribed':
         this.logger.info('Subscribed to channels', data.channels);
         break;
