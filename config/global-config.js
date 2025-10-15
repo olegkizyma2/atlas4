@@ -138,21 +138,22 @@ export const MCP_MODEL_CONFIG = {
     },
 
     // Stage 2.1-MCP: Tetyana Plan Tools
-    // FIXED 14.10.2025 - mistral-nemo для великого context (128K) + хороший rate limit (14 req/min)
+    // OPTIMIZED 15.10.2025 - mistral-small-2503 для ЧИСТОГО JSON без markdown (40 req/min)
+    // Причина зміни: phi-4 та nemo генерували ```json wrappers, mistral-small - чистий JSON
     plan_tools: {
-      get model() { return process.env.MCP_MODEL_PLAN_TOOLS || 'mistral-ai/mistral-nemo'; },
-      get temperature() { return parseFloat(process.env.MCP_TEMP_PLAN_TOOLS || '0.2'); },
-      max_tokens: 800,
-      description: 'Tool matching - 128K context для великих списків інструментів'
+      get model() { return process.env.MCP_MODEL_PLAN_TOOLS || 'mistral-ai/mistral-small-2503'; },
+      get temperature() { return parseFloat(process.env.MCP_TEMP_PLAN_TOOLS || '0.15'); },  // Нижче для точності
+      max_tokens: 1200,  // Збільшено для складних планів
+      description: 'Tool matching - mistral-small для ЧИСТОГО JSON output (40 req/min)'
     },
 
     // Stage 2.3-MCP: Grisha Verify Item
-    // FIXED 14.10.2025 - mistral-nemo для великого context (128K), багато execution results
+    // OPTIMIZED 15.10.2025 - mistral-small-2503 для ЧИСТОГО JSON без markdown (40 req/min)
     verify_item: {
-      get model() { return process.env.MCP_MODEL_VERIFY_ITEM || 'mistral-ai/mistral-nemo'; },
-      get temperature() { return parseFloat(process.env.MCP_TEMP_VERIFY_ITEM || '0.2'); },
-      max_tokens: 300,
-      description: 'Верифікація з великим контекстом execution results (128K context)'
+      get model() { return process.env.MCP_MODEL_VERIFY_ITEM || 'mistral-ai/mistral-small-2503'; },
+      get temperature() { return parseFloat(process.env.MCP_TEMP_VERIFY_ITEM || '0.15'); },  // Нижче для точності
+      max_tokens: 500,  // Збільшено для детальної верифікації
+      description: 'Верифікація з ЧИСТИМ JSON output (40 req/min)'
     },
 
     // Stage 3-MCP: Atlas Adjust TODO

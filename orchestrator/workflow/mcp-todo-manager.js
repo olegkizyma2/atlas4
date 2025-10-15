@@ -796,7 +796,16 @@ Verify if execution was successful. Use MCP tools for verification if needed (sc
                 maxBodyLength: 50 * 1024 * 1024  // 50MB
             });
 
-            const response = apiResponse.data.choices[0].message.content;
+            // FIXED 15.10.2025 - Safe response extraction with validation
+            if (!apiResponse.data || !apiResponse.data.choices || !apiResponse.data.choices[0]) {
+                throw new Error('Invalid API response structure - missing choices array');
+            }
+            const choice = apiResponse.data.choices[0];
+            if (!choice.message || typeof choice.message.content === 'undefined') {
+                throw new Error('Invalid API response - message.content is undefined');
+            }
+
+            const response = choice.message.content;
             const verification = this._parseVerification(response);
 
             // ENHANCED 14.10.2025 NIGHT - More informative Grisha verification phrases
