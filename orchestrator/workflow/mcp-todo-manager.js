@@ -439,40 +439,38 @@ export class MCPTodoManager {
      * @param {TodoList} todo - Parent TODO list
      * @returns {Promise<Object>} Tool plan
      */
-    async planTools(item, todo) {
+    async planTools(item, todo, options = {}) {
         this.logger.system('mcp-todo', `[TODO] Planning tools for item ${item.id}`);
 
         try {
             // DIAGNOSTIC: Check mcpManager before using
             if (!this.mcpManager) {
-                // FIXED 14.10.2025 - Use correct logger signature for error() method
                 this.logger.error(`[MCP-TODO] MCP Manager is null in planTools!`, {
                     category: 'mcp-todo',
                     component: 'mcp-todo'
                 });
                 throw new Error('MCP Manager is not initialized (null) in planTools. Check DI registration and service instantiation.');
             }
-            if (typeof this.mcpManager.listTools !== 'function') {
-                // FIXED 14.10.2025 - Use correct logger signature for error() method
-                this.logger.error(`[MCP-TODO] MCP Manager missing listTools method! Type: ${typeof this.mcpManager.listTools}`, {
-                    category: 'mcp-todo',
-                    component: 'mcp-todo',
-                    mcpManagerType: typeof this.mcpManager,
-                    listToolsType: typeof this.mcpManager.listTools
-                });
-                throw new Error('MCP Manager does not have listTools() method. Check implementation and DI registration.');
-            }
-            // Get available MCP tools
-            const availableTools = await this.mcpManager.listTools();
 
-            // OPTIMIZATION 14.10.2025 - Send only essential tool info, not full JSON schemas
-            // This reduces prompt size from 8000+ tokens to ~1000 tokens
-            const toolsSummary = availableTools.map(tool => ({
-                name: tool.name,
-                description: tool.description || tool.inputSchema?.description || 'No description',
-                // Include only required parameter names, not full schemas
-                required_params: tool.inputSchema?.required || []
-            }));
+            // OPTIMIZATION 15.10.2025 - Use compact tools summary instead of full schemas
+            // Reduces prompt size from 8000+ to ~500 tokens
+            let toolsSummary;
+            if (options.toolsSummary) {
+                // Use pre-generated summary from stage processor (preferred)
+                toolsSummary = options.toolsSummary;
+                this.logger.system('mcp-todo', `[TODO] Using provided tools summary (${toolsSummary.length} chars)`);
+            } else {
+                // Fallback: generate compact summary ourselves
+                if (typeof this.mcpManager.getToolsSummary !== 'function') {
+                    this.logger.error(`[MCP-TODO] MCP Manager missing getToolsSummary method!`, {
+                        category: 'mcp-todo',
+                        component: 'mcp-todo'
+                    });
+                    throw new Error('MCP Manager does not have getToolsSummary() method. Update to latest version.');
+                }
+                toolsSummary = this.mcpManager.getToolsSummary();
+                this.logger.system('mcp-todo', `[TODO] Generated tools summary (${toolsSummary.length} chars)`);
+            }
 
             // Import Tetyana Plan Tools prompt
             const { MCP_PROMPTS } = await import('../../prompts/mcp/index.js');
@@ -507,12 +505,20 @@ export class MCPTodoManager {
                 return summary;
             });
 
+            // OPTIMIZATION 15.10.2025 - Substitute {{AVAILABLE_TOOLS}} placeholder with compact summary
+            let systemPrompt = planPrompt.systemPrompt || planPrompt.SYSTEM_PROMPT;
+            if (systemPrompt.includes('{{AVAILABLE_TOOLS}}')) {
+                systemPrompt = systemPrompt.replace('{{AVAILABLE_TOOLS}}', toolsSummary);
+                this.logger.system('mcp-todo', `[TODO] Substituted {{AVAILABLE_TOOLS}} in prompt`);
+            }
+
             const userMessage = `
 TODO Item: ${item.action}
-Available MCP Tools: ${JSON.stringify(toolsSummary, null, 2)}
+Success Criteria: ${item.success_criteria}
+Suggested Tools: ${item.tools_needed ? item.tools_needed.join(', ') : 'not specified'}
 Previous items: ${JSON.stringify(previousItemsSummary, null, 2)}
 
-Визнач які інструменти потрібні та параметри для виконання.
+Create precise MCP tool execution plan.
 `;
 
             // FIXED 13.10.2025 - Use correct API call format
@@ -684,13 +690,30 @@ Previous items: ${JSON.stringify(previousItemsSummary, null, 2)}
      * @param {Object} execution - Execution results
      * @returns {Promise<Object>} Verification result
      */
-    async verifyItem(item, execution) {
+    async verifyItem(item, execution, options = {}) {
         this.logger.system('mcp-todo', `[TODO] Verifying item ${item.id}`);
 
         try {
+            // OPTIMIZATION 15.10.2025 - Use compact tools summary
+            let toolsSummary;
+            if (options.toolsSummary) {
+                toolsSummary = options.toolsSummary;
+                this.logger.system('mcp-todo', `[TODO] Using provided tools summary for verification`);
+            } else {
+                toolsSummary = this.mcpManager.getToolsSummary();
+                this.logger.system('mcp-todo', `[TODO] Generated tools summary for verification`);
+            }
+
             // Import Grisha Verify Item prompt
             const { MCP_PROMPTS } = await import('../../prompts/mcp/index.js');
             const verifyPrompt = MCP_PROMPTS.GRISHA_VERIFY_ITEM;
+
+            // OPTIMIZATION 15.10.2025 - Substitute {{AVAILABLE_TOOLS}} placeholder
+            let systemPrompt = verifyPrompt.systemPrompt || verifyPrompt.SYSTEM_PROMPT;
+            if (systemPrompt.includes('{{AVAILABLE_TOOLS}}')) {
+                systemPrompt = systemPrompt.replace('{{AVAILABLE_TOOLS}}', toolsSummary);
+                this.logger.system('mcp-todo', `[TODO] Substituted {{AVAILABLE_TOOLS}} in verify prompt`);
+            }
 
             // FIXED 14.10.2025 - Truncate long content to avoid token limits
             // FIXED 14.10.2025 - Also truncate error messages and stacks to avoid JSON parsing issues
@@ -719,7 +742,7 @@ TODO Item: ${item.action}
 Success Criteria: ${item.success_criteria}
 Execution Results: ${JSON.stringify(truncatedResults, null, 2)}
 
-Перевір чи виконано успішно. Використовуй MCP інструменти для перевірки (скріншот, file read, etc).
+Verify if execution was successful. Use MCP tools for verification if needed (screenshot, file read, etc).
 `;
 
             // FIXED 13.10.2025 - Use correct API call format
@@ -739,7 +762,7 @@ Execution Results: ${JSON.stringify(truncatedResults, null, 2)}
                 messages: [
                     {
                         role: 'system',
-                        content: verifyPrompt.systemPrompt || verifyPrompt.SYSTEM_PROMPT
+                        content: systemPrompt  // FIXED 15.10.2025 - Use substituted prompt
                     },
                     {
                         role: 'user',

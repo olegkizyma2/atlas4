@@ -518,6 +518,93 @@ export class MCPManager {
   }
 
   /**
+   * Отримати компактний опис доступних MCP серверів і tools
+   * Використовується для підстановки в промпти ({{AVAILABLE_TOOLS}})
+   * 
+   * @returns {string} Компактний текстовий опис всіх серверів і кількості tools
+   */
+  getToolsSummary() {
+    const summary = [];
+
+    for (const server of this.servers.values()) {
+      if (!Array.isArray(server.tools)) {
+        continue;
+      }
+
+      const toolCount = server.tools.length;
+      const toolNames = server.tools.map(t => t.name).slice(0, 5); // Перші 5 tools
+      const moreCount = toolCount > 5 ? ` (+${toolCount - 5} more)` : '';
+
+      summary.push(
+        `- **${server.name}** (${toolCount} tools): ${toolNames.join(', ')}${moreCount}`
+      );
+    }
+
+    return summary.join('\n');
+  }
+
+  /**
+   * Валідувати tool_calls план проти доступних tools
+   * 
+   * @param {Array} toolCalls - Масив tool_calls з LLM response
+   * @returns {Object} {valid: boolean, errors: Array, suggestions: Array}
+   */
+  validateToolCalls(toolCalls) {
+    const errors = [];
+    const suggestions = [];
+
+    if (!Array.isArray(toolCalls)) {
+      return {
+        valid: false,
+        errors: ['tool_calls must be an array'],
+        suggestions: []
+      };
+    }
+
+    for (const call of toolCalls) {
+      const { server, tool } = call;
+
+      // Перевірка: чи існує server
+      if (!this.servers.has(server)) {
+        const availableServers = Array.from(this.servers.keys());
+        errors.push(`Server '${server}' not found. Available: ${availableServers.join(', ')}`);
+
+        // Fuzzy match suggestion
+        const similar = availableServers.find(s => s.includes(server) || server.includes(s));
+        if (similar) {
+          suggestions.push(`Did you mean server: '${similar}'?`);
+        }
+        continue;
+      }
+
+      // Перевірка: чи існує tool на сервері
+      const mcpServer = this.servers.get(server);
+      if (!Array.isArray(mcpServer.tools)) {
+        errors.push(`Server '${server}' has no tools loaded`);
+        continue;
+      }
+
+      const toolExists = mcpServer.tools.some(t => t.name === tool);
+      if (!toolExists) {
+        const availableTools = mcpServer.tools.map(t => t.name);
+        errors.push(`Tool '${tool}' not found on '${server}'. Available: ${availableTools.slice(0, 5).join(', ')}${availableTools.length > 5 ? '...' : ''}`);
+
+        // Fuzzy match suggestion
+        const similar = availableTools.find(t => t.includes(tool) || tool.includes(t));
+        if (similar) {
+          suggestions.push(`Did you mean tool: '${similar}' on '${server}'?`);
+        }
+      }
+    }
+
+    return {
+      valid: errors.length === 0,
+      errors,
+      suggestions
+    };
+  }
+
+  /**
    * Отримати статус всіх servers
    * @returns {Object} Статус кожного server
    */
