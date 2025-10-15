@@ -730,7 +730,11 @@ export class ChatManager {
   handleMCPWorkflowComplete(data) {
     this.logger.info('🎉 MCP workflow complete', data);
     if (data.summary) {
-      this.addMessage(`🎉 ${data.summary}`, 'system');
+      // Format summary object as readable text
+      const summary = typeof data.summary === 'string'
+        ? data.summary
+        : `Завершено: ${data.summary.completed || 0}/${data.summary.total || 0} пунктів успішно`;
+      this.addMessage(`🎉 ${summary}`, 'system');
     }
   }
 

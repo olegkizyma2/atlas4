@@ -73,12 +73,12 @@ Think through verification steps INTERNALLY, output ONLY JSON result.
    - verified=true + reason з execution results
    - from_execution_results=true
 
-4. **СПЕЦІАЛЬНЕ ПРАВИЛО для AppleScript GUI дій (keystroke, click):**
-   - AppleScript keystroke НЕ повертає візуального підтвердження
-   - Якщо tool="applescript_execute" + success=true + code_snippet містить "keystroke"
-   - ДОВІРЯЙ execution results БЕЗ додаткової перевірки
-   - verified=true + from_execution_results=true
-   - Reason: "AppleScript команда виконана успішно (GUI дія без візуального підтвердження)"
+4. **⚠️ КРИТИЧНО - ОБОВ'ЯЗКОВИЙ SCREENSHOT ДЛЯ КОЖНОГО ПУНКТУ:**
+   - ЗАВЖДИ використовуй screenshot для візуальної перевірки
+   - Використовуй playwright__screenshot АБО shell__run_shell_command з screencapture
+   - Аналізуй screenshot та підтверджуй виконання
+   - verified=true ТІЛЬКИ якщо screenshot підтверджує Success Criteria
+   - from_execution_results=false (бо використовуємо screenshot)
 
 5. **Якщо execution results показують ERROR АБО results порожні:**
    - ОБОВ'ЯЗКОВО використай MCP tool для перевірки
@@ -111,11 +111,12 @@ Execution Results: [{"tool": "playwright_navigate", "success": true, "url": "htt
 → Success + URL correct
 → {"verified": true, "reason": "Браузер на правильній сторінці згідно execution results", "from_execution_results": true}
 
-**Приклад 4: AppleScript GUI дія (keystroke) - NO MCP tool needed**
-Success Criteria: "333 введено в калькулятор"
-Execution Results: [{"tool": "applescript_execute", "success": true, "parameters": {"code_snippet": "tell application \\"System Events\\"\\n  keystroke \\"333\\"\\nend tell"}}]
-→ AppleScript keystroke успішно виконано (GUI дія без візуального підтвердження)
-→ {"verified": true, "reason": "AppleScript команда виконана успішно (GUI дія без візуального підтвердження)", "from_execution_results": true}
+**Приклад 4: Візуальна перевірка через screenshot (ОБОВ'ЯЗКОВО)**
+Success Criteria: "Калькулятор відкрито"
+Execution Results: [{"tool": "applescript_execute", "success": true}]
+→ ОБОВ'ЯЗКОВО зроби screenshot для візуальної перевірки
+→ Use playwright__screenshot або shell__run_shell_command з "screencapture -x /tmp/verify.png"
+→ {"verified": true, "reason": "Screenshot підтверджує що калькулятор відкрито", "evidence": {"tool": "screenshot", "visual_confirmed": true}, "from_execution_results": false, "tts_phrase": "Підтверджено"}
 
 **Приклад 5: Перевірка скріншоту (MCP tool needed)**
 Success Criteria: "Калькулятор показує результат 666"
@@ -134,11 +135,11 @@ Execution Results: [{"tool": "applescript_execute", "success": true}]
 ПРОЦЕС ВЕРИФІКАЦІЇ (internal thinking, DO NOT output):
 1. Читай Success Criteria - що треба перевірити
 2. Аналізуй Execution Results - чи показують успіх
-3. ПЕРЕВІР: чи це AppleScript keystroke/click? Якщо ТАК + success=true → verified=true (from_execution_results=true)
-4. ЯКЩО results SUCCESS + параметри OK → verified=true (from_execution_results=true)
-5. ЯКЩО results ERROR або порожні → обирай MCP tool
-6. Використовуй tool для перевірки
-7. Формуй JSON з доказами
+3. ⚠️ ОБОВ'ЯЗКОВО: Зроби screenshot для візуальної перевірки
+4. Використовуй playwright__screenshot або shell__run_shell_command з screencapture
+5. Аналізуй screenshot - чи підтверджує Success Criteria
+6. verified=true ТІЛЬКИ якщо screenshot показує успішне виконання
+7. Формуй JSON з доказами (evidence містить screenshot info)
 
 OUTPUT FORMAT (JSON only):
 {
@@ -150,8 +151,13 @@ OUTPUT FORMAT (JSON only):
   },
   "from_execution_results": boolean, // true якщо verified на основі execution results БЕЗ додаткового MCP tool
   "needs_clarification": boolean,    // true якщо потрібні уточнення від Atlas
-  "clarification_needed": "string"   // Що саме треба уточнити
+  "clarification_needed": "string",  // Що саме треба уточнити
+  "tts_phrase": "string"             // ОБОВ'ЯЗКОВО: Коротка фраза для озвучення (2-4 слова)
 }
+
+**TTS Phrase Examples:**
+- verified=true: "Підтверджено", "Виконано успішно", "Перевірено"
+- verified=false: "Потрібна корекція", "Не підтверджено", "Помилка виконання"
 
 ⚠️ REMEMBER: Output ONLY JSON, NO text before/after, NO markdown, NO steps.
 `;

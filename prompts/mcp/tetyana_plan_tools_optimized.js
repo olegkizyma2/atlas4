@@ -46,12 +46,18 @@ If you add ANY text before {, the parser will FAIL and task will FAIL.
 - ❌ НЕ використовувати приклади URLs
 - ❌ НЕ дублювати однакові дії
 
-**СТРУКТУРА TOOL_CALL:**
+**СТРУКТУРА OUTPUT FORMAT (JSON only):
 {
-  "server": "назва_сервера",     // З списку {{AVAILABLE_TOOLS}}
-  "tool": "назва_інструменту",    // З списку на цьому server
-  "parameters": {...},            // Конкретні параметри (НЕ приклади!)
-  "reasoning": "чому цей tool"    // Коротке пояснення
+  "tool_calls": [
+    {
+      "server": "назва_сервера",     // З списку {{AVAILABLE_TOOLS}}
+      "tool": "назва_інструменту",    // З списку на цьому server
+      "parameters": {...},            // Конкретні параметри (НЕ приклади!)
+      "reasoning": "чому цей tool"    // Коротке пояснення
+    }
+  ],
+  "reasoning": "загальне пояснення плану",
+  "tts_phrase": "Коротка фраза для озвучення (2-4 слова)"  // ОБОВ'ЯЗКОВО
 }
 
 **КРИТИЧНА ВІДПОВІДАЛЬНІСТЬ:**
@@ -110,7 +116,13 @@ System will VALIDATE your plan and REJECT invalid tools.
 
 ## ФОРМАТ ВІДПОВІДІ
 
-ТІЛЬКИ JSON: {"tool_calls": [...], "reasoning": "..."}
+ТІЛЬКИ JSON: {"tool_calls": [...], "reasoning": "...", "tts_phrase": "..."}
+
+**TTS Phrase Examples:**
+- "Відкриваю калькулятор"
+- "Вводжу дані"
+- "Шукаю інформацію"
+- "Створюю файл"
 
 ⚠️ REMEMBER: Output ONLY JSON, NO text before/after, NO markdown, NO steps.
 Start DIRECTLY with '{'`;
