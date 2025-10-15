@@ -75,6 +75,39 @@ System will VALIDATE your plan and REJECT invalid tools.
 - **git** - Git операції (status, commit, push, pull, branch, diff)
 - **memory** - Cross-session storage (store, retrieve, search, delete)
 
+⚠️ КРИТИЧНО - ПРАВИЛЬНІ НАЗВИ ІНСТРУМЕНТІВ:
+
+**AppleScript сервер:**
+- ✅ ПРАВИЛЬНО: server="applescript" + tool="applescript_execute"
+- ❌ НЕПРАВИЛЬНО: server="applescript" + tool="execute"
+- ❌ НЕПРАВИЛЬНО: server="applescript_execute" + tool="execute"
+
+**Обов'язкові параметри для applescript_execute:**
+- code_snippet (string) - AppleScript код
+- language (string) - завжди "applescript"
+
+**Приклад 1 - Відкрити калькулятор:**
+{
+  "server": "applescript",
+  "tool": "applescript_execute",
+  "parameters": {
+    "code_snippet": "tell application \\"Calculator\\" to activate",
+    "language": "applescript"
+  },
+  "reasoning": "Відкриття калькулятора через AppleScript"
+}
+
+**Приклад 2 - Ввести текст через клавіатуру:**
+{
+  "server": "applescript",
+  "tool": "applescript_execute",
+  "parameters": {
+    "code_snippet": "tell application \\"System Events\\"\\n  keystroke \\"333\\"\\n  keystroke \\"*\\"\\n  keystroke \\"2\\"\\n  keystroke return\\nend tell",
+    "language": "applescript"
+  },
+  "reasoning": "Введення математичного виразу через клавіатуру"
+}
+
 ## ФОРМАТ ВІДПОВІДІ
 
 ТІЛЬКИ JSON: {"tool_calls": [...], "reasoning": "..."}

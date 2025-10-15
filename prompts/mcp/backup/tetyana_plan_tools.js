@@ -111,7 +111,26 @@ Plan:
   "reasoning": "Два послідовні виклики: відкрити браузер → скріншот"
 }
 
-**Приклад 3: Знайти та зібрати дані (змішуючи сервери)**
+**Приклад 3: Відкрити калькулятор через AppleScript**
+TODO Item: "Відкрити калькулятор на macOS"
+
+Plan:
+{
+  "tool_calls": [
+    {
+      "server": "applescript",
+      "tool": "applescript_execute",
+      "parameters": {
+        "code_snippet": "tell application \"Calculator\" to activate",
+        "language": "applescript"
+      },
+      "reasoning": "Відкриття калькулятора через AppleScript"
+    }
+  ],
+  "reasoning": "AppleScript - найкращий спосіб для macOS GUI automation"
+}
+
+**Приклад 4: Знайти та зібрати дані (змішуючи сервери)**
 TODO Item: "Знайти Ford Mustang на auto.ria та зібрати перші 5 цін"
 
 Plan:
@@ -153,7 +172,7 @@ Plan:
   "reasoning": "Змішуємо сервери: playwright (навігація+текст) + applescript (заповнення) + memory (збереження)"
 }
 
-**Приклад 4: Перевірити файл**
+**Приклад 5: Перевірити файл**
 TODO Item: "Перевірити чи існує файл report.pdf на Desktop"
 
 Plan:
@@ -171,7 +190,7 @@ Plan:
   "reasoning": "Один виклик get_file_info достатній для перевірки існування"
 }
 
-**Приклад 5: Зберегти дані в пам'ять**
+**Приклад 6: Зберегти дані в пам'ять**
 TODO Item: "Зберегти результат пошуку про Tesla для наступних запитів"
 
 Plan:
@@ -190,7 +209,7 @@ Plan:
   "reasoning": "Memory дозволяє зберігати дані між сесіями"
 }
 
-**Приклад 6: Commit змін в Git**
+**Приклад 7: Commit змін в Git**
 TODO Item: "Зберегти зміни в Git з повідомленням 'Updated README'"
 
 Plan:
@@ -258,10 +277,20 @@ Plan:
 - ✅ playwright_console_logs (НЕ console_messages)
 - ✅ НЕ ІСНУЄ: playwright_search, playwright_scrape, playwright_wait_for
 
-ВАЖЛИВО - ПРАВИЛЬНІ НАЗВИ СЕРВЕРІВ:
-- ✅ server: "applescript" + tool: "applescript_execute" (НЕ server: "applescript_execute")
+ВАЖЛИВО - ПРАВИЛЬНІ НАЗВИ СЕРВЕРІВ ТА ІНСТРУМЕНТІВ:
+- ✅ server: "applescript" + tool: "applescript_execute" (НЕ tool: "execute")
 - ✅ server: "playwright" + tool: "playwright_navigate" (НЕ server: "playwright_navigate")
 - ✅ server: "filesystem" + tool: "write_file" (НЕ server: "write_file")
+- ✅ server: "shell" + tool: "execute_command" (НЕ tool: "run_command")
+
+⚠️ КРИТИЧНО - НАЗВИ ІНСТРУМЕНТІВ НА APPLESCRIPT:
+- ✅ ПРАВИЛЬНО: {"server": "applescript", "tool": "applescript_execute"}
+- ❌ НЕПРАВИЛЬНО: {"server": "applescript", "tool": "execute"}
+- ❌ НЕПРАВИЛЬНО: {"server": "applescript_execute", "tool": "execute"}
+
+Параметри для applescript_execute:
+- code_snippet (string, обов'язковий) - AppleScript код
+- language (string, обов'язковий) - завжди "applescript"
 `;
 
 export const USER_PROMPT = `

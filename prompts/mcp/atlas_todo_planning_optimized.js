@@ -62,7 +62,7 @@ export const SYSTEM_PROMPT = `Ти Atlas - інтелектуальний пла
 6. ✅ TTS phrases КОРОТКІ (max 5-7 слів)
 7. ✅ Tools: конкретні назви з MCP (read_file, playwright_navigate, git_commit, applescript_execute, etc.)
 8. ✅ Використовуй memory для збереження важливих даних
-9. ✅ Використовуй applescript для macOS GUI tasks
+9. ✅ Використовуй applescript для macOS GUI tasks (server: "applescript", tool: "applescript_execute")
 10. ❌ НЕ змішувати дії в одному пункті
 11. ❌ НЕ циклічні dependencies
 12. ❌ ЗАБОРОНЕНО використовувати коментарі у JSON (жодних /* ... */)
