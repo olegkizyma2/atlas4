@@ -606,6 +606,11 @@ Create precise MCP tool execution plan.
                 throw new Error(`LLM API error: ${apiError.message}`);
             }
 
+            // FIXED 16.10.2025 - Add validation for API response structure
+            if (!apiResponse.data?.choices?.[0]?.message?.content) {
+                throw new Error('Invalid API response structure: missing content');
+            }
+
             const response = apiResponse.data.choices[0].message.content;
 
             // DIAGNOSTIC: Log raw response
