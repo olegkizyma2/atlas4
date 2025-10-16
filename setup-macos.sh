@@ -1,10 +1,15 @@
 #!/bin/bash
 
 # =============================================================================
-# ATLAS v4.0 - Автоматичне розгортання на macOS
+# ATLAS v5.0 - Автоматичне розгортання на macOS
 # =============================================================================
 # Цей скрипт автоматично встановлює та налаштовує ATLAS систему на macOS
 # після клонування з GitHub
+#
+# v5.0 CHANGES:
+# - Pure MCP mode (Goose integration removed)
+# - Mac Studio M1 MAX optimizations
+# - Centralized configuration through .env
 #
 # Використання:
 #   git clone https://github.com/olegkizyma2/atlas4.git
@@ -12,7 +17,9 @@
 #   chmod +x setup-macos.sh
 #   ./setup-macos.sh
 #
-# Вимоги: macOS 11.0+ (Big Sur або новіше)
+# Вимоги: 
+# - macOS 11.0+ (Big Sur або новіше)
+# - Mac Studio M1 MAX recommended (optimized for Apple Silicon)
 # =============================================================================
 
 set -e
@@ -40,8 +47,8 @@ print_banner() {
 set -o pipefail
     echo ""
     echo -e "${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║${WHITE}          ATLAS v4.0 - macOS Deployment Setup                  ${CYAN}║${NC}"
-    echo -e "${CYAN}║${WHITE}       Adaptive Task and Learning Assistant System              ${CYAN}║${NC}"
+    echo -e "${CYAN}║${WHITE}          ATLAS v5.0 - macOS Deployment Setup                  ${CYAN}║${NC}"
+    echo -e "${CYAN}║${WHITE}       Pure MCP Edition - Mac Studio M1 MAX Optimized          ${CYAN}║${NC}"
     echo -e "${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
 }
@@ -91,18 +98,40 @@ check_macos_version() {
 
 check_architecture() {
     local arch=$(uname -m)
+    local chip_name=$(sysctl -n machdep.cpu.brand_string 2>/dev/null || echo "Unknown")
+    
     log_info "Архітектура процесора: $arch"
+    log_info "Процесор: $chip_name"
     
     if [ "$arch" = "arm64" ]; then
-        log_success "Виявлено Apple Silicon (M1/M2/M3) - буде використано Metal GPU acceleration"
+        log_success "Виявлено Apple Silicon - буде використано Metal GPU acceleration"
         export USE_METAL_GPU=true
         export TTS_DEVICE="mps"
         export WHISPER_DEVICE="metal"
+        export OPTIMIZE_FOR_M1_MAX=true
+        
+        # Detect specific chip for optimizations
+        if echo "$chip_name" | grep -iq "M1 Max"; then
+            log_success "✨ Mac Studio M1 MAX виявлено - застосування оптимізацій"
+            export WHISPER_CPP_THREADS=10  # M1 Max має 10 performance cores
+            export WHISPER_SAMPLE_RATE=48000
+        elif echo "$chip_name" | grep -iq "M2 Max\|M3 Max"; then
+            log_success "✨ Apple Max chip виявлено - застосування оптимізацій"
+            export WHISPER_CPP_THREADS=12  # M2/M3 Max мають більше cores
+            export WHISPER_SAMPLE_RATE=48000
+        else
+            log_info "Apple Silicon базова конфігурація"
+            export WHISPER_CPP_THREADS=8
+            export WHISPER_SAMPLE_RATE=48000
+        fi
     elif [ "$arch" = "x86_64" ]; then
         log_warn "Виявлено Intel процесор - Metal GPU acceleration недоступний"
         export USE_METAL_GPU=false
         export TTS_DEVICE="cpu"
         export WHISPER_DEVICE="cpu"
+        export OPTIMIZE_FOR_M1_MAX=false
+        export WHISPER_CPP_THREADS=4
+        export WHISPER_SAMPLE_RATE=16000
     else
         log_error "Непідтримувана архітектура: $arch"
         return 1
@@ -735,42 +764,50 @@ download_3d_models() {
 configure_system() {
     log_step "КРОК 14: Налаштування системної конфігурації"
     
-    local goose_bin_value="${GOOSE_BIN:-/Applications/Goose.app/Contents/MacOS/goose}"
     local tts_device_value="${TTS_DEVICE:-mps}"
     local whisper_device_value="${WHISPER_DEVICE:-metal}"
     local use_metal_value="${USE_METAL_GPU:-true}"
+    local optimize_m1_value="${OPTIMIZE_FOR_M1_MAX:-true}"
     local whisper_disable_gpu_value="${WHISPER_CPP_DISABLE_GPU:-false}"
     local whisper_bin_default="$REPO_ROOT/third_party/whisper.cpp.upstream/build/bin/whisper-cli"
     local whisper_bin_value="${WHISPER_CPP_BIN:-$whisper_bin_default}"
-    local cpu_cores
-    cpu_cores=$(sysctl -n hw.ncpu 2>/dev/null || echo "6")
-    if ! [[ "$cpu_cores" =~ ^[0-9]+$ ]] || [ "$cpu_cores" -lt 1 ]; then
-        cpu_cores=6
-    fi
-    local whisper_threads_value="${WHISPER_CPP_THREADS:-$cpu_cores}"
+    local whisper_threads_value="${WHISPER_CPP_THREADS:-10}"
+    local whisper_sample_rate="${WHISPER_SAMPLE_RATE:-48000}"
     
     # Створити .env файл якщо не існує
     if [ ! -f "$REPO_ROOT/.env" ]; then
-        log_info "Створення .env файлу..."
+        log_info "Створення .env файлу (v5.0 Pure MCP)..."
         cat > "$REPO_ROOT/.env" << EOF
-# ATLAS System Configuration
+# ===================================
+# ATLAS v5.0 - Environment Configuration
+# ===================================
 # Generated: $(date)
+# Platform: macOS $(sw_vers -productVersion)
+# Architecture: $(uname -m)
 
-# System
+# === SYSTEM ===
 NODE_ENV=production
+BUILD_NUMBER=dev
+LOG_LEVEL=info
 FORCE_FREE_PORTS=true
 
-# Goose Configuration
-GOOSE_BIN=${goose_bin_value}
-GOOSE_SERVER_PORT=3000
-GOOSE_DISABLE_KEYRING=1
+# === LLM API CONFIGURATION ===
+LLM_API_ENDPOINT=http://localhost:4000/v1/chat/completions
+LLM_API_FALLBACK_ENDPOINT=
+LLM_API_USE_FALLBACK=true
+LLM_API_TIMEOUT=60000
 
-# TTS Configuration
+# === AI BACKEND CONFIGURATION ===
+AI_BACKEND_MODE=mcp
+AI_BACKEND_PRIMARY=mcp
+AI_BACKEND_DISABLE_FALLBACK=false
+
+# === TTS & VOICE ===
 REAL_TTS_MODE=true
 TTS_DEVICE=${tts_device_value}
 TTS_PORT=3001
 
-# Whisper Configuration
+# === WHISPER CONFIGURATION ===
 WHISPER_BACKEND=cpp
 WHISPER_DEVICE=${whisper_device_value}
 WHISPER_PORT=3002
@@ -779,26 +816,23 @@ WHISPER_CPP_MODEL=$MODELS_DIR/whisper/ggml-large-v3.bin
 WHISPER_CPP_NGL=20
 WHISPER_CPP_THREADS=${whisper_threads_value}
 WHISPER_CPP_DISABLE_GPU=${whisper_disable_gpu_value}
+WHISPER_SAMPLE_RATE=${whisper_sample_rate}
 
-# Ports
-FRONTEND_PORT=5001
+# === NETWORK PORTS ===
 ORCHESTRATOR_PORT=5101
+WEB_PORT=5001
+FRONTEND_PORT=5001
 
-# Features
+# === FEATURES ===
 USE_METAL_GPU=${use_metal_value}
+OPTIMIZE_FOR_M1_MAX=${optimize_m1_value}
 EOF
-        log_success ".env файл створено"
+        log_success ".env файл створено (v5.0 Pure MCP Edition)"
     else
         log_info ".env файл вже існує (пропускаємо)"
     fi
     
-    # Перевірка налаштування Goose
-    log_info "Перевірка конфігурації Goose..."
-    if [ ! -f "$HOME/.config/goose/config.yaml" ]; then
-        log_warn "Goose ще не налаштовано"
-        log_warn "Потрібно буде налаштувати після установки"
-    else
-        log_success "Goose вже налаштовано"
+    log_success "Системна конфігурація завершена"
     fi
 }
 
@@ -1047,52 +1081,15 @@ test_installation() {
 # Фінальне налаштування Goose (опційно)
 # =============================================================================
 
+# =============================================================================
+# DEPRECATED: Goose Configuration (v4.0 Legacy)
+# =============================================================================
+# v5.0 uses Pure MCP mode - Goose integration is deprecated
+
 run_goose_configure() {
-    log_step "КРОК 17: Фінальне налаштування Goose"
-
-    local goose_exec=""
-
-    if [ -n "$GOOSE_BIN" ] && [ -x "$GOOSE_BIN" ]; then
-        goose_exec="$GOOSE_BIN"
-    elif [ -n "$GOOSE_BIN" ] && command -v "$GOOSE_BIN" >/dev/null 2>&1; then
-        goose_exec="$(command -v "$GOOSE_BIN")"
-    elif command -v goose >/dev/null 2>&1; then
-        goose_exec="$(command -v goose)"
-    fi
-
-    if [ -z "$goose_exec" ]; then
-        log_warn "Goose binary не знайдено у PATH або за вказаним шляхом — пропускаємо configure"
-        return 0
-    fi
-
-    local goose_config="$HOME/.config/goose/config.yaml"
-    local should_run="yes"
-
-    if [ -f "$goose_config" ] && ! grep -q '\${GITHUB_TOKEN}' "$goose_config" 2>/dev/null; then
-        log_info "Goose вже має налаштований config. Щоб перевірити провайдерів: 'goose providers list'"
-        should_run="no"
-    fi
-
-    if [ "$should_run" = "yes" ]; then
-        if [ -t 0 ] && [ -t 1 ]; then
-            echo ""
-            read -r -p "Запустити goose session для перевірки? [Y/n] " answer
-            if [[ "$answer" =~ ^([nN](o)?)$ ]]; then
-                log_info "Користувач пропустив автоматичний запуск goose session"
-                return 0
-            fi
-        else
-            log_info "Неінтерактивний режим — goose вже налаштовано, config готовий"
-            return 0
-        fi
-
-        log_info "Запуск goose session для тестування..."
-        if "$goose_exec" session start --profile default; then
-            log_success "Goose session запущено успішно"
-        else
-            log_warn "Goose session не запустився. Config готовий, можна використовувати: goose session start"
-        fi
-    fi
+    log_warn "Goose configuration is deprecated in ATLAS v5.0"
+    log_info "System now uses Pure MCP mode for all operations"
+    return 0
 }
 
 # =============================================================================
@@ -1102,8 +1099,14 @@ run_goose_configure() {
 print_final_instructions() {
     echo ""
     echo -e "${GREEN}╔════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${GREEN}║${WHITE}                 УСТАНОВКА ЗАВЕРШЕНА УСПІШНО!                  ${GREEN}║${NC}"
+    echo -e "${GREEN}║${WHITE}              ATLAS v5.0 УСТАНОВКА ЗАВЕРШЕНА УСПІШНО!          ${GREEN}║${NC}"
     echo -e "${GREEN}╚════════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "${CYAN}🚀 ATLAS v5.0 Features:${NC}"
+    echo -e "   ${WHITE}✓${NC} Pure MCP режим (без Goose залежностей)"
+    echo -e "   ${WHITE}✓${NC} Mac Studio M1 MAX оптимізації"
+    echo -e "   ${WHITE}✓${NC} Централізована конфігурація через .env"
+    echo -e "   ${WHITE}✓${NC} Metal GPU acceleration для Whisper та TTS"
     echo ""
     echo -e "${CYAN}📋 Наступні кроки:${NC}"
     echo ""
@@ -1123,15 +1126,19 @@ print_final_instructions() {
     echo ""
     echo -e "   ${WHITE}• Веб-інтерфейс:${NC}     http://localhost:5001"
     echo -e "   ${WHITE}• Orchestrator API:${NC}  http://localhost:5101"
-    echo -e "   ${WHITE}• Goose Server:${NC}      http://localhost:3000"
     echo -e "   ${WHITE}• TTS Service:${NC}       http://localhost:3001"
     echo -e "   ${WHITE}• Whisper Service:${NC}   http://localhost:3002"
+    echo -e "   ${WHITE}• LLM API:${NC}           http://localhost:4000 (external)"
+    echo ""
+    echo -e "${CYAN}⚙️  Конфігурація:${NC}"
+    echo ""
+    echo -e "   ${WHITE}• .env${NC}               - Системні налаштування"
+    echo -e "   ${WHITE}• .env.example${NC}       - Приклад конфігурації"
     echo ""
     echo -e "${CYAN}📚 Документація:${NC}"
     echo ""
     echo -e "   ${WHITE}• README.md${NC}          - Загальна інформація"
-    echo -e "   ${WHITE}• docs/ATLAS_SYSTEM_ARCHITECTURE.md${NC} - Архітектура"
-    echo -e "   ${WHITE}• .github/copilot-instructions.md${NC}  - Розробка"
+    echo -e "   ${WHITE}• .github/copilot-instructions.md${NC}  - v5.0 Guide"
     echo ""
     echo -e "${CYAN}💡 Корисні команди:${NC}"
     echo ""
@@ -1171,7 +1178,7 @@ main() {
     install_nodejs
     install_git
     install_dependencies
-    install_goose
+    # install_goose  # DEPRECATED in v5.0 - Pure MCP mode
     setup_python_venv
     setup_nodejs_packages
     build_whisper_cpp
@@ -1179,9 +1186,9 @@ main() {
     create_directories
     download_3d_models
     configure_system
-    configure_goose
+    # configure_goose  # DEPRECATED in v5.0
     test_installation
-    run_goose_configure
+    # run_goose_configure  # DEPRECATED in v5.0
     
     # Фінальні інструкції
     print_final_instructions
