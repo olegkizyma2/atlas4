@@ -24,13 +24,13 @@ function getPluralForm(count, one, few, many) {
 
 // MCP Stage Processors
 import {
-    ModeSelectionProcessor,
-    AtlasTodoPlanningProcessor,
-    TetyanaПlanToolsProcessor,
-    TetyanaExecuteToolsProcessor,
-    GrishaVerifyItemProcessor,
-    AtlasAdjustTodoProcessor,
-    McpFinalSummaryProcessor
+  ModeSelectionProcessor,
+  AtlasTodoPlanningProcessor,
+  TetyanaПlanToolsProcessor,
+  TetyanaExecuteToolsProcessor,
+  GrishaVerifyItemProcessor,
+  AtlasAdjustTodoProcessor,
+  McpFinalSummaryProcessor
 } from './stages/index.js';
 
 // Circuit breaker for MCP workflow failures
@@ -55,7 +55,7 @@ class CircuitBreaker {
     if (this.failureCount >= this.threshold) {
       this.state = 'OPEN';
       logger.warn('circuit-breaker', `Circuit breaker OPEN after ${this.failureCount} failures`);
-      
+
       // Auto-reset after timeout
       setTimeout(() => {
         this.state = 'HALF_OPEN';
@@ -147,7 +147,7 @@ function extractModeFromResponse(content) {
     if (typeof content === 'object' && content !== null) {
       contentStr = JSON.stringify(content);
     }
-    
+
     const cleanContent = contentStr.replace(/^\[SYSTEM\]\s*/, '').trim();
     const json = JSON.parse(cleanContent);
     return json.mode === 'chat' ? 'chat' : 'task';
@@ -184,7 +184,7 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
   console.log('🔥🔥🔥 [VERSION-CHECK] executeMCPWorkflow v2025-01-16-16:45 🔥🔥🔥');
   // DIAGNOSTIC 16.10.2025 - Verify this code is actually loaded
   logger.system('executor', `[FUNCTION-ENTRY] executeMCPWorkflow STARTED with FIXED CODE (timestamp: ${new Date().toISOString()})`);
-  
+
   logger.workflow('init', 'mcp', 'Starting MCP Dynamic TODO Workflow', {
     sessionId: session.id,
     userMessage: userMessage.substring(0, 100)
@@ -192,13 +192,13 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
 
   // Get WebSocket Manager for chat updates (ADDED 14.10.2025)
   const wsManager = container.resolve('wsManager');
-  
+
   const workflowStart = Date.now();
-  
+
   // ✅ PHASE 4 TASK 3: Timeout protection (max 5 minutes)
   const WORKFLOW_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
   let workflowCompleted = false;
-  
+
   const timeoutPromise = new Promise((_, reject) => {
     setTimeout(() => {
       if (!workflowCompleted) {
@@ -221,7 +221,7 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
     // Stage 0-MCP: Mode Selection (NEW 16.10.2025)
     // ===============================================
     logger.workflow('stage', 'system', 'Stage 0-MCP: Mode Selection', { sessionId: session.id });
-    
+
     const modeResult = await modeProcessor.execute({
       userMessage,
       session
@@ -229,8 +229,8 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
 
     const mode = modeResult.mode;
     const confidence = modeResult.confidence;
-    
-    logger.workflow('stage', 'system', `Mode selected: ${mode} (confidence: ${confidence})`, { 
+
+    logger.workflow('stage', 'system', `Mode selected: ${mode} (confidence: ${confidence})`, {
       sessionId: session.id,
       reasoning: modeResult.reasoning
     });
@@ -265,10 +265,10 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
     // Handle CHAT mode - Simple response from Atlas
     // ===============================================
     logger.system('executor', `[CHAT-MODE-CHECK] mode=${mode}, typeof=${typeof mode}, mode===chat: ${mode === 'chat'}`);
-    
+
     if (mode === 'chat') {
-      logger.workflow('stage', 'atlas', 'Chat mode detected - Atlas will respond directly', { 
-        sessionId: session.id 
+      logger.workflow('stage', 'atlas', 'Chat mode detected - Atlas will respond directly', {
+        sessionId: session.id
       });
 
       // DIAGNOSTIC - Add detailed logging to find where code execution stops
@@ -279,19 +279,19 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
         logger.system('executor', `[CHAT-DEBUG] Step 1: Loading chat prompt from prompts/mcp/atlas_chat.js`);
         const { MCP_PROMPTS } = await import('../../prompts/mcp/index.js');
         const chatPrompt = MCP_PROMPTS.ATLAS_CHAT;
-        
+
         if (!chatPrompt || !chatPrompt.SYSTEM_PROMPT) {
           throw new Error('Chat prompt not loaded correctly from prompts directory');
         }
-        
+
         logger.system('executor', `[CHAT-DEBUG] Step 2: Chat prompt loaded successfully`);
-        
+
         logger.system('executor', `[CHAT-DEBUG] Step 3: Importing axios`);
         const axios = (await import('axios')).default;
         logger.system('executor', `[CHAT-DEBUG] Step 4: Getting model config`);
         const modelConfig = GlobalConfig.AI_MODEL_CONFIG.models.chat;
         logger.system('executor', `[CHAT-DEBUG] Step 5: Model config retrieved: ${JSON.stringify(modelConfig)}`);
-        
+
         // FIXED 16.10.2025 - Initialize chatThread if not exists
         if (!session.chatThread) {
           logger.system('executor', `[CHAT-DEBUG] Step 6: Initializing new chatThread`);
@@ -299,7 +299,7 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
         } else {
           logger.system('executor', `[CHAT-DEBUG] Step 6: ChatThread exists with ${session.chatThread.messages.length} messages`);
         }
-        
+
         // FIXED 16.10.2025 - Add current user message to session history BEFORE building context
         logger.system('executor', `[CHAT-DEBUG] Step 7: Adding user message to history`);
         session.chatThread.messages.push({
@@ -308,50 +308,50 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
           timestamp: new Date().toISOString()
         });
         logger.system('executor', `[CHAT-DEBUG] Step 8: User message added, total messages: ${session.chatThread.messages.length}`);
-        
+
         // DIAGNOSTIC 16.10.2025 - Log session state
         logger.system('executor', `[CHAT-CONTEXT] SessionId: ${session.id}`);
         logger.system('executor', `[CHAT-CONTEXT] Total messages in history: ${session.chatThread.messages.length}`);
         logger.system('executor', `[CHAT-CONTEXT] History: ${JSON.stringify(session.chatThread.messages.map(m => ({ role: m.role, content: m.content.substring(0, 50) })), null, 2)}`);
-        
+
         // Build chat context from recent messages (last 5 exchanges = 10 messages)
         const recentMessages = session.chatThread.messages.slice(-10).map(msg => ({
           role: msg.role === 'user' ? 'user' : 'assistant',
           content: msg.content
         }));
-        
+
         logger.system('executor', `[CHAT-CONTEXT] Sending ${recentMessages.length} messages to LLM`);
         logger.system('executor', `[CHAT-CONTEXT] Context for LLM: ${JSON.stringify(recentMessages.map(m => ({ role: m.role, preview: m.content.substring(0, 40) })), null, 2)}`);
-        
+
         // Get API endpoint
         const apiEndpointConfig = GlobalConfig.AI_MODEL_CONFIG.apiEndpoint;
         let apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
-        
+
         logger.system('executor', `Calling chat API at ${apiUrl} with model ${modelConfig.model}`);
-        
+
         // FIXED 16.10.2025 - Use system prompt from prompts directory (not hardcoded)
         const systemPrompt = chatPrompt.SYSTEM_PROMPT;
-        
+
         logger.system('executor', `[SYSTEM-PROMPT] Using prompt from prompts/mcp/atlas_chat.js`);
-        
+
         // Call LLM for chat response with fallback support
         let chatResponse;
         let usedFallback = false;
-        
+
         try {
           // Prepare messages array
           const messagesArray = [
-            { 
-              role: 'system', 
+            {
+              role: 'system',
               content: systemPrompt
             },
             ...recentMessages
           ];
-          
+
           // Log what we're sending to LLM
           logger.system('executor', `[API-REQUEST] Messages to send: ${JSON.stringify(messagesArray, null, 2)}`);
           logger.system('executor', `[API-REQUEST] Model: ${modelConfig.model}, Temp: ${modelConfig.temperature}, Tokens: ${modelConfig.max_tokens}`);
-          
+
           const response = await axios.post(apiUrl, {
             model: modelConfig.model,
             messages: messagesArray,
@@ -362,24 +362,24 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
             timeout: 30000
           });
           chatResponse = response;
-          
+
           // Log API response
           const llmAnswer = response.data?.choices?.[0]?.message?.content;
           logger.system('executor', `[API-RESPONSE] LLM returned: ${llmAnswer ? llmAnswer.substring(0, 100) : 'EMPTY'}`);
-          
+
         } catch (primaryError) {
           // Try fallback if primary fails
           if (apiEndpointConfig.fallback && !usedFallback) {
             logger.warn('executor', `Chat API failed: ${primaryError.message}, attempting fallback...`);
             apiUrl = apiEndpointConfig.fallback;
             usedFallback = true;
-            
+
             try {
               chatResponse = await axios.post(apiUrl, {
                 model: modelConfig.model,
                 messages: [
-                  { 
-                    role: 'system', 
+                  {
+                    role: 'system',
                     content: systemPrompt
                   },
                   ...recentMessages
@@ -391,7 +391,7 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
                 timeout: 30000
               });
               logger.system('executor', `✅ Chat API fallback succeeded`);
-              
+
             } catch (fallbackError) {
               logger.error('executor', `Chat API fallback also failed: ${fallbackError.message}`);
               throw fallbackError;
@@ -400,15 +400,17 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
             throw primaryError;
           }
         }
-        
-        const atlasResponse = chatResponse.data?.choices?.[0]?.message?.content;
-        
+
+        // Handle both OpenAI format (message.content) and Ollama format (text)
+        const atlasResponse = chatResponse.data?.choices?.[0]?.message?.content
+          || chatResponse.data?.choices?.[0]?.text;
+
         if (!atlasResponse) {
           throw new Error('Empty response from chat API');
         }
-        
+
         logger.system('executor', `Atlas chat response: ${atlasResponse.substring(0, 100)}...`);
-        
+
         // Send response via WebSocket
         if (wsManager) {
           wsManager.broadcastToSubscribers('chat', 'agent_message', {
@@ -418,7 +420,7 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
             timestamp: new Date().toISOString()
           });
         }
-        
+
         // Send via SSE
         if (res.writable && !res.writableEnded) {
           res.write(`data: ${JSON.stringify({
@@ -429,7 +431,7 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
             }
           })}\n\n`);
         }
-        
+
         // Add to session history
         if (session.chatThread) {
           session.chatThread.messages.push({
@@ -438,26 +440,26 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
             agent: 'atlas',
             timestamp: new Date().toISOString()
           });
-          
+
           // DIAGNOSTIC 16.10.2025
           logger.system('executor', `[CHAT-CONTEXT] Assistant response added. Total messages now: ${session.chatThread.messages.length}`);
         }
-        
+
         logger.workflow('complete', 'atlas', 'Chat response completed', { sessionId: session.id });
-        
+
         // CRITICAL: Return here to prevent falling through to TODO mode
         return {
           success: true,
           mode: 'chat',
           response: atlasResponse
         };
-        
+
       } catch (chatError) {
-        logger.error('executor', `Chat mode failed: ${chatError.message}`, { 
+        logger.error('executor', `Chat mode failed: ${chatError.message}`, {
           sessionId: session.id,
-          stack: chatError.stack 
+          stack: chatError.stack
         });
-        
+
         // Send error message
         if (wsManager) {
           wsManager.broadcastToSubscribers('chat', 'agent_message', {
@@ -467,7 +469,7 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
             timestamp: new Date().toISOString()
           });
         }
-        
+
         throw chatError;
       }
     }
@@ -476,7 +478,7 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
     // Stage 1-MCP: Atlas TODO Planning
     // ===============================================
     logger.workflow('stage', 'atlas', 'Stage 1-MCP: TODO Planning', { sessionId: session.id });
-    
+
     const todoResult = await todoProcessor.execute({
       userMessage,
       session,
@@ -579,7 +581,7 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
             logger.warn(`Tool planning failed for item ${item.id}: ${planResult.error}`, {
               sessionId: session.id
             });
-            
+
             // FIXED 14.10.2025 - Send error message to user when tool planning fails
             if (res.writable && !res.writableEnded) {
               res.write(`data: ${JSON.stringify({
@@ -594,7 +596,7 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
                 }
               })}\n\n`);
             }
-            
+
             attempt++;
             continue;
           }
@@ -875,7 +877,7 @@ export async function executeStepByStepWorkflow(userMessage, session, res, optio
       logger.error('executor', '❌ DI Container unavailable', {
         sessionId: session.id
       });
-      
+
       if (res.writable && !res.writableEnded) {
         res.write(`data: ${JSON.stringify({
           type: 'workflow_error',
@@ -886,7 +888,7 @@ export async function executeStepByStepWorkflow(userMessage, session, res, optio
         })}\n\n`);
         res.end();
       }
-      
+
       throw error;
     }
 
@@ -928,12 +930,12 @@ export async function executeAgentStageStepByStep(
   options = {}
 ) {
   logger.warn('Using deprecated executeAgentStageStepByStep, MCP workflow recommended');
-  
+
   // For backward compatibility, delegate to MCP workflow
   const container = session.container;
   if (!container) {
     throw new Error('DI Container not available - cannot execute workflow');
   }
-  
+
   return await executeMCPWorkflow(userPrompt, session, res, container);
 }

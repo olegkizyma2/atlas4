@@ -51,13 +51,14 @@ export const USER_CONFIG = {
 // === AI MODELS CONFIGURATION ===
 // Конфігурація моделей для різних стадій (система використовує LLM API)
 // v5.0: Підтримка fallback endpoint для remote access
+// UPDATED 16.10.2025: Оптимальні моделі за rate limit + температури за типом завдання
 export const AI_MODEL_CONFIG = {
   // API endpoint для system stages (підтримує fallback)
   get apiEndpoint() {
     const primary = process.env.LLM_API_ENDPOINT || 'http://localhost:4000/v1/chat/completions';
     const fallback = process.env.LLM_API_FALLBACK_ENDPOINT;
     const useFallback = process.env.LLM_API_USE_FALLBACK === 'true';
-    
+
     return {
       primary,
       fallback: fallback || null,
@@ -69,38 +70,43 @@ export const AI_MODEL_CONFIG = {
   // Моделі для різних типів завдань
   models: {
     // Класифікація та швидкі рішення
-    // PATTERN-BASED: Clear action patterns with examples
-    // OPTIMIZED 14.10.2025 - ministral-3b замість gpt-4o-mini (45 req/min vs 35 req/min)
+    // T=0.05 для максимальної точності (бінарна класифікація)
+    // ministral-3b: 45 req/min (найбільш доступна)
     classification: {
-      model: 'mistral-ai/ministral-3b',
-      temperature: 0.1,  // Нижча T для точної класифікації
+      get model() { return process.env.AI_MODEL_CLASSIFICATION || 'mistral-ai/ministral-3b'; },
+      get temperature() { return parseFloat(process.env.AI_TEMP_CLASSIFICATION || '0.05'); },
       max_tokens: 50,
-      description: 'ministral-3b для швидкої класифікації (45 req/min)'
+      description: 'Бінарна класифікація - максимальна точність'
     },
 
     // Чат та розмова
-    // OPTIMIZED 14.10.2025 - ministral-3b замість gpt-4o-mini
+    // T=0.7 для природності та креативності
+    // cohere/cohere-command-r-plus-08-2024: Швидка та надійна Cohere модель
     chat: {
-      model: 'mistral-ai/ministral-3b',
-      temperature: 0.7,
+      get model() { return process.env.AI_MODEL_CHAT || 'cohere/cohere-command-r-plus-08-2024'; },
+      get temperature() { return parseFloat(process.env.AI_TEMP_CHAT || '0.7'); },
       max_tokens: 500,
-      description: 'ministral-3b для природних розмов (45 req/min)'
+      description: 'Природні розмови - креативність'
     },
 
-    // Аналіз та reasoning
+    // Аналіз та контекст
+    // T=0.2 для точного аналізу з мінімальною варіативністю
+    // gpt-4o-mini: 35 req/min (балансує якість та швидкість)
     analysis: {
-      model: 'openai/o1-mini',  // FIXED 14.10.2025 - o1-mini для reasoning (доступний!)
-      temperature: 0.3,
+      get model() { return process.env.AI_MODEL_ANALYSIS || 'openai/gpt-4o-mini'; },
+      get temperature() { return parseFloat(process.env.AI_TEMP_ANALYSIS || '0.2'); },
       max_tokens: 1000,
-      description: 'OpenAI o1-mini для якісного аналізу та reasoning'
+      description: 'Аналіз та контекст - точність'
     },
 
     // TTS оптимізація
+    // T=0.15 для стабільного результату (важливо щоб озвучка звучала однаково)
+    // ministral-3b: 45 req/min
     tts_optimization: {
-      model: 'mistral-ai/ministral-3b',
-      temperature: 0.2,
+      get model() { return process.env.AI_MODEL_TTS_OPT || 'mistral-ai/ministral-3b'; },
+      get temperature() { return parseFloat(process.env.AI_TEMP_TTS_OPT || '0.15'); },
       max_tokens: 300,
-      description: 'ministral-3b для оптимізації тексту для озвучки (45 req/min)'
+      description: 'Оптимізація для TTS - стабільність'
     }
   },
 
@@ -118,6 +124,14 @@ export const AI_MODEL_CONFIG = {
 
 // === MCP MODELS CONFIGURATION (NEW 14.10.2025) ===
 // Окрема конфігурація моделей для кожного MCP стейджу з ENV підтримкою
+// UPDATED 16.10.2025: Оптимальні моделі за rate limit + точні температури для кожного типу завдання
+// Температури:
+//   - 0.05: Бінарна класифікація (максимальна точність)
+//   - 0.1: JSON output (мінімальна варіативність)
+//   - 0.15-0.2: Аналіз та верифікація (точність + креатив)
+//   - 0.3: Планування (баланс точності та креативу)
+//   - 0.5: Резюме користувачу (природність)
+//   - 0.7: Чат (креативність)
 // Детально: docs/MCP_MODEL_SELECTION_GUIDE.md
 // v5.0: Підтримка fallback API endpoint
 export const MCP_MODEL_CONFIG = {
@@ -126,7 +140,7 @@ export const MCP_MODEL_CONFIG = {
     const primary = process.env.LLM_API_ENDPOINT || 'http://localhost:4000/v1/chat/completions';
     const fallback = process.env.LLM_API_FALLBACK_ENDPOINT;
     const useFallback = process.env.LLM_API_USE_FALLBACK === 'true';
-    
+
     return {
       primary,
       fallback: fallback || null,
@@ -138,64 +152,73 @@ export const MCP_MODEL_CONFIG = {
   // Моделі для кожного MCP stage (читаємо з ENV для гнучкості)
   stages: {
     // Stage 0: Mode Selection (task vs chat)
+    // T=0.05 для максимальної точності (бінарна класифікація)
+    // ministral-3b: 45 req/min (найбільш доступна)
     mode_selection: {
       get model() { return process.env.MCP_MODEL_MODE_SELECTION || 'mistral-ai/ministral-3b'; },
-      get temperature() { return parseFloat(process.env.MCP_TEMP_MODE_SELECTION || '0.1'); },
+      get temperature() { return parseFloat(process.env.MCP_TEMP_MODE_SELECTION || '0.05'); },
       max_tokens: 50,
-      description: 'Бінарна класифікація - швидка легка модель (45 req/min)'
+      description: 'Бінарна класифікація task vs chat - максимальна точність (45 req/min)'
     },
 
     // Stage 0.5: Backend Selection (deprecated - now MCP-only)
+    // T=0.05 для точної класифікації
+    // ministral-3b: 45 req/min
     backend_selection: {
       get model() { return process.env.MCP_MODEL_BACKEND_SELECTION || 'mistral-ai/ministral-3b'; },
-      get temperature() { return parseFloat(process.env.MCP_TEMP_BACKEND_SELECTION || '0.1'); },
+      get temperature() { return parseFloat(process.env.MCP_TEMP_BACKEND_SELECTION || '0.05'); },
       max_tokens: 50,
-      description: 'Keyword-based routing - швидко (45 req/min)'
+      description: 'Keyword routing - точність (45 req/min, deprecated)'
     },
 
     // Stage 1-MCP: Atlas TODO Planning
+    // T=0.3 для балансу планування (точність + креатив для генерації ідей)
+    // mistral-small-2503: 40 req/min (якість + швидкість)
     todo_planning: {
-      get model() { return process.env.MCP_MODEL_TODO_PLANNING || 'mistral-ai/mistral-small-2503'; },  // OPTIMIZED 14.10.2025 - mistral-small для швидкості (40 req/min)
+      get model() { return process.env.MCP_MODEL_TODO_PLANNING || 'mistral-ai/mistral-small-2503'; },
       get temperature() { return parseFloat(process.env.MCP_TEMP_TODO_PLANNING || '0.3'); },
-      max_tokens: 4000,  // FIXED 14.10.2025 - Збільшено з 2000 до 4000 для складних запитів з багатьма пунктами
-      description: 'Critical planning - mistral-small для балансу швидкості та якості'
+      max_tokens: 4000,
+      description: 'Atlas TODO Planning - баланс точності та креативу (40 req/min)'
     },
 
     // Stage 2.1-MCP: Tetyana Plan Tools
-    // OPTIMIZED 15.10.2025 - mistral-small-2503 для ЧИСТОГО JSON без markdown (40 req/min)
-    // FIXED 16.10.2025 - Збільшено max_tokens з 1200 до 2500 для складних багатокрокових планів
-    // Причина зміни: phi-4 та nemo генерували ```json wrappers, mistral-small - чистий JSON
+    // T=0.1 для ЧИСТОГО JSON output без варіацій (критично важливо!)
+    // mistral-small-2503: 40 req/min (генерує чистий JSON без markdown)
     plan_tools: {
       get model() { return process.env.MCP_MODEL_PLAN_TOOLS || 'mistral-ai/mistral-small-2503'; },
-      get temperature() { return parseFloat(process.env.MCP_TEMP_PLAN_TOOLS || '0.15'); },  // Нижче для точності
-      max_tokens: 2500,  // FIXED 16.10.2025 - Збільшено з 1200 для складних планів (було обрізання JSON)
-      description: 'Tool matching - mistral-small для ЧИСТОГО JSON output (40 req/min)'
+      get temperature() { return parseFloat(process.env.MCP_TEMP_PLAN_TOOLS || '0.1'); },
+      max_tokens: 2500,
+      description: 'Tetyana Plan Tools - чистий JSON без markdown (40 req/min)'
     },
 
     // Stage 2.3-MCP: Grisha Verify Item
-    // OPTIMIZED 15.10.2025 - mistral-small-2503 для ЧИСТОГО JSON без markdown (40 req/min)
+    // T=0.15 для точної верифікації з мінімальною варіативністю
+    // mistral-small-2503: 40 req/min (чистий JSON для верифікації)
     verify_item: {
       get model() { return process.env.MCP_MODEL_VERIFY_ITEM || 'mistral-ai/mistral-small-2503'; },
-      get temperature() { return parseFloat(process.env.MCP_TEMP_VERIFY_ITEM || '0.15'); },  // Нижче для точності
-      max_tokens: 500,  // Збільшено для детальної верифікації
-      description: 'Верифікація з ЧИСТИМ JSON output (40 req/min)'
+      get temperature() { return parseFloat(process.env.MCP_TEMP_VERIFY_ITEM || '0.15'); },
+      max_tokens: 800,
+      description: 'Grisha Verify Item - точна верифікація з JSON output (40 req/min)'
     },
 
     // Stage 3-MCP: Atlas Adjust TODO
-    // FIXED 14.10.2025 - mistral-nemo для великого context (128K)
+    // T=0.2 для точного аналізу та корекції з великим контекстом
+    // gpt-4o-mini: 35 req/min (якість + 128K контекст вже не потрібен)
     adjust_todo: {
-      get model() { return process.env.MCP_MODEL_ADJUST_TODO || 'mistral-ai/mistral-nemo'; },
-      get temperature() { return parseFloat(process.env.MCP_TEMP_ADJUST_TODO || '0.3'); },
-      max_tokens: 1000,
-      description: 'Корекція TODO з повним контекстом (128K context)'
+      get model() { return process.env.MCP_MODEL_ADJUST_TODO || 'openai/gpt-4o-mini'; },
+      get temperature() { return parseFloat(process.env.MCP_TEMP_ADJUST_TODO || '0.2'); },
+      max_tokens: 1500,
+      description: 'Atlas Adjust TODO - точна корекція з аналізом (35 req/min)'
     },
 
     // Stage 8-MCP: Final Summary
+    // T=0.5 для природного резюме користувачу (баланс точності та креативності)
+    // ministral-3b: 45 req/min (швидкість для фінальної відповіді)
     final_summary: {
       get model() { return process.env.MCP_MODEL_FINAL_SUMMARY || 'mistral-ai/ministral-3b'; },
       get temperature() { return parseFloat(process.env.MCP_TEMP_FINAL_SUMMARY || '0.5'); },
-      max_tokens: 500,
-      description: 'User-facing summary - природна мова (45 req/min)'
+      max_tokens: 600,
+      description: 'Final Summary для користувача - природність (45 req/min)'
     }
   },
 
@@ -211,7 +234,7 @@ export const MCP_MODEL_CONFIG = {
 export const AI_BACKEND_CONFIG = {
   // Always MCP mode
   mode: 'mcp',
-  
+
   // No fallback - pure MCP
   primary: 'mcp',
   fallback: null,
