@@ -2127,6 +2127,24 @@ Return ONLY JSON:
         this.logger.system('mcp-todo', `[TODO] 🧠 Grisha analyzing verification evidence`);
 
         try {
+            // FIXED 16.10.2025 - Ensure execution.results is an array
+            if (!execution || !Array.isArray(execution.results)) {
+                this.logger.warn(`[MCP-TODO] Execution results missing or not array, using fallback`, {
+                    category: 'mcp-todo',
+                    component: 'mcp-todo',
+                    hasExecution: !!execution,
+                    isArray: Array.isArray(execution?.results)
+                });
+                
+                // Graceful fallback - just use tool execution success as verification
+                return {
+                    verified: execution?.all_successful || false,
+                    reason: execution?.all_successful ? 'Tool execution successful' : 'Tool execution failed or no results',
+                    evidence: `Execution: ${execution?.all_successful ? 'SUCCESS' : 'FAILED'}`,
+                    tts_phrase: execution?.all_successful ? 'Підтверджено' : 'Не підтверджено'
+                };
+            }
+
             // Truncate results to avoid token limits
             const truncatedExecution = execution.results.map(result => {
                 const truncated = { ...result };
@@ -2139,6 +2157,24 @@ Return ONLY JSON:
                 return truncated;
             });
 
+            // FIXED 16.10.2025 - Ensure verificationResults.results is an array
+            if (!Array.isArray(verificationResults?.results)) {
+                this.logger.warn(`[MCP-TODO] Verification results missing or not array`, {
+                    category: 'mcp-todo',
+                    component: 'mcp-todo',
+                    hasVerificationResults: !!verificationResults,
+                    isArray: Array.isArray(verificationResults?.results)
+                });
+                
+                // Fallback when verification tools didn't run
+                return {
+                    verified: execution.all_successful,
+                    reason: 'Verified by execution success (no verification tools run)',
+                    evidence: `Executed ${execution.results.length} tools with ${execution.all_successful ? 'success' : 'failures'}`,
+                    tts_phrase: execution.all_successful ? 'Підтверджено' : 'Не підтверджено'
+                };
+            }
+
             const truncatedVerification = verificationResults.results.map(result => {
                 const truncated = { ...result };
                 if (truncated.result && typeof truncated.result === 'object') {
@@ -2150,15 +2186,29 @@ Return ONLY JSON:
                 return truncated;
             });
 
-            const beforePath = verificationResults.results.find(r => r.tool === 'screenshot').result.path;
-            const afterPath = verificationResults.results.find(r => r.tool === 'screenshot').result.path;
+            // FIXED 16.10.2025 - Safe extraction of screenshot evidence
+            const screenshotResult = verificationResults.results.find(r => r.tool === 'screenshot');
+            const hasScreenshot = screenshotResult && screenshotResult.success;
+            const screenshotPath = hasScreenshot && screenshotResult.result ? (screenshotResult.result.path || '[no path]') : '[no screenshot]';
+            
+            // Build analysis prompt with available evidence
+            let analysisPrompt = `Verify that the action was executed correctly.
 
-            const analysisPrompt = `Compare these two screenshots and determine if they show the same state.
+Item action: ${item.action}
+Success criteria: ${item.success_criteria}
 
-Before screenshot: ${beforePath}
-After screenshot: ${afterPath}
+Execution results: ${execution.results.length} tools executed
+Execution success: ${execution.all_successful}
 
-Respond with JSON: { "same_state": true/false, "confidence": 0-100, "differences": ["..."] }`;
+Verification evidence: ${verificationResults.results.length} checks performed`;
+
+            if (hasScreenshot) {
+                analysisPrompt += `\nScreenshot taken: ${screenshotPath}`;
+            } else {
+                analysisPrompt += `\nNo screenshot taken`;
+            }
+
+            analysisPrompt += `\n\nRespond with JSON: { "verified": true/false, "confidence": 0-100, "reason": "...", "evidence": "..." }`;
 
             await this._waitForRateLimit();
 
