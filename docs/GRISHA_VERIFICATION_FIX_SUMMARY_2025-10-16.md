@@ -39,13 +39,13 @@ reason: 'Cannot verify without actual verification results'
 
 ## 📊 Результати виправлень
 
-| Параметр | Було | Стало |
-|----------|------|-------|
-| Item #1 (Калькулятор 333×2) | ✅ VERIFIED | ❌ NOT VERIFIED ✅ |
-| Item #2 (Калькулятор 333×333) | ✅ VERIFIED | ❌ NOT VERIFIED ✅ |
-| Всього 7 items | 7/7 ✅ | 0/7 ❌ (правильно!) ✅ |
-| False positives | 7 | 0 ✅ |
-| Graceful fallback security | ❌ WEAK | ✅ STRONG |
+| Параметр                      | Було       | Стало                |
+| ----------------------------- | ---------- | -------------------- |
+| Item #1 (Калькулятор 333×2)   | ✅ VERIFIED | ❌ NOT VERIFIED ✅     |
+| Item #2 (Калькулятор 333×333) | ✅ VERIFIED | ❌ NOT VERIFIED ✅     |
+| Всього 7 items                | 7/7 ✅      | 0/7 ❌ (правильно!) ✅ |
+| False positives               | 7          | 0 ✅                  |
+| Graceful fallback security    | ❌ WEAK     | ✅ STRONG             |
 
 ## 🛠️ Технічні деталі
 
@@ -217,15 +217,15 @@ reason: 'Cannot verify without actual verification results'
 
 ## 📊 Статистика
 
-| Метрика | Значення |
-|---------|----------|
-| Файлів змінено | 1 |
-| Рядків виправлено | 2 |
-| Graceful fallback removed | 2 |
-| False positives fixed | 7 |
-| Lines of code changed | ~35 |
-| Syntax errors | 0 |
-| Runtime errors | 0 |
+| Метрика                   | Значення |
+| ------------------------- | -------- |
+| Файлів змінено            | 1        |
+| Рядків виправлено         | 2        |
+| Graceful fallback removed | 2        |
+| False positives fixed     | 7        |
+| Lines of code changed     | ~35      |
+| Syntax errors             | 0        |
+| Runtime errors            | 0        |
 
 ---
 
