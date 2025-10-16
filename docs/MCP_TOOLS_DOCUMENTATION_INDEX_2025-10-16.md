@@ -86,21 +86,21 @@
 
 ### If you want to... → Read this
 
-| Goal | Document | Section |
-|------|----------|---------|
-| Understand how tools are obtained | Complete Guide | ЭТАП 1: MCP Manager запускає |
-| Understand Tetyana's planning | Complete Guide | ЕТАП 2: Тетяна ПЛАНУЄ |
-| Understand Tetyana's execution | Complete Guide | ЕТАП 3: Тетяна ВИКОНУЄ |
-| Understand Grisha's verification | Complete Guide | ЭТАП 4-6 |
-| See visual flow | Diagrams | Diagram 1: Full Cycle |
-| See data structures | Diagrams | Diagram 2: Data Flow |
-| See all available tools | Diagrams | Diagram 3: Tool Distribution |
-| Understand optimization | Diagrams | Diagram 4: Pre-selection |
-| Find specific method | Quick Reference | "Быстрый поиск" |
-| Debug failure | Quick Reference | "Common Scenarios" |
-| Understand pre-selection | Complete Guide | Раздел "Оптимизация" |
-| See code locations | Quick Reference | "Critical Code Locations" |
-| Learn API | Quick Reference | "API Reference" |
+| Goal                              | Document        | Section                      |
+| --------------------------------- | --------------- | ---------------------------- |
+| Understand how tools are obtained | Complete Guide  | ЭТАП 1: MCP Manager запускає |
+| Understand Tetyana's planning     | Complete Guide  | ЕТАП 2: Тетяна ПЛАНУЄ        |
+| Understand Tetyana's execution    | Complete Guide  | ЕТАП 3: Тетяна ВИКОНУЄ       |
+| Understand Grisha's verification  | Complete Guide  | ЭТАП 4-6                     |
+| See visual flow                   | Diagrams        | Diagram 1: Full Cycle        |
+| See data structures               | Diagrams        | Diagram 2: Data Flow         |
+| See all available tools           | Diagrams        | Diagram 3: Tool Distribution |
+| Understand optimization           | Diagrams        | Diagram 4: Pre-selection     |
+| Find specific method              | Quick Reference | "Быстрый поиск"              |
+| Debug failure                     | Quick Reference | "Common Scenarios"           |
+| Understand pre-selection          | Complete Guide  | Раздел "Оптимизация"         |
+| See code locations                | Quick Reference | "Critical Code Locations"    |
+| Learn API                         | Quick Reference | "API Reference"              |
 
 ---
 
@@ -265,27 +265,27 @@ if (!verificationResults?.results || !Array.isArray(verificationResults.results)
 
 ## 📈 Performance Summary
 
-| Operation | Time | Tokens | Server |
-|-----------|------|--------|--------|
-| getToolsSummary() | <100ms | 500 | MCP Manager |
-| getToolsSummary(filtered) | <50ms | 150 | MCP Manager |
-| planTools() (LLM call) | 1-3s | 2K | port 4000 |
-| executeTools() per tool | 100-500ms | - | varies |
-| _planVerificationTools() | 1-2s | 2K | port 4000 |
-| _executeVerificationTools() | 500-2000ms | - | varies |
-| _analyzeVerificationResults() | 1-2s | 3K | port 4000 |
-| **Total per TODO item** | **5-10s** | **7K** | - |
+| Operation                     | Time       | Tokens | Server      |
+| ----------------------------- | ---------- | ------ | ----------- |
+| getToolsSummary()             | <100ms     | 500    | MCP Manager |
+| getToolsSummary(filtered)     | <50ms      | 150    | MCP Manager |
+| planTools() (LLM call)        | 1-3s       | 2K     | port 4000   |
+| executeTools() per tool       | 100-500ms  | -      | varies      |
+| _planVerificationTools()      | 1-2s       | 2K     | port 4000   |
+| _executeVerificationTools()   | 500-2000ms | -      | varies      |
+| _analyzeVerificationResults() | 1-2s       | 3K     | port 4000   |
+| **Total per TODO item**       | **5-10s**  | **7K** | -           |
 
 ---
 
 ## 📍 File Navigation
 
-| File Path | Purpose | Key Methods | Lines |
-|-----------|---------|-------------|-------|
-| `orchestrator/ai/mcp-manager.js` | Manage MCP servers | getAvailableTools, executeTool | 1-711 |
-| `orchestrator/workflow/mcp-todo-manager.js` | Orchestrate workflow | planTools, executeTools, _planVerificationTools, _executeVerificationTools, _analyzeVerificationResults | 1-2404 |
-| `prompts/mcp/tetyana_plan_tools_optimized.js` | Tetyana planning | systemPrompt, examples | varies |
-| `prompts/mcp/grisha_verify_item_optimized.js` | Grisha verification | systemPrompt, screenshot requirement | varies |
+| File Path                                     | Purpose              | Key Methods                                                                                             | Lines  |
+| --------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------- | ------ |
+| `orchestrator/ai/mcp-manager.js`              | Manage MCP servers   | getAvailableTools, executeTool                                                                          | 1-711  |
+| `orchestrator/workflow/mcp-todo-manager.js`   | Orchestrate workflow | planTools, executeTools, _planVerificationTools, _executeVerificationTools, _analyzeVerificationResults | 1-2404 |
+| `prompts/mcp/tetyana_plan_tools_optimized.js` | Tetyana planning     | systemPrompt, examples                                                                                  | varies |
+| `prompts/mcp/grisha_verify_item_optimized.js` | Grisha verification  | systemPrompt, screenshot requirement                                                                    | varies |
 
 ---
 

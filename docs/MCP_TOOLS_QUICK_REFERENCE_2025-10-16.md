@@ -2,15 +2,15 @@
 
 ## 📍 Где что находится?
 
-| Вопрос | Ответ | Файл | Строка |
-|--------|-------|------|--------|
-| **Как Тетяна ПОЛУЧАЕТ список инструментов?** | `MCPManager.getToolsSummary()` или `getDetailedToolsSummary()` | `orchestrator/ai/mcp-manager.js` | 500-550 |
-| **Как Тетяна ИХ ПЛАНИРУЕТ?** | `planTools()` - LLM выбирает tools на основе промпта | `orchestrator/workflow/mcp-todo-manager.js` | 636-750 |
-| **Как Тетяна ИХ ВЫПОЛНЯЕТ?** | `executeTools()` - цикл по tool_calls, вызывает `executeTool()` | `orchestrator/workflow/mcp-todo-manager.js` | 989-1070 |
-| **Как Гриша ПОЛУЧАЕТ список инструментов?** | Тот же `getToolsSummary()` или фильтрованный набор | `orchestrator/ai/mcp-manager.js` | 520-550 |
-| **Как Гриша ПЛАНИРУЕТ верификацию?** | `_planVerificationTools()` - LLM with {{AVAILABLE_TOOLS}} | `orchestrator/workflow/mcp-todo-manager.js` | 1971-2050 |
-| **Как Гриша ВЫПОЛНЯЕТ верификацию?** | `_executeVerificationTools()` - вызывает MCP tools | `orchestrator/workflow/mcp-todo-manager.js` | 2065-2120 |
-| **Как Гриша АНАЛИЗИРУЕТ результаты?** | `_analyzeVerificationResults()` - LLM читает РЕАЛЬНЫЕ данные | `orchestrator/workflow/mcp-todo-manager.js` | ~2130-2175 |
+| Вопрос                                       | Ответ                                                           | Файл                                        | Строка     |
+| -------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------- | ---------- |
+| **Как Тетяна ПОЛУЧАЕТ список инструментов?** | `MCPManager.getToolsSummary()` или `getDetailedToolsSummary()`  | `orchestrator/ai/mcp-manager.js`            | 500-550    |
+| **Как Тетяна ИХ ПЛАНИРУЕТ?**                 | `planTools()` - LLM выбирает tools на основе промпта            | `orchestrator/workflow/mcp-todo-manager.js` | 636-750    |
+| **Как Тетяна ИХ ВЫПОЛНЯЕТ?**                 | `executeTools()` - цикл по tool_calls, вызывает `executeTool()` | `orchestrator/workflow/mcp-todo-manager.js` | 989-1070   |
+| **Как Гриша ПОЛУЧАЕТ список инструментов?**  | Тот же `getToolsSummary()` или фильтрованный набор              | `orchestrator/ai/mcp-manager.js`            | 520-550    |
+| **Как Гриша ПЛАНИРУЕТ верификацию?**         | `_planVerificationTools()` - LLM with {{AVAILABLE_TOOLS}}       | `orchestrator/workflow/mcp-todo-manager.js` | 1971-2050  |
+| **Как Гриша ВЫПОЛНЯЕТ верификацию?**         | `_executeVerificationTools()` - вызывает MCP tools              | `orchestrator/workflow/mcp-todo-manager.js` | 2065-2120  |
+| **Как Гриша АНАЛИЗИРУЕТ результаты?**        | `_analyzeVerificationResults()` - LLM читает РЕАЛЬНЫЕ данные    | `orchestrator/workflow/mcp-todo-manager.js` | ~2130-2175 |
 
 ---
 
@@ -223,16 +223,16 @@ if (!verificationResults?.results || !Array.isArray(verificationResults.results)
 
 ## 📊 Performance Metrics
 
-| Operation | Time | Tokens | Notes |
-|-----------|------|--------|-------|
-| `getToolsSummary()` - all | <100ms | ~500 | 92 tools |
-| `getToolsSummary()` - filtered | <50ms | ~150 | 2-3 servers |
-| `planTools()` - LLM call | 1-3s | 2K | With context |
-| `executeTools()` - per tool | 100-500ms | - | Varies by tool |
-| `_planVerificationTools()` - LLM | 1-2s | 2K | Always with screenshot |
-| `_executeVerificationTools()` - verification | 500ms-2s | - | Takes screenshot |
-| `_analyzeVerificationResults()` - LLM | 1-2s | 3K | Reads real data |
-| **Total per TODO item** | 5-10s | 7K | 3 LLM calls |
+| Operation                                    | Time      | Tokens | Notes                  |
+| -------------------------------------------- | --------- | ------ | ---------------------- |
+| `getToolsSummary()` - all                    | <100ms    | ~500   | 92 tools               |
+| `getToolsSummary()` - filtered               | <50ms     | ~150   | 2-3 servers            |
+| `planTools()` - LLM call                     | 1-3s      | 2K     | With context           |
+| `executeTools()` - per tool                  | 100-500ms | -      | Varies by tool         |
+| `_planVerificationTools()` - LLM             | 1-2s      | 2K     | Always with screenshot |
+| `_executeVerificationTools()` - verification | 500ms-2s  | -      | Takes screenshot       |
+| `_analyzeVerificationResults()` - LLM        | 1-2s      | 3K     | Reads real data        |
+| **Total per TODO item**                      | 5-10s     | 7K     | 3 LLM calls            |
 
 ---
 

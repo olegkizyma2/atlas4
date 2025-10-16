@@ -1780,50 +1780,74 @@ Context: ${JSON.stringify(context, null, 2)}
         // Quote property names that are missing double quotes.
         sanitized = sanitized.replace(/([,{]\s*)([A-Za-z0-9_]+)\s*:/g, '$1"$2":');
 
-        // ENHANCED 15.10.2025 - More aggressive trailing comma removal
-        // Remove trailing commas before closing braces/brackets (handles newlines and multiple spaces)
-        sanitized = sanitized.replace(/,(\s*[\r\n]+\s*)([}\]])/g, '$1$2');  // comma before newline and }]
-        sanitized = sanitized.replace(/,\s*([}\]])/g, '$1');  // comma directly before }]
+        // FIXED 17.10.2025 - Conservative trailing comma removal
+        // Only remove commas that are ACTUALLY trailing (before } or ])
+        // Do NOT remove commas between array/object elements
 
-        // ADDED 15.10.2025 - Remove multiple consecutive commas
-        sanitized = sanitized.replace(/,\s*,+/g, ',');
+        // Pass 1: Remove trailing commas before closing braces/brackets
+        // Pattern: comma followed by optional whitespace/newlines, then } or ]
+        sanitized = sanitized.replace(/,(\s*[\r\n\t\s]*)}(?![:,])/g, '}');
+        sanitized = sanitized.replace(/,(\s*[\r\n\t\s]*)\](?![:,])/g, ']');
 
-        // ADDED 15.10.2025 - Remove trailing commas at end of lines
-        sanitized = sanitized.replace(/,(\s*[\r\n])/g, '$1');
+        // Pass 2: Remove trailing commas at end of objects/arrays (simple cases)
+        sanitized = sanitized.replace(/,(\s*})(?![:,])/g, '$1');
+        sanitized = sanitized.replace(/,(\s*\])(?![:,])/g, '$1');
 
         try {
             JSON.parse(sanitized);
             return sanitized;
         } catch (firstError) {
-            // Attempt to convert single-quoted strings to double-quoted strings.
-            const withDoubleQuotedStrings = sanitized.replace(/:\s*'([^'\\]*(?:\\.[^'\\]*)*)'/g, (_, inner) => {
-                const escaped = inner
-                    .replace(/\\/g, '\\\\')
-                    .replace(/"/g, '\\"');
-                return `: "${escaped}"`;
-            }).replace(/\[\s*'([^'\\]*(?:\\.[^'\\]*)*)'/g, (match, inner) => {
-                const escaped = inner
-                    .replace(/\\/g, '\\\\')
-                    .replace(/"/g, '\\"');
-                return `[ "${escaped}"`;
-            }).replace(/,\s*'([^'\\]*(?:\\.[^'\\]*)*)'/g, (match, inner) => {
-                const escaped = inner
-                    .replace(/\\/g, '\\\\')
-                    .replace(/"/g, '\\"');
-                return `, "${escaped}"`;
-            });
+            // FIXED 17.10.2025 - Add ultra-aggressive trailing comma removal for nested multiline structures
+            let ultraSanitized = sanitized;
+
+            // Ultra-pass 1: Remove ALL commas before closing brackets/braces, even with escapes
+            ultraSanitized = ultraSanitized.replace(/,(\s*[\r\n\t]*(\\")?[\s\r\n\t]*)([}\]])/g, '$3');
+
+            // Ultra-pass 2: Handle commas in multiline string contexts (AppleScript code)
+            // Remove comma before \n, \t, or other escapes at end of lines
+            ultraSanitized = ultraSanitized.replace(/,(\s*\\[nt])/g, '$1');
+
+            // Ultra-pass 3: One more aggressive final pass
+            ultraSanitized = ultraSanitized.replace(/,(\s*([}\]]))(?!:)/g, '$2');
 
             try {
-                JSON.parse(withDoubleQuotedStrings);
-                return withDoubleQuotedStrings;
-            } catch (secondError) {
+                JSON.parse(ultraSanitized);
+                this.logger.warn('[MCP-TODO] ✅ Ultra-aggressive sanitization successful', {
+                    category: 'mcp-todo',
+                    component: 'mcp-todo'
+                });
+                return ultraSanitized;
+            } catch (ultraError) {
+                // Attempt to convert single-quoted strings to double-quoted strings.
+                const withDoubleQuotedStrings = sanitized.replace(/:\s*'([^'\\]*(?:\\.[^'\\]*)*)'/g, (_, inner) => {
+                    const escaped = inner
+                        .replace(/\\/g, '\\\\')
+                        .replace(/"/g, '\\"');
+                    return `: "${escaped}"`;
+                }).replace(/\[\s*'([^'\\]*(?:\\.[^'\\]*)*)'/g, (match, inner) => {
+                    const escaped = inner
+                        .replace(/\\/g, '\\\\')
+                        .replace(/"/g, '\\"');
+                    return `[ "${escaped}"`;
+                }).replace(/,\s*'([^'\\]*(?:\\.[^'\\]*)*)'/g, (match, inner) => {
+                    const escaped = inner
+                        .replace(/\\/g, '\\\\')
+                        .replace(/"/g, '\\"');
+                    return `, "${escaped}"`;
+                });
+
                 try {
-                    const evaluated = vm.runInNewContext(`(${sanitized})`, {}, { timeout: 50 });
-                    return JSON.stringify(evaluated);
-                } catch (vmError) {
-                    secondError.originalError = firstError.message;
-                    secondError.vmError = vmError.message;
-                    throw secondError;
+                    JSON.parse(withDoubleQuotedStrings);
+                    return withDoubleQuotedStrings;
+                } catch (secondError) {
+                    try {
+                        const evaluated = vm.runInNewContext(`(${sanitized})`, {}, { timeout: 50 });
+                        return JSON.stringify(evaluated);
+                    } catch (vmError) {
+                        secondError.originalError = firstError.message;
+                        secondError.vmError = vmError.message;
+                        throw secondError;
+                    }
                 }
             }
         }
