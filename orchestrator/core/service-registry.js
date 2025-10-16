@@ -16,6 +16,7 @@ import { MCPManager } from '../ai/mcp-manager.js';
 import { MCPTodoManager } from '../workflow/mcp-todo-manager.js';
 import { TTSSyncManager } from '../workflow/tts-sync-manager.js';
 import {
+    ModeSelectionProcessor,
     AtlasTodoPlanningProcessor,
     ServerSelectionProcessor,
     TetyanaПlanToolsProcessor,
@@ -226,6 +227,17 @@ export function registerMCPWorkflowServices(container) {
  * @returns {DIContainer}
  */
 export function registerMCPProcessors(container) {
+    // Mode Selection Processor (Stage 0-MCP) - NEW 16.10.2025
+    container.singleton('modeSelectionProcessor', (c) => {
+        return new ModeSelectionProcessor({
+            llmClient: null,  // Will use axios directly
+            logger: c.resolve('logger')
+        });
+    }, {
+        dependencies: ['logger'],
+        metadata: { category: 'processors', priority: 45 }
+    });
+
     // Atlas TODO Planning Processor (Stage 1-MCP)
     container.singleton('atlasTodoPlanningProcessor', (c) => {
         return new AtlasTodoPlanningProcessor({
