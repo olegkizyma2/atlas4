@@ -1,14 +1,24 @@
 #!/bin/bash
 
 # =============================================================================
-# ATLAS Universal System Management Script
+# ATLAS v5.0 Universal System Management Script
 # =============================================================================
 # Єдиний скрипт для управління всім стеком ATLAS
-# Підтримує запуск, зупинку, рестарт та статус системи
-# Підключається до зовнішнього Goose Desktop (не запускає його)
+# v5.0: Pure MCP режим без Goose залежностей
 # =============================================================================
 
 set -e
+
+# =============================================================================
+# Load Environment Variables
+# =============================================================================
+REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
+
+# Load .env file if it exists
+if [ -f "$REPO_ROOT/.env" ]; then
+    echo "Loading environment variables from .env..."
+    export $(cat "$REPO_ROOT/.env" | grep -v '^#' | grep -v '^\s*$' | xargs)
+fi
 
 # ANSI escape codes для кольорового виводу
 RED='\033[0;31m'
@@ -23,26 +33,22 @@ NC='\033[0m' # No Color
 # =============================================================================
 # Конфігурація системи
 # =============================================================================
-REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 LOGS_DIR="$REPO_ROOT/logs"
 ARCHIVE_DIR="$LOGS_DIR/archive"
-
-# Goose Configuration (External service - managed by user)
-GOOSE_SERVER_PORT="${GOOSE_SERVER_PORT:-3000}"
 
 # TTS Configuration
 REAL_TTS_MODE="${REAL_TTS_MODE:-true}"
 TTS_DEVICE="${TTS_DEVICE:-mps}"
 TTS_PORT="${TTS_PORT:-3001}"
 
-# Whisper Configuration
-WHISPER_MODEL="${WHISPER_MODEL:-base}"
-WHISPER_DEVICE="${WHISPER_DEVICE:-cpu}"
+# Whisper Configuration (Optimized for Mac Studio M1 MAX)
+WHISPER_MODEL="${WHISPER_MODEL:-large-v3}"
+WHISPER_DEVICE="${WHISPER_DEVICE:-metal}"
 WHISPER_PORT="${WHISPER_PORT:-3002}"
-# Default backend: whisper.cpp (Metal on macOS)
 WHISPER_BACKEND="${WHISPER_BACKEND:-cpp}"
-# Default paths for whisper.cpp (can be overridden by env)
-# Use whisper-cli (GPU enabled by default, use --no-gpu to disable)
+WHISPER_SAMPLE_RATE="${WHISPER_SAMPLE_RATE:-48000}"
+
+# Whisper.cpp paths (can be overridden by env)
 if [ -z "${WHISPER_CPP_BIN:-}" ]; then
     if [ -x "$REPO_ROOT/third_party/whisper.cpp.upstream/build/bin/whisper-cli" ]; then
         WHISPER_CPP_BIN="$REPO_ROOT/third_party/whisper.cpp.upstream/build/bin/whisper-cli"
@@ -51,26 +57,23 @@ if [ -z "${WHISPER_CPP_BIN:-}" ]; then
     else
         WHISPER_CPP_BIN="$REPO_ROOT/third_party/whisper.cpp/main"
     fi
-else
-    WHISPER_CPP_BIN="${WHISPER_CPP_BIN}"
 fi
 WHISPER_CPP_MODEL="${WHISPER_CPP_MODEL:-$REPO_ROOT/models/whisper/ggml-large-v3.bin}"
 WHISPER_CPP_NGL="${WHISPER_CPP_NGL:-20}"
-WHISPER_CPP_THREADS="${WHISPER_CPP_THREADS:-6}"
+WHISPER_CPP_THREADS="${WHISPER_CPP_THREADS:-10}"  # M1 Max has 10 performance cores
 
 # Service Ports
-FRONTEND_PORT=5001
-ORCHESTRATOR_PORT=5101
+FRONTEND_PORT="${WEB_PORT:-5001}"
+ORCHESTRATOR_PORT="${ORCHESTRATOR_PORT:-5101}"
 RECOVERY_PORT=5102
-WHISPER_SERVICE_PORT=3002
+WHISPER_SERVICE_PORT="${WHISPER_PORT:-3002}"
 FALLBACK_PORT=3010
 
 # Features
 ENABLE_LOCAL_FALLBACK="${ENABLE_LOCAL_FALLBACK:-false}"
 FORCE_FREE_PORTS="${FORCE_FREE_PORTS:-false}"
-
-# Goose Storage
-export GOOSE_DISABLE_KEYRING="${GOOSE_DISABLE_KEYRING:-1}"
+USE_METAL_GPU="${USE_METAL_GPU:-true}"
+OPTIMIZE_FOR_M1_MAX="${OPTIMIZE_FOR_M1_MAX:-true}"
 
 # =============================================================================
 # Utility Functions
@@ -104,42 +107,10 @@ log_progress() {
     echo -e "${BLUE}⚡${NC} $1"
 }
 
-# Get Goose binary path from config or fallback
-get_goose_binary() {
-    # 1) Explicit env override
-    if [ -n "$GOOSE_BIN" ] && [ -x "$GOOSE_BIN" ]; then
-        echo "$GOOSE_BIN"
-        return 0
-    fi
-
-    # 2) Try to get path from config.yaml (desktop_path for legacy compatibility)
-    if [ -f "$REPO_ROOT/config/config.yaml" ]; then
-        local config_path=$(grep -A 10 "^goose:" "$REPO_ROOT/config/config.yaml" | grep "desktop_path:" | sed 's/.*desktop_path: *"\([^"\\]*\)".*/\1/')
-        if [ -n "$config_path" ] && [ -x "$config_path" ]; then
-            echo "$config_path"
-            return 0
-        fi
-    fi
-
-    # 3) Prefer Homebrew CLI first, then PATH, then Desktop app
-    if [ -x "/opt/homebrew/bin/goose" ]; then
-        echo "/opt/homebrew/bin/goose"
-    elif command -v goose >/dev/null 2>&1; then
-        echo "goose"
-    elif [ -x "$HOME/.local/bin/goose" ]; then
-        echo "$HOME/.local/bin/goose"
-    elif [ -x "/Applications/Goose.app/Contents/MacOS/goose" ]; then
-        echo "/Applications/Goose.app/Contents/MacOS/goose"
-    else
-        echo ""
-    fi
-}
-
 # Create necessary directories
 init_directories() {
     mkdir -p "$LOGS_DIR"
     mkdir -p "$ARCHIVE_DIR"
-    mkdir -p "$HOME/.local/share/goose/sessions"
 }
 
 # Check if port is in use
@@ -222,196 +193,42 @@ stop_service() {
     fi
 }
 
-# Goose configuration validation and repair functions
-validate_goose_config() {
-    local goose_bin=$(get_goose_binary)
-    local config_file="$HOME/.config/goose/config.yaml"
-    
-    if [ ! -f "$config_file" ]; then
-        log_warn "Goose config file not found. Running initial configuration..."
-        return 1
-    fi
-    
-    # Check if provider is configured (new format)
-    if ! grep -q "GOOSE_PROVIDER:" "$config_file"; then
-        log_warn "Goose provider not properly configured"
-        return 1
-    fi
-    
-    # Test if Goose actually works instead of checking token details
-    log_info "Testing Goose functionality..."
-    local timeout_cmd=""
-    if command -v timeout >/dev/null 2>&1; then
-        timeout_cmd="timeout 10"
-    elif command -v gtimeout >/dev/null 2>&1; then
-        timeout_cmd="gtimeout 10"
-    fi
-
-    if [ -n "$timeout_cmd" ]; then
-        if $timeout_cmd "$goose_bin" web --help > /dev/null 2>&1; then
-            log_info "Goose configuration appears to be working"
-            return 0
-        else
-            log_warn "Goose functionality test failed"
-            return 1
-        fi
-    else
-        # No timeout available; rely on CLI help being instant for CLI builds
-        if "$goose_bin" web --help > /dev/null 2>&1; then
-            log_info "Goose configuration appears to be working"
-            return 0
-        else
-            log_warn "Goose functionality test failed"
-            return 1
-        fi
-    fi
-}
-
-repair_goose_config() {
-    log_warn "Goose configuration issues detected. Attempting repair..."
-    local goose_bin=$(get_goose_binary)
-    
-    if [ -z "$goose_bin" ] || [ ! -x "$goose_bin" ]; then
-        log_error "Goose binary not available for configuration repair"
-        return 1
-    fi
-    
-    log_info "Running Goose configuration wizard..."
-    log_info "Please follow the prompts to configure GitHub Copilot"
-    
-    if "$goose_bin" configure; then
-        log_success "Goose configuration completed successfully"
-        return 0
-    else
-        log_error "Goose configuration failed"
-        return 1
-    fi
-}
-
 # =============================================================================
 # Service Management Functions
 # =============================================================================
 
-detect_goose_port() {
-    # Try to find Goose port from running processes
-    local goose_port=""
-    
-    # Look for GOOSE_PORT in process environment
-    if command -v ps >/dev/null 2>&1; then
-        goose_port=$(ps aux | grep -i goose | grep "GOOSE_PORT" | sed -n 's/.*GOOSE_PORT[":]*\([0-9]\+\).*/\1/p' | head -1)
-    fi
-    
-    # If not found, try common ports
-    if [ -z "$goose_port" ]; then
-        for port in 3000 49299 51958 53769 65459 8080 8000; do
-            if ! check_port "$port"; then
-                if command -v curl >/dev/null 2>&1; then
-                    local response=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:$port" 2>/dev/null || echo "000")
-                    if [ "$response" = "401" ] || [ "$response" = "200" ] || [ "$response" = "404" ]; then
-                        goose_port=$port
-                        break
-                    fi
-                fi
-            fi
-        done
-    fi
-    
-    echo "$goose_port"
-}
+# ===================================================================
+# DEPRECATED FUNCTIONS (v4.0 Legacy - Goose Integration)
+# ===================================================================
+# These functions are kept for backward compatibility only
+# v5.0 uses Pure MCP mode without Goose dependencies
+# ===================================================================
 
 start_goose_web_server() {
-    log_progress "Starting Goose Web Server on port $GOOSE_SERVER_PORT..."
-    
-    # Check if port is available
-    if ! check_port "$GOOSE_SERVER_PORT"; then
-        if [ "$FORCE_FREE_PORTS" = "true" ]; then
-            free_port "$GOOSE_SERVER_PORT" "Goose Web Server" || return 1
-        else
-            log_warn "Port $GOOSE_SERVER_PORT is busy. Checking if it's already Goose..."
-            local response=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:$GOOSE_SERVER_PORT" 2>/dev/null || echo "000")
-            if [ "$response" = "200" ]; then
-                log_success "Goose already running on port $GOOSE_SERVER_PORT"
-                # Find and save the existing Goose PID
-                local existing_pid=$(lsof -ti:$GOOSE_SERVER_PORT 2>/dev/null | head -1)
-                if [ -n "$existing_pid" ]; then
-                    echo "$existing_pid" > "$LOGS_DIR/goose_web.pid"
-                    log_info "Saved existing Goose PID: $existing_pid"
-                fi
-                return 0
-            else
-                log_error "Port $GOOSE_SERVER_PORT is busy with another service (HTTP $response)"
-                return 1
-            fi
-        fi
-    fi
-    
-    # Check if Goose binary is available
-    local goose_bin=$(get_goose_binary)
-    if [ -z "$goose_bin" ] || [ ! -x "$goose_bin" ]; then
-        log_error "Goose binary not found"
-        log_info "Install with: brew install --cask block-goose OR brew install block-goose-cli"
-        return 1
-    fi
-    
-    log_info "Using Goose binary: $goose_bin"
-    
-    # Check Goose configuration before starting
-    log_info "Checking Goose configuration..."
-    if ! "$goose_bin" --version > /dev/null 2>&1; then
-        log_error "Goose CLI is not working properly"
-        log_info "Hint: prefer Homebrew CLI (brew install block-goose-cli) or set GOOSE_BIN=<path>"
-        return 1
-    fi
-    
-    # Validate Goose configuration
-    if ! validate_goose_config; then
-        log_warn "Goose configuration validation failed"
-        # Avoid interactive configure here; instruct user instead
-        log_info "If needed, run manually: $goose_bin configure"
-    fi
-    
-    # Start Goose web server
-    (
-        cd "$REPO_ROOT"
-        "$goose_bin" web --port "$GOOSE_SERVER_PORT" > "$LOGS_DIR/goose_web.log" 2>&1 &
-        echo $! > "$LOGS_DIR/goose_web.pid"
-    )
-    
-    # Wait for startup with progressive checks
-    log_info "Waiting for Goose to start..."
-    local attempts=0
-    local max_attempts=10
-    
-    while [ $attempts -lt $max_attempts ]; do
-        sleep 1
-        attempts=$((attempts + 1))
-        
-        # Check if process is still running
-        if [ -f "$LOGS_DIR/goose_web.pid" ] && ps -p $(cat "$LOGS_DIR/goose_web.pid") > /dev/null 2>&1; then
-            # Check if it's responding
-            local response=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:$GOOSE_SERVER_PORT" 2>/dev/null || echo "000")
-            if [ "$response" = "200" ]; then
-                log_success "Goose Web Server started (PID: $(cat "$LOGS_DIR/goose_web.pid"), attempt $attempts)"
-                return 0
-            elif [ "$response" != "000" ]; then
-                log_info "Goose responding with HTTP $response, waiting..."
-            fi
-        else
-            log_error "Goose process died during startup (attempt $attempts)"
-            if [ -f "$LOGS_DIR/goose_web.log" ]; then
-                log_error "Last log lines:"
-                tail -3 "$LOGS_DIR/goose_web.log" | sed 's/^/  /'
-            fi
-            return 1
-        fi
-    done
-    
-    log_error "Goose Web Server failed to respond after $max_attempts attempts"
-    if [ -f "$LOGS_DIR/goose_web.log" ]; then
-        log_error "Check logs: tail -f $LOGS_DIR/goose_web.log"
-    fi
-    return 1
+    log_warn "Goose integration is deprecated in ATLAS v5.0"
+    log_info "System now uses Pure MCP mode for all operations"
+    log_info "If you need Goose, please use ATLAS v4.0 or configure manually"
+    return 0  # Return success to not block startup
 }
+
+validate_goose_config() {
+    # Deprecated - no-op
+    return 0
+}
+
+repair_goose_config() {
+    # Deprecated - no-op
+    return 0
+}
+
+detect_goose_port() {
+    # Deprecated - return empty
+    echo ""
+}
+
+# ===================================================================
+# End of deprecated functions
+# ===================================================================
 
 start_tts_service() {
     log_progress "Starting TTS Service on port $TTS_PORT..."
@@ -678,12 +495,12 @@ start_fallback_llm() {
 
 cmd_start() {
     print_header
-    log_info "Starting ATLAS System..."
+    log_info "Starting ATLAS v5.0 System (Pure MCP Mode)..."
     
     init_directories
     
-    # Start Goose Web Server
-    start_goose_web_server
+    # v5.0: Goose is deprecated, using Pure MCP mode
+    # start_goose_web_server  # DEPRECATED in v5.0
     
     # Start all other services in order
     start_tts_service
@@ -901,26 +718,21 @@ cmd_diagnose() {
     
     # Check Goose configuration
     echo ""
-    echo -e "${CYAN}Goose Configuration:${NC}"
+    echo -e "${CYAN}AI Backend Configuration (v5.0):${NC}"
     echo "─────────────────────────────────────────"
+    echo -e "${GREEN}✓${NC} Mode: Pure MCP (Goose deprecated)"
+    echo "  LLM API: ${LLM_API_ENDPOINT:-http://localhost:4000}"
+    if [ -n "${LLM_API_FALLBACK_ENDPOINT}" ]; then
+        echo "  Fallback API: ${LLM_API_FALLBACK_ENDPOINT}"
+    fi
+    
+    # Show deprecated Goose config if it exists (for reference)
     local config_file="$HOME/.config/goose/config.yaml"
     if [ -f "$config_file" ]; then
-        echo -e "${GREEN}✓${NC} Config file exists: $config_file"
-        if validate_goose_config; then
-            echo -e "${GREEN}✓${NC} Configuration is valid"
-        else
-            echo -e "${YELLOW}⚠${NC} Configuration needs attention"
-        fi
-        
-        # Show key config values
-        if grep -q "provider:" "$config_file"; then
-            local provider=$(grep "provider:" "$config_file" | head -1 | cut -d: -f2 | tr -d ' ')
-            echo "  Provider: $provider"
-        fi
-        if grep -q "model:" "$config_file"; then
-            local model=$(grep "model:" "$config_file" | head -1 | cut -d: -f2 | tr -d ' ')
-            echo "  Model: $model"
-        fi
+        echo ""
+        echo -e "${YELLOW}⚠${NC} Goose configuration found (deprecated in v5.0)"
+        echo "  Config file: $config_file"
+        echo "  Note: ATLAS v5.0 uses Pure MCP mode"
     else
         echo -e "${RED}✗${NC} Config file not found"
         echo "  Run: $goose_bin configure"
