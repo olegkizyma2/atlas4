@@ -319,20 +319,43 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
         
         logger.system('executor', `Calling chat API at ${apiUrl} with model ${modelConfig.model}`);
         
+        // Build system prompt with context awareness (BEFORE try block so it's available in fallback)
+        const systemPrompt = `Ти - Atlas, інтелектуальний AI-асистент. Твоя роль:
+1. Уважно читай всю розмову (контекст) вище
+2. Пам'ятай що користувач розповідав про себе
+3. ВАЖЛИВО: Якщо користувач запитує про факти що він розповідав - ВІДПОВІДАЙ ГЛАҐИ НА КОНТЕКСТІ
+4. Якщо користувач говорив "Мене звуть Олег" - ТИ ЗНАЄШ ЙОГО ІМ'Я!
+5. Відповідай природно, дружньо та по-українськи
+6. Будь стислим та корисним
+
+ПАМ'ЯТИ ПРО КОНТЕКСТ ЗА ВСІМА ПОПЕРЕДНІМИ ПОВІДОМЛЕННЯМИ!`;
+        
+        logger.system('executor', `[SYSTEM-PROMPT] Built context-aware prompt`);
+        
         // Call LLM for chat response with fallback support
         let chatResponse;
         let usedFallback = false;
         
         try {
+
+          logger.system('executor', `[SYSTEM-PROMPT] Built context-aware prompt`);
+          
+          // Prepare messages array
+          const messagesArray = [
+            { 
+              role: 'system', 
+              content: systemPrompt
+            },
+            ...recentMessages
+          ];
+          
+          // Log what we're sending to LLM
+          logger.system('executor', `[API-REQUEST] Messages to send: ${JSON.stringify(messagesArray, null, 2)}`);
+          logger.system('executor', `[API-REQUEST] Model: ${modelConfig.model}, Temp: ${modelConfig.temperature}, Tokens: ${modelConfig.max_tokens}`);
+          
           const response = await axios.post(apiUrl, {
             model: modelConfig.model,
-            messages: [
-              { 
-                role: 'system', 
-                content: 'Ти - Atlas, AI-асистент. Відповідай природно, дружньо та по-українськи. Будь стислим та корисним.' 
-              },
-              ...recentMessages
-            ],
+            messages: messagesArray,
             temperature: modelConfig.temperature,
             max_tokens: modelConfig.max_tokens
           }, {
@@ -340,6 +363,10 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
             timeout: 30000
           });
           chatResponse = response;
+          
+          // Log API response
+          const llmAnswer = response.data?.choices?.[0]?.message?.content;
+          logger.system('executor', `[API-RESPONSE] LLM returned: ${llmAnswer ? llmAnswer.substring(0, 100) : 'EMPTY'}`);
           
         } catch (primaryError) {
           // Try fallback if primary fails
@@ -354,7 +381,7 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
                 messages: [
                   { 
                     role: 'system', 
-                    content: 'Ти - Atlas, AI-асистент. Відповідай природно, дружньо та по-українськи. Будь стислим та корисним.' 
+                    content: systemPrompt
                   },
                   ...recentMessages
                 ],
