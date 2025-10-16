@@ -140,11 +140,15 @@ class AtlasWebSocketClient {
 
       // ADDED 16.10.2025 - Handle agent and chat messages from MCP workflow
       case 'agent_message':
-        this.emit('agent-message', data);
+        // FIXED 16.10.2025 - Передаємо весь message object з type та data
+        this.logger.debug('Agent message received', { type, data });
+        this.emit('agent-message', { type, data });
         break;
 
       case 'chat_message':
-        this.emit('chat-message', data);
+        // FIXED 16.10.2025 - Передаємо весь message object з type та data
+        this.logger.debug('Chat message received', { type, data });
+        this.emit('chat-message', { type, data });
         break;
 
       case 'subscribed':
