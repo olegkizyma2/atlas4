@@ -16,9 +16,8 @@ import { MCPManager } from '../ai/mcp-manager.js';
 import { MCPTodoManager } from '../workflow/mcp-todo-manager.js';
 import { TTSSyncManager } from '../workflow/tts-sync-manager.js';
 import {
-    BackendSelectionProcessor,
     AtlasTodoPlanningProcessor,
-    ServerSelectionProcessor,  // NEW 15.10.2025
+    ServerSelectionProcessor,
     TetyanaПlanToolsProcessor,
     TetyanaExecuteToolsProcessor,
     GrishaVerifyItemProcessor,
@@ -227,16 +226,6 @@ export function registerMCPWorkflowServices(container) {
  * @returns {DIContainer}
  */
 export function registerMCPProcessors(container) {
-    // Backend Selection Processor (Stage 0.5)
-    container.singleton('backendSelectionProcessor', (c) => {
-        return new BackendSelectionProcessor({
-            logger: c.resolve('logger')
-        });
-    }, {
-        dependencies: ['logger'],
-        metadata: { category: 'processors', priority: 40 }
-    });
-
     // Atlas TODO Planning Processor (Stage 1-MCP)
     container.singleton('atlasTodoPlanningProcessor', (c) => {
         return new AtlasTodoPlanningProcessor({
@@ -248,7 +237,7 @@ export function registerMCPProcessors(container) {
         metadata: { category: 'processors', priority: 40 }
     });
 
-    // Server Selection Processor (Stage 2.0-MCP) - NEW 15.10.2025
+    // Server Selection Processor (Stage 2.0-MCP)
     container.singleton('serverSelectionProcessor', (c) => {
         return new ServerSelectionProcessor({
             mcpManager: c.resolve('mcpManager'),

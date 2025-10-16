@@ -49,7 +49,7 @@ export const USER_CONFIG = {
 };
 
 // === AI MODELS CONFIGURATION ===
-// Конфігурація моделей для різних стадій (тільки для system stages, НЕ для Goose)
+// Конфігурація моделей для різних стадій (система використовує LLM API на порту 4000)
 export const AI_MODEL_CONFIG = {
   // API endpoint для system stages
   apiEndpoint: 'http://localhost:4000/v1/chat/completions',
@@ -121,7 +121,7 @@ export const MCP_MODEL_CONFIG = {
       description: 'Бінарна класифікація - швидка легка модель (45 req/min)'
     },
 
-    // Stage 0.5: Backend Selection (goose vs mcp)
+    // Stage 0.5: Backend Selection (deprecated - now MCP-only)
     backend_selection: {
       get model() { return process.env.MCP_MODEL_BACKEND_SELECTION || 'mistral-ai/ministral-3b'; },
       get temperature() { return parseFloat(process.env.MCP_TEMP_BACKEND_SELECTION || '0.1'); },
@@ -182,56 +182,26 @@ export const MCP_MODEL_CONFIG = {
 };
 
 // === AI BACKEND CONFIGURATION (NEW 13.10.2025) ===
-// Модульна система для переключення між Goose та прямими MCP серверами
-// CRITICAL: Use getters to read fresh values from process.env (after dotenv.config())
+// MCP Dynamic TODO System Configuration
+// SIMPLIFIED: MCP-only, no Goose fallback
 export const AI_BACKEND_CONFIG = {
-  // Режим роботи: 'goose', 'mcp', 'hybrid'
-  // FIXED 13.10.2025 - getter reads from process.env dynamically
-  get mode() {
-    return process.env.AI_BACKEND_MODE || 'hybrid';
-  },
+  // Always MCP mode
+  mode: 'mcp',
+  
+  // No fallback - pure MCP
+  primary: 'mcp',
+  fallback: null,
+  disableFallback: true,
 
-  // Primary backend для task execution
-  get primary() {
-    return process.env.AI_BACKEND_PRIMARY || 'goose';
-  },
-
-  // Fallback при недоступності primary
-  get fallback() {
-    return process.env.AI_BACKEND_FALLBACK || 'mcp';
-  },
-
-  // НОВИНКА 13.10.2025 - Дозволити/заборонити fallback на Goose
-  // Якщо true - при помилках MCP система падатиме з error (strict mode)
-  // Якщо false - при помилках MCP буде fallback на Goose (default)
-  get disableFallback() {
-    return process.env.AI_BACKEND_DISABLE_FALLBACK === 'true';
-  },
-
-  // Retry налаштування
+  // Retry налаштування для MCP
   retry: {
-    maxAttempts: 2,
+    maxAttempts: 3,
     timeoutMs: 30000,
-    switchToFallbackOnTimeout: true
+    exponentialBackoff: true
   },
 
-  // Provider конфігурації
+  // MCP Provider конфігурація
   providers: {
-    // Goose Desktop через WebSocket
-    goose: {
-      enabled: true,
-      type: 'websocket',
-      url: 'ws://localhost:3000/ws',
-      apiKey: process.env.GITHUB_TOKEN,
-      model: 'gpt-4o',
-
-      // MCP extensions через Goose
-      extensions: ['developer', 'playwright', 'computercontroller'],
-
-      // Коли використовувати
-      useFor: ['complex_tasks', 'multi_step', 'reasoning']
-    },
-
     // Прямі MCP сервери
     mcp: {
       enabled: true,
@@ -251,7 +221,7 @@ export const AI_BACKEND_CONFIG = {
           command: 'npx',
           args: ['-y', '@executeautomation/playwright-mcp-server'],
           env: {
-            HEADLESS: 'true'  // FIXED 16.10.2025 - Run in headless mode to avoid browser popup
+            HEADLESS: 'true'
           }
         },
 
@@ -269,9 +239,8 @@ export const AI_BACKEND_CONFIG = {
           env: {}
         },
 
-        // DISABLED 14.10.2025: GitHub MCP server (@wipiano/github-mcp-lightweight v0.1.1) 
-        // зависає при ініціалізації з GITHUB_TOKEN, спричиняє крах orchestrator
-        // TODO: Спробувати альтернативний пакет або оновлену версію
+        // DISABLED: GitHub MCP server - зависає при ініціалізації
+        // TODO: Try alternative package when available
         /*
         github: {
           command: 'npx',
@@ -309,7 +278,7 @@ export const AI_BACKEND_CONFIG = {
         temperature: 0.3
       },
 
-      // Коли використовувати
+      // Коли використовувати MCP
       useFor: [
         'file_operations',      // filesystem
         'browser_automation',   // playwright
@@ -324,9 +293,9 @@ export const AI_BACKEND_CONFIG = {
     }
   },
 
-  // Routing rules (коли який backend)
+  // MCP keyword detection (for routing optimization)
   routing: {
-    // Якщо prompt містить ці ключові слова → використовувати MCP
+    // Якщо prompt містить ці ключові слова → підказка що це MCP завдання
     mcpKeywords: [
       // Файли
       'створи файл', 'create file', 'save file',
@@ -356,13 +325,6 @@ export const AI_BACKEND_CONFIG = {
       // Memory
       'запамʼятай', 'remember', 'save context',
       'що ти пам\'ятаєш', 'recall'
-    ],
-
-    // Якщо prompt містить ці → Goose
-    gooseKeywords: [
-      'проаналізуй', 'analyze', 'порівняй', 'compare',
-      'поясни', 'explain', 'розкажи', 'tell',
-      'знайди інформацію', 'search for', 'find information'
     ]
   }
 };
@@ -571,7 +533,6 @@ export const ENV_CONFIG = {
   // Зовнішні сервіси
   external: {
     openaiApiKey: process.env.OPENAI_API_KEY,
-    gooseApiKey: process.env.GOOSE_API_KEY,
     githubToken: process.env.GITHUB_TOKEN
   }
 };
