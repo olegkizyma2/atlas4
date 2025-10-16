@@ -259,27 +259,40 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
     // ===============================================
     // Handle CHAT mode - Simple response from Atlas
     // ===============================================
+    logger.info('executor', `[CHAT-MODE-CHECK] mode=${mode}, typeof=${typeof mode}, mode===chat: ${mode === 'chat'}`);
+    
     if (mode === 'chat') {
       logger.workflow('stage', 'atlas', 'Chat mode detected - Atlas will respond directly', { 
         sessionId: session.id 
       });
 
+      // DIAGNOSTIC - Add detailed logging to find where code execution stops
+      logger.info('executor', `[CHAT-DEBUG] About to enter chat try block`);
+
       // FIXED 16.10.2025 - Implement actual chat response from Atlas
       try {
+        logger.info('executor', `[CHAT-DEBUG] Step 1: Importing axios`);
         const axios = (await import('axios')).default;
+        logger.info('executor', `[CHAT-DEBUG] Step 2: Getting model config`);
         const modelConfig = GlobalConfig.AI_MODEL_CONFIG.models.chat;
+        logger.info('executor', `[CHAT-DEBUG] Step 3: Model config retrieved: ${JSON.stringify(modelConfig)}`);
         
         // FIXED 16.10.2025 - Initialize chatThread if not exists
         if (!session.chatThread) {
+          logger.info('executor', `[CHAT-DEBUG] Step 4: Initializing new chatThread`);
           session.chatThread = { messages: [], lastTopic: undefined };
+        } else {
+          logger.info('executor', `[CHAT-DEBUG] Step 4: ChatThread exists with ${session.chatThread.messages.length} messages`);
         }
         
         // FIXED 16.10.2025 - Add current user message to session history BEFORE building context
+        logger.info('executor', `[CHAT-DEBUG] Step 5: Adding user message to history`);
         session.chatThread.messages.push({
           role: 'user',
           content: userMessage,
           timestamp: new Date().toISOString()
         });
+        logger.info('executor', `[CHAT-DEBUG] Step 6: User message added, total messages: ${session.chatThread.messages.length}`);
         
         // DIAGNOSTIC 16.10.2025 - Log session state
         logger.info('executor', `[CHAT-CONTEXT] SessionId: ${session.id}`);
