@@ -353,7 +353,29 @@ class AtlasApp {
       if (this.managers.livingBehavior) {
         this.managers.livingBehavior.onTTSEnd();
       }
-    });        // Підключаємось
+    });
+
+    // ADDED 16.10.2025 - Handle agent and chat messages from MCP workflow
+    this.managers.webSocket.on('agent-message', (messageEvent) => {
+      this.logger.debug('📨 Agent message received via WebSocket', messageEvent);
+      if (this.managers.chat && messageEvent.data) {
+        // Forward to chat manager's handleAgentMessage
+        this.managers.chat.handleAgentMessage(messageEvent.data);
+      }
+    });
+
+    this.managers.webSocket.on('chat-message', (messageEvent) => {
+      this.logger.debug('📨 Chat message received via WebSocket', messageEvent);
+      if (this.managers.chat && messageEvent.data) {
+        // Display as system message
+        const { message, messageType } = messageEvent.data;
+        if (message) {
+          this.managers.chat.addMessage(message, 'system');
+        }
+      }
+    });
+    
+    // Підключаємось
     this.managers.webSocket.connect();
   }
 

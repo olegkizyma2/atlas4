@@ -16,7 +16,7 @@ class AtlasWebSocketClient {
     this.heartbeatTimer = null;
     this.isManualDisconnect = false;
 
-    this.subscriptions = new Set(['logs', 'model3d', 'tts']);
+    this.subscriptions = new Set(['logs', 'model3d', 'tts', 'chat']); // ADDED 'chat' 16.10.2025
     this.listeners = new Map();
 
     this.logger = logger;
