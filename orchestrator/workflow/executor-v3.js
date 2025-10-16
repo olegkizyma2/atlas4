@@ -265,20 +265,8 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
       })}\n\n`);
     }
 
-    // Send TODO plan to chat via WebSocket (ADDED 14.10.2025)
-    if (wsManager) {
-      try {
-        const itemsList = todo.items.map((item, idx) => `${idx + 1}. ${item.action}`).join('\n');
-        wsManager.broadcastToSubscribers('chat', 'chat_message', {
-          message: `📋 План створено (${todo.items.length} ${getPluralForm(todo.items.length, 'пункт', 'пункти', 'пунктів')}):\n${itemsList}`,
-          messageType: 'info',
-          sessionId: session.id,
-          timestamp: new Date().toISOString()
-        });
-      } catch (error) {
-        logger.warn(`Failed to send WebSocket message: ${error.message}`);
-      }
-    }
+    // REMOVED 16.10.2025 - Duplicate message (mcp-todo-manager already sends via agent_message)
+    // TODO plan is now sent correctly via agent_message with agent='atlas' in mcp-todo-manager.js line ~243
 
     // Execute TODO items one by one
     for (let i = 0; i < todo.items.length; i++) {
@@ -420,19 +408,7 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
               attempts: attempt
             });
 
-            // Send success message via WebSocket (ADDED 14.10.2025)
-            if (wsManager) {
-              try {
-                wsManager.broadcastToSubscribers('chat', 'chat_message', {
-                  message: `✅ Виконано: ${item.action}`,
-                  messageType: 'success',
-                  sessionId: session.id,
-                  timestamp: new Date().toISOString()
-                });
-              } catch (error) {
-                logger.warn(`Failed to send WebSocket message: ${error.message}`);
-              }
-            }
+            // Success message is sent via agent_message with agent='tetyana' in mcp-todo-manager.js
 
             break; // Exit retry loop
           }
