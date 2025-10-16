@@ -133,7 +133,7 @@ export class MCPTodoManager {
             if (isAgentMessage) {
                 // Send as agent_message (will show as [TETYANA], [GRISHA], etc in chat)
                 let agentName = type.toLowerCase();
-                
+
                 // Extract agent name from message if type is 'agent'
                 if (agentName === 'agent') {
                     const match = message.match(/^\[([A-Z]+)\]/);
@@ -161,7 +161,7 @@ export class MCPTodoManager {
                     timestamp: new Date().toISOString()
                 });
             }
-            
+
             this.logger.system('mcp-todo', `[TODO] ✅ Chat message sent successfully`);
         } catch (error) {
             this.logger.warn(`[MCP-TODO] Failed to send chat message: ${error.message}`, {
@@ -210,7 +210,7 @@ export class MCPTodoManager {
             // IMPROVED 16.10.2025 - Support fallback API endpoint with automatic retry
             const apiEndpointConfig = MCP_MODEL_CONFIG.apiEndpoint;
             let apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
-            
+
             this.logger.system('mcp-todo', `[TODO] Using primary API endpoint: ${apiUrl}`);
 
             let apiResponse;
@@ -230,7 +230,7 @@ export class MCPTodoManager {
                     timeout: 120000  // FIXED 14.10.2025 - 120s для mistral-small-2503 (повільна але якісна модель)
                 });
                 apiResponse = apiResponse_attempt;
-                
+
             } catch (primaryError) {
                 // Try fallback if primary fails
                 if (apiEndpointConfig.fallback && !usedFallback) {
@@ -239,11 +239,11 @@ export class MCPTodoManager {
                         primaryError: primaryError.message,
                         code: primaryError.code
                     });
-                    
+
                     apiUrl = apiEndpointConfig.fallback;
                     usedFallback = true;
                     this.logger.system('mcp-todo', `[TODO] Using fallback API endpoint: ${apiUrl}`);
-                    
+
                     try {
                         const apiResponse_fallback = await axios.post(apiUrl, {
                             model: modelConfig.model,
@@ -259,7 +259,7 @@ export class MCPTodoManager {
                         });
                         apiResponse = apiResponse_fallback;
                         this.logger.system('mcp-todo', `[TODO] ✅ Fallback API succeeded`);
-                        
+
                     } catch (fallbackError) {
                         this.logger.error('mcp-todo', `[TODO] Fallback API also failed: ${fallbackError.message}`, {
                             category: 'mcp-todo',
@@ -277,7 +277,7 @@ export class MCPTodoManager {
             this.logger.system('mcp-todo', `[TODO] Raw API response status: ${apiResponse.status}`);
             this.logger.system('mcp-todo', `[TODO] Raw API response data keys: ${Object.keys(apiResponse.data).join(', ')}`);
             this.logger.system('mcp-todo', `[TODO] Raw API response: ${JSON.stringify(apiResponse.data).substring(0, 500)}...`);
-            
+
             if (!apiResponse.data) {
                 throw new Error('API response missing data field');
             }
@@ -387,7 +387,7 @@ export class MCPTodoManager {
                     stack: error.stack?.substring(0, 500)
                 });
             }
-            
+
             throw new Error(`TODO creation failed: ${error.message}`);
         }
     }
@@ -502,11 +502,11 @@ export class MCPTodoManager {
                 // ADDED 16.10.2025 - Select optimal MCP servers BEFORE tool planning
                 let selectedServers = null;
                 let toolsSummary = null;
-                
+
                 try {
                     const serverSelection = await this._selectMCPServers(item, todo);
                     selectedServers = serverSelection.selected_servers;
-                    
+
                     // Generate tools summary ONLY for selected servers
                     if (selectedServers && selectedServers.length > 0) {
                         toolsSummary = this.mcpManager.getDetailedToolsSummary(selectedServers);
@@ -523,9 +523,9 @@ export class MCPTodoManager {
                 }
 
                 // Stage 2.1: Plan Tools (Tetyana) - with pre-selected servers
-                const plan = await this.planTools(item, todo, { 
-                    selectedServers, 
-                    toolsSummary 
+                const plan = await this.planTools(item, todo, {
+                    selectedServers,
+                    toolsSummary
                 });
                 await this._safeTTSSpeak(plan.tts_phrase, { mode: 'quick', duration: 150, agent: 'tetyana' });
 
@@ -533,12 +533,12 @@ export class MCPTodoManager {
                 // Take screenshot and optionally adjust plan based on current state
                 const screenshotResult = await this.screenshotAndAdjust(plan, item);
                 const finalPlan = screenshotResult.plan;
-                
+
                 // TTS feedback about screenshot/adjustment
-                await this._safeTTSSpeak(finalPlan.tts_phrase || 'Скрін готовий', { 
-                    mode: 'quick', 
-                    duration: screenshotResult.adjusted ? 200 : 100, 
-                    agent: 'tetyana' 
+                await this._safeTTSSpeak(finalPlan.tts_phrase || 'Скрін готовий', {
+                    mode: 'quick',
+                    duration: screenshotResult.adjusted ? 200 : 100,
+                    agent: 'tetyana'
                 });
 
                 if (screenshotResult.adjusted) {
@@ -551,9 +551,9 @@ export class MCPTodoManager {
                 await this._safeTTSSpeak(execution.tts_phrase, { mode: 'normal', duration: 800, agent: 'tetyana' });
 
                 // Stage 2.3: Verify Item (Grisha) - with same pre-selected servers
-                const verification = await this.verifyItem(item, execution, { 
+                const verification = await this.verifyItem(item, execution, {
                     selectedServers,  // ADDED 16.10.2025 - Pass same servers to Grisha
-                    toolsSummary 
+                    toolsSummary
                 });
                 // FIXED 14.10.2025 NIGHT - Grisha's voice for verification
                 await this._safeTTSSpeak(verification.tts_phrase, { mode: 'normal', duration: 800, agent: 'grisha' });
@@ -655,13 +655,13 @@ export class MCPTodoManager {
             // PRIORITY 1: Use pre-filtered tools from options (Stage 2.0 selection)
             if (options.selectedServers && Array.isArray(options.selectedServers) && options.selectedServers.length > 0) {
                 this.logger.system('mcp-todo', `[TODO] 🎯 Using ${options.selectedServers.length} pre-selected servers: ${options.selectedServers.join(', ')}`);
-                
+
                 // Get tools ONLY from selected servers
                 availableTools = this.mcpManager.getToolsFromServers(options.selectedServers);
                 toolsSummary = options.toolsSummary || this.mcpManager.getDetailedToolsSummary(options.selectedServers);
-                
+
                 const totalTools = availableTools.length;
-                this.logger.system('mcp-todo', `[TODO] 🎯 Filtered to ${totalTools} tools (was 92+) - ${Math.round((1 - totalTools/92) * 100)}% reduction`);
+                this.logger.system('mcp-todo', `[TODO] 🎯 Filtered to ${totalTools} tools (was 92+) - ${Math.round((1 - totalTools / 92) * 100)}% reduction`);
             }
             // PRIORITY 2: Use pre-generated summary (legacy compatibility)
             else if (options.toolsSummary) {
@@ -932,7 +932,7 @@ Create precise MCP tool execution plan.
             }
 
             // Return adjusted or original plan
-            const finalPlan = adjustment.needs_adjustment && adjustment.adjusted_plan 
+            const finalPlan = adjustment.needs_adjustment && adjustment.adjusted_plan
                 ? { ...adjustment.adjusted_plan, tts_phrase: adjustment.tts_phrase }
                 : { ...plan, tts_phrase: adjustment.tts_phrase || 'Скрін готовий' };
 
@@ -1082,13 +1082,13 @@ Create precise MCP tool execution plan.
             // STEP 1: Grisha plans which verification tools to use (screenshot is mandatory)
             this.logger.system('mcp-todo', `[TODO] 📋 Grisha planning verification tools...`);
             const verificationPlan = await this._planVerificationTools(item, execution, options);
-            
+
             this.logger.system('mcp-todo', `[TODO] 📋 Grisha planned ${verificationPlan.tool_calls.length} verification tools`);
 
             // STEP 2: Grisha executes verification tools
             this.logger.system('mcp-todo', `[TODO] 🔧 Grisha executing verification tools...`);
             const verificationResults = await this._executeVerificationTools(verificationPlan, item);
-            
+
             this.logger.system('mcp-todo', `[TODO] 🔧 Verification tools executed: ${verificationResults.all_successful ? 'SUCCESS' : 'PARTIAL'}`);
 
             // STEP 3: Grisha analyzes results and makes final decision
@@ -1468,7 +1468,7 @@ Context: ${JSON.stringify(context, null, 2)}
                         component: 'mcp-todo',
                         errorPosition: parseError.message.match(/position (\d+)/)?.[1] || 'unknown'
                     });
-                    
+
                     try {
                         const sanitized = this._sanitizeJsonString(cleanResponse);
                         parsed = JSON.parse(sanitized);
@@ -1565,7 +1565,7 @@ Context: ${JSON.stringify(context, null, 2)}
                         category: 'mcp-todo',
                         component: 'mcp-todo'
                     });
-                    
+
                     try {
                         const sanitized = this._sanitizeJsonString(cleanResponse);
                         parsed = JSON.parse(sanitized);
@@ -1586,7 +1586,7 @@ Context: ${JSON.stringify(context, null, 2)}
             } else {
                 parsed = cleanResponse;
             }
-            
+
             return {
                 verified: parsed.verified === true,
                 reason: parsed.reason || '',
@@ -1658,7 +1658,7 @@ Context: ${JSON.stringify(context, null, 2)}
                         category: 'mcp-todo',
                         component: 'mcp-todo'
                     });
-                    
+
                     try {
                         const sanitized = this._sanitizeJsonString(cleanResponse);
                         parsed = JSON.parse(sanitized);
@@ -1679,7 +1679,7 @@ Context: ${JSON.stringify(context, null, 2)}
             } else {
                 parsed = cleanResponse;
             }
-            
+
             return {
                 strategy: parsed.strategy || 'retry',
                 updated_todo_item: parsed.updated_todo_item || {},
@@ -1784,10 +1784,10 @@ Context: ${JSON.stringify(context, null, 2)}
         // Remove trailing commas before closing braces/brackets (handles newlines and multiple spaces)
         sanitized = sanitized.replace(/,(\s*[\r\n]+\s*)([}\]])/g, '$1$2');  // comma before newline and }]
         sanitized = sanitized.replace(/,\s*([}\]])/g, '$1');  // comma directly before }]
-        
+
         // ADDED 15.10.2025 - Remove multiple consecutive commas
         sanitized = sanitized.replace(/,\s*,+/g, ',');
-        
+
         // ADDED 15.10.2025 - Remove trailing commas at end of lines
         sanitized = sanitized.replace(/,(\s*[\r\n])/g, '$1');
 
@@ -1974,7 +1974,7 @@ Context: ${JSON.stringify(context, null, 2)}
         try {
             // ENHANCEMENT 16.10.2025 - Use pre-selected servers if available (same as Tetyana)
             let toolsSummary;
-            
+
             if (options.selectedServers && Array.isArray(options.selectedServers) && options.selectedServers.length > 0) {
                 this.logger.system('mcp-todo', `[TODO] 🎯 Grisha using ${options.selectedServers.length} pre-selected servers: ${options.selectedServers.join(', ')}`);
                 toolsSummary = options.toolsSummary || this.mcpManager.getDetailedToolsSummary(options.selectedServers);
@@ -2129,19 +2129,21 @@ Return ONLY JSON:
         try {
             // FIXED 16.10.2025 - Ensure execution.results is an array
             if (!execution || !Array.isArray(execution.results)) {
-                this.logger.warn(`[MCP-TODO] Execution results missing or not array, using fallback`, {
+                this.logger.warn(`[MCP-TODO] Execution results missing or not array, cannot verify`, {
                     category: 'mcp-todo',
                     component: 'mcp-todo',
                     hasExecution: !!execution,
                     isArray: Array.isArray(execution?.results)
                 });
-                
-                // Graceful fallback - just use tool execution success as verification
+
+                // CRITICAL FIX 16.10.2025 EVENING: Cannot verify without execution results!
+                // Tool execution flag is NOT sufficient for verification
+                // Must have actual results to analyze
                 return {
-                    verified: execution?.all_successful || false,
-                    reason: execution?.all_successful ? 'Tool execution successful' : 'Tool execution failed or no results',
-                    evidence: `Execution: ${execution?.all_successful ? 'SUCCESS' : 'FAILED'}`,
-                    tts_phrase: execution?.all_successful ? 'Підтверджено' : 'Не підтверджено'
+                    verified: false,
+                    reason: 'Execution data invalid - cannot verify without results',
+                    evidence: `Execution structure incomplete or corrupted`,
+                    tts_phrase: 'Не можу перевірити - немає даних виконання'
                 };
             }
 
@@ -2165,13 +2167,14 @@ Return ONLY JSON:
                     hasVerificationResults: !!verificationResults,
                     isArray: Array.isArray(verificationResults?.results)
                 });
-                
-                // Fallback when verification tools didn't run
+
+                // CRITICAL FIX 16.10.2025 EVENING: Cannot verify without actual verification results!
+                // Do NOT trust execution.all_successful alone - tools may execute but produce wrong output
                 return {
-                    verified: execution.all_successful,
-                    reason: 'Verified by execution success (no verification tools run)',
-                    evidence: `Executed ${execution.results.length} tools with ${execution.all_successful ? 'success' : 'failures'}`,
-                    tts_phrase: execution.all_successful ? 'Підтверджено' : 'Не підтверджено'
+                    verified: false,
+                    reason: 'Unable to verify - no verification tools executed',
+                    evidence: `Executed ${execution.results.length} tools but verification failed to produce results`,
+                    tts_phrase: 'Не можу підтвердити - немає даних перевірки'
                 };
             }
 
@@ -2190,7 +2193,7 @@ Return ONLY JSON:
             const screenshotResult = verificationResults.results.find(r => r.tool === 'screenshot');
             const hasScreenshot = screenshotResult && screenshotResult.success;
             const screenshotPath = hasScreenshot && screenshotResult.result ? (screenshotResult.result.path || '[no path]') : '[no screenshot]';
-            
+
             // Build analysis prompt with available evidence
             let analysisPrompt = `Verify that the action was executed correctly.
 
@@ -2281,7 +2284,7 @@ Verification evidence: ${verificationResults.results.length} checks performed`;
             }
 
             // Build servers description for LLM
-            const serversDescription = availableServers.map(s => 
+            const serversDescription = availableServers.map(s =>
                 `- ${s.name} (${s.tool_count} tools)`
             ).join('\n');
 
@@ -2360,7 +2363,7 @@ Select 1-2 most relevant servers.
             const selectedServers = parsed.selected_servers || [];
 
             // Validate selected servers exist
-            const validServers = selectedServers.filter(s => 
+            const validServers = selectedServers.filter(s =>
                 availableServers.some(avail => avail.name === s)
             );
 
