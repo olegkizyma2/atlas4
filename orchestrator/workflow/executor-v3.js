@@ -269,14 +269,31 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
         const axios = (await import('axios')).default;
         const modelConfig = GlobalConfig.AI_MODEL_CONFIG.models.chat;
         
-        // Build chat context from recent messages
-        const recentMessages = (session.chatThread?.messages || []).slice(-5).map(msg => ({
+        // FIXED 16.10.2025 - Initialize chatThread if not exists
+        if (!session.chatThread) {
+          session.chatThread = { messages: [], lastTopic: undefined };
+        }
+        
+        // FIXED 16.10.2025 - Add current user message to session history BEFORE building context
+        session.chatThread.messages.push({
+          role: 'user',
+          content: userMessage,
+          timestamp: new Date().toISOString()
+        });
+        
+        // DIAGNOSTIC 16.10.2025 - Log session state
+        logger.info('executor', `[CHAT-CONTEXT] SessionId: ${session.id}`);
+        logger.info('executor', `[CHAT-CONTEXT] Total messages in history: ${session.chatThread.messages.length}`);
+        logger.info('executor', `[CHAT-CONTEXT] History: ${JSON.stringify(session.chatThread.messages.map(m => ({ role: m.role, content: m.content.substring(0, 50) })), null, 2)}`);
+        
+        // Build chat context from recent messages (last 5 exchanges = 10 messages)
+        const recentMessages = session.chatThread.messages.slice(-10).map(msg => ({
           role: msg.role === 'user' ? 'user' : 'assistant',
           content: msg.content
         }));
         
-        // Add current user message
-        recentMessages.push({ role: 'user', content: userMessage });
+        logger.info('executor', `[CHAT-CONTEXT] Sending ${recentMessages.length} messages to LLM`);
+        logger.info('executor', `[CHAT-CONTEXT] Context for LLM: ${JSON.stringify(recentMessages.map(m => ({ role: m.role, preview: m.content.substring(0, 40) })), null, 2)}`);
         
         // Get API endpoint
         const apiEndpointConfig = GlobalConfig.AI_MODEL_CONFIG.apiEndpoint;
@@ -338,6 +355,9 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
             agent: 'atlas',
             timestamp: new Date().toISOString()
           });
+          
+          // DIAGNOSTIC 16.10.2025
+          logger.info('executor', `[CHAT-CONTEXT] Assistant response added. Total messages now: ${session.chatThread.messages.length}`);
         }
         
         logger.workflow('complete', 'atlas', 'Chat response completed', { sessionId: session.id });

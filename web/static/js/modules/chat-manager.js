@@ -446,6 +446,10 @@ export class ChatManager {
       case 'mcp_workflow_error':
         this.handleMCPWorkflowError(data.data);
         break;
+      // FIXED 16.10.2025 - Handle chat_response event for chat mode
+      case 'chat_response':
+        this.handleChatResponse(data.data);
+        break;
       default:
         this.logger.debug('Unknown stream message type', data.type);
     }
@@ -767,6 +771,27 @@ export class ChatManager {
     this.logger.error('❌ MCP Workflow error', data.error || data.message);
     const errorMsg = data.error || data.message || 'Невідома помилка MCP workflow';
     this.addMessage(`❌ MCP: ${errorMsg}`, 'system');
+  }
+
+  // FIXED 16.10.2025 - Handler for chat_response event (chat mode)
+  handleChatResponse(data) {
+    this.logger.info('💬 Chat response received', data);
+    const content = data.content || data.message || '';
+    const agent = data.agent || 'atlas';
+    
+    if (content) {
+      this.addMessage(content, agent);
+      
+      // TTS if enabled
+      if (this.ttsManager.isEnabled()) {
+        const agentConfig = AGENTS[agent];
+        const voice = agentConfig?.voice;
+        if (voice) {
+          this.ttsManager.addToQueue(content, agent, { mode: 'chat' })
+            .catch(err => this.logger.debug('TTS failed:', err?.message || err));
+        }
+      }
+    }
   }
 
   destroy() {
