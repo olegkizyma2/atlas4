@@ -2047,17 +2047,23 @@ Return ONLY JSON:
             const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
 
             const modelConfig = MCP_MODEL_CONFIG.getStageConfig('verify_item');
+
+            // FIXED 17.10.2025 - Reduced timeout for gpt-4o-mini (30s instead of 60s)
+            const timeoutMs = 30000;  // 30s max for gpt-4o-mini (much faster than gpt-4.1)
+
+            this.logger.system('mcp-todo', `[TODO] 🔍 Planning verification tools with ${modelConfig.model} (timeout: ${timeoutMs}ms)`);
+
             const apiResponse = await axios.post(apiUrl, {
                 model: modelConfig.model,
                 messages: [
                     { role: 'system', content: 'You are a JSON-only API. Return ONLY valid JSON, no markdown, no explanations.' },
                     { role: 'user', content: planPrompt }
                 ],
-                temperature: 0.3,  // Lower temperature for precise tool selection
-                max_tokens: 2000
+                temperature: modelConfig.temperature,  // Use config temperature (0.15)
+                max_tokens: modelConfig.max_tokens    // Use config max_tokens (800)
             }, {
                 headers: { 'Content-Type': 'application/json' },
-                timeout: 60000
+                timeout: timeoutMs
             });
 
             const response = apiResponse.data.choices[0].message.content;
@@ -2244,17 +2250,23 @@ Verification evidence: ${verificationResults.results.length} checks performed`;
             const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
 
             const modelConfig = MCP_MODEL_CONFIG.getStageConfig('verify_item');
+
+            // FIXED 17.10.2025 - Reduced timeout for gpt-4o-mini (30s instead of 60s)
+            const timeoutMs = 30000;  // 30s max for gpt-4o-mini
+
+            this.logger.system('mcp-todo', `[TODO] 🧠 Analyzing verification results with ${modelConfig.model}`);
+
             const apiResponse = await axios.post(apiUrl, {
                 model: modelConfig.model,
                 messages: [
                     { role: 'system', content: 'You are a JSON-only API. Return ONLY valid JSON, no markdown, no explanations.' },
                     { role: 'user', content: analysisPrompt }
                 ],
-                temperature: 0.2,  // Very low temperature for precise verification
-                max_tokens: 1000
+                temperature: modelConfig.temperature,  // Use config temperature (0.15)
+                max_tokens: modelConfig.max_tokens     // Use config max_tokens (800)
             }, {
                 headers: { 'Content-Type': 'application/json' },
-                timeout: 60000
+                timeout: timeoutMs
             });
 
             const response = apiResponse.data.choices[0].message.content;
