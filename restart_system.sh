@@ -613,9 +613,6 @@ cmd_logs() {
         tail -f "$LOGS_DIR"/*.log
     else
         case $service in
-            goose)
-                tail -f "$LOGS_DIR/goose_web.log"
-                ;;
             frontend)
                 tail -f "$LOGS_DIR/frontend.log"
                 ;;
@@ -636,7 +633,7 @@ cmd_logs() {
                 ;;
             *)
                 log_error "Unknown service: $service"
-                echo "Available services: goose, frontend, orchestrator, recovery, tts, whisper, fallback"
+                echo "Available services: frontend, orchestrator, recovery, tts, whisper, fallback"
                 exit 1
                 ;;
         esac
@@ -665,42 +662,44 @@ cmd_diagnose() {
     log_info "Running ATLAS System Diagnostics..."
     echo ""
     
-    # Check Goose Binary
-    echo -e "${CYAN}Goose Binary Status:${NC}"
-    echo "─────────────────────────────────────────"
-    local goose_bin=$(get_goose_binary)
-    if [ -n "$goose_bin" ] && [ -x "$goose_bin" ]; then
-        local version=$("$goose_bin" --version 2>/dev/null || echo "unknown")
-        echo -e "${GREEN}✓${NC} Goose binary found: $goose_bin (version: $version)"
-    else
-        echo -e "${RED}✗${NC} Goose binary not found"
-        echo "  Install Desktop: brew install --cask block-goose"
-        echo "  Install CLI: brew install block-goose-cli"
-    fi
-    
-    # Check Goose configuration
-    echo ""
     echo -e "${CYAN}AI Backend Configuration (v5.0):${NC}"
     echo "─────────────────────────────────────────"
-    echo -e "${GREEN}✓${NC} Mode: Pure MCP (Goose deprecated)"
+    echo -e "${GREEN}✓${NC} Mode: Pure MCP only"
     echo "  LLM API: ${LLM_API_ENDPOINT:-http://localhost:4000}"
     if [ -n "${LLM_API_FALLBACK_ENDPOINT}" ]; then
         echo "  Fallback API: ${LLM_API_FALLBACK_ENDPOINT}"
     fi
-    
-    # Show deprecated Goose config if it exists (for reference)
-    local config_file="$HOME/.config/goose/config.yaml"
-    if [ -f "$config_file" ]; then
+
+    if command -v npm >/dev/null 2>&1; then
         echo ""
-        echo -e "${YELLOW}⚠${NC} Goose configuration found (deprecated in v5.0)"
-        echo "  Config file: $config_file"
-        echo "  Note: ATLAS v5.0 uses Pure MCP mode"
+        echo -e "${CYAN}Global MCP Server Packages:${NC}"
+        echo "─────────────────────────────────────────"
+        local mcp_packages=(
+            "@modelcontextprotocol/server-filesystem"
+            "@executeautomation/playwright-mcp-server"
+            "super-shell-mcp"
+            "@peakmojo/applescript-mcp"
+            "@cyanheads/git-mcp-server"
+            "@modelcontextprotocol/server-memory"
+        )
+        local missing_packages=0
+        for pkg in "${mcp_packages[@]}"; do
+            if npm list -g "$pkg" >/dev/null 2>&1; then
+                echo -e "${GREEN}✓${NC} $pkg"
+            else
+                echo -e "${YELLOW}⚠${NC} $pkg not detected (install with: npm install -g $pkg)"
+                missing_packages=1
+            fi
+        done
+        if [ $missing_packages -eq 0 ]; then
+            echo -e "${GREEN}✓${NC} All required MCP servers detected"
+        fi
     else
-        echo -e "${RED}✗${NC} Config file not found"
-        echo "  Run: $goose_bin configure"
+        echo ""
+        echo -e "${YELLOW}⚠${NC} npm not available - unable to verify MCP server packages"
     fi
     
-    # Check ports (v5.0: no Goose port)
+    # Check service ports
     echo ""
     echo -e "${CYAN}Port Status:${NC}"
     echo "─────────────────────────────────────────"
@@ -775,7 +774,7 @@ cmd_help() {
     echo "  LLM_API_ENDPOINT      - LLM API endpoint (default: http://localhost:4000)"
     echo ""
     echo "Important Notes (v5.0):"
-    echo "  • ATLAS v5.0 uses Pure MCP mode (no Goose dependencies)"
+    echo "  • ATLAS v5.0 runs in Pure MCP mode"
     echo "  • LLM API server should run on port 4000 (OpenRouter or local)"
     echo "  • MCP servers start automatically through orchestrator"
     echo ""
