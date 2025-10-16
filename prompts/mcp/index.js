@@ -18,6 +18,7 @@
  */
 
 import modeSelection from './stage0_mode_selection.js';  // NEW 16.10.2025
+import atlasChat from './atlas_chat.js';  // NEW 16.10.2025 - Chat mode prompt
 import atlasTodoPlanning from './atlas_todo_planning_optimized.js';  // OPTIMIZED 15.10.2025
 import serverSelection from './stage2_0_server_selection.js';  // NEW 15.10.2025
 import tetyanaPlanTools from './tetyana_plan_tools_optimized.js';  // OPTIMIZED 15.10.2025
@@ -29,6 +30,9 @@ import mcpFinalSummary from './mcp_final_summary.js';
 export const MCP_PROMPTS = {
     // Stage 0-MCP: Mode Selection (NEW 16.10.2025)
     MODE_SELECTION: modeSelection,
+
+    // Stage 0-MCP: Chat Mode (NEW 16.10.2025) - Atlas responds directly
+    ATLAS_CHAT: atlasChat,
 
     // Stage 1-MCP: Atlas creates TODO
     ATLAS_TODO_PLANNING: atlasTodoPlanning,
@@ -57,6 +61,7 @@ export default MCP_PROMPTS;
 // Individual exports for direct import
 export {
     modeSelection,
+    atlasChat,
     atlasTodoPlanning,
     serverSelection,
     tetyanaPlanTools,

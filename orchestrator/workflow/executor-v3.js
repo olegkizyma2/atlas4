@@ -274,30 +274,40 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
       // DIAGNOSTIC - Add detailed logging to find where code execution stops
       logger.system('executor', `[CHAT-DEBUG] About to enter chat try block`);
 
-      // FIXED 16.10.2025 - Implement actual chat response from Atlas
+      // FIXED 16.10.2025 - Load chat prompt from prompts directory (not hardcoded)
       try {
-        logger.system('executor', `[CHAT-DEBUG] Step 1: Importing axios`);
+        logger.system('executor', `[CHAT-DEBUG] Step 1: Loading chat prompt from prompts/mcp/atlas_chat.js`);
+        const { MCP_PROMPTS } = await import('../../prompts/mcp/index.js');
+        const chatPrompt = MCP_PROMPTS.ATLAS_CHAT;
+        
+        if (!chatPrompt || !chatPrompt.SYSTEM_PROMPT) {
+          throw new Error('Chat prompt not loaded correctly from prompts directory');
+        }
+        
+        logger.system('executor', `[CHAT-DEBUG] Step 2: Chat prompt loaded successfully`);
+        
+        logger.system('executor', `[CHAT-DEBUG] Step 3: Importing axios`);
         const axios = (await import('axios')).default;
-        logger.system('executor', `[CHAT-DEBUG] Step 2: Getting model config`);
+        logger.system('executor', `[CHAT-DEBUG] Step 4: Getting model config`);
         const modelConfig = GlobalConfig.AI_MODEL_CONFIG.models.chat;
-        logger.system('executor', `[CHAT-DEBUG] Step 3: Model config retrieved: ${JSON.stringify(modelConfig)}`);
+        logger.system('executor', `[CHAT-DEBUG] Step 5: Model config retrieved: ${JSON.stringify(modelConfig)}`);
         
         // FIXED 16.10.2025 - Initialize chatThread if not exists
         if (!session.chatThread) {
-          logger.system('executor', `[CHAT-DEBUG] Step 4: Initializing new chatThread`);
+          logger.system('executor', `[CHAT-DEBUG] Step 6: Initializing new chatThread`);
           session.chatThread = { messages: [], lastTopic: undefined };
         } else {
-          logger.system('executor', `[CHAT-DEBUG] Step 4: ChatThread exists with ${session.chatThread.messages.length} messages`);
+          logger.system('executor', `[CHAT-DEBUG] Step 6: ChatThread exists with ${session.chatThread.messages.length} messages`);
         }
         
         // FIXED 16.10.2025 - Add current user message to session history BEFORE building context
-        logger.system('executor', `[CHAT-DEBUG] Step 5: Adding user message to history`);
+        logger.system('executor', `[CHAT-DEBUG] Step 7: Adding user message to history`);
         session.chatThread.messages.push({
           role: 'user',
           content: userMessage,
           timestamp: new Date().toISOString()
         });
-        logger.system('executor', `[CHAT-DEBUG] Step 6: User message added, total messages: ${session.chatThread.messages.length}`);
+        logger.system('executor', `[CHAT-DEBUG] Step 8: User message added, total messages: ${session.chatThread.messages.length}`);
         
         // DIAGNOSTIC 16.10.2025 - Log session state
         logger.system('executor', `[CHAT-CONTEXT] SessionId: ${session.id}`);
@@ -319,27 +329,16 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
         
         logger.system('executor', `Calling chat API at ${apiUrl} with model ${modelConfig.model}`);
         
-        // Build system prompt with context awareness (BEFORE try block so it's available in fallback)
-        const systemPrompt = `Ти - Atlas, інтелектуальний AI-асистент. Твоя роль:
-1. Уважно читай всю розмову (контекст) вище
-2. Пам'ятай що користувач розповідав про себе
-3. ВАЖЛИВО: Якщо користувач запитує про факти що він розповідав - ВІДПОВІДАЙ ГЛАҐИ НА КОНТЕКСТІ
-4. Якщо користувач говорив "Мене звуть Олег" - ТИ ЗНАЄШ ЙОГО ІМ'Я!
-5. Відповідай природно, дружньо та по-українськи
-6. Будь стислим та корисним
-
-ПАМ'ЯТИ ПРО КОНТЕКСТ ЗА ВСІМА ПОПЕРЕДНІМИ ПОВІДОМЛЕННЯМИ!`;
+        // FIXED 16.10.2025 - Use system prompt from prompts directory (not hardcoded)
+        const systemPrompt = chatPrompt.SYSTEM_PROMPT;
         
-        logger.system('executor', `[SYSTEM-PROMPT] Built context-aware prompt`);
+        logger.system('executor', `[SYSTEM-PROMPT] Using prompt from prompts/mcp/atlas_chat.js`);
         
         // Call LLM for chat response with fallback support
         let chatResponse;
         let usedFallback = false;
         
         try {
-
-          logger.system('executor', `[SYSTEM-PROMPT] Built context-aware prompt`);
-          
           // Prepare messages array
           const messagesArray = [
             { 
