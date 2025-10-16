@@ -507,15 +507,17 @@ build_whisper_cpp() {
     fi
     
     log_info "Підготовка до компіляції Whisper.cpp..."
+    # Очистити build директорію для свіжої конфігурації
+    rm -rf build
     mkdir -p build
     cd build
 
     if [ "$USE_METAL_GPU" = "true" ]; then
         log_info "Компіляція Whisper.cpp з Metal GPU acceleration (Core ML вимкнено)..."
-        cmake .. -DWHISPER_METAL=ON -DWHISPER_COREML=OFF
+        cmake .. -DGGML_METAL=ON -DWHISPER_COREML=OFF
     else
         log_info "Компіляція Whisper.cpp у CPU режимі (без Metal/Core ML)..."
-        cmake .. -DWHISPER_METAL=OFF -DWHISPER_COREML=OFF
+        cmake .. -DGGML_METAL=OFF -DWHISPER_COREML=OFF
     fi
 
     make -j$(sysctl -n hw.ncpu)
@@ -759,16 +761,6 @@ EOF
     
     log_success "Системна конфігурація завершена"
 }
-
-# =============================================================================
-# Налаштування конфігурації (v5.0)
-# =============================================================================
-
-configure_system() {
-
-# =============================================================================
-# Тестування установки
-# =============================================================================
 
 # =============================================================================
 # Тестування установки

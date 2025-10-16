@@ -17,7 +17,9 @@ REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 # Load .env file if it exists
 if [ -f "$REPO_ROOT/.env" ]; then
     echo "Loading environment variables from .env..."
-    export $(cat "$REPO_ROOT/.env" | grep -v '^#' | grep -v '^\s*$' | xargs)
+    set -a
+    source <(cat "$REPO_ROOT/.env" | grep -v '^#' | grep -v '^\s*$')
+    set +a
 fi
 
 # ANSI escape codes для кольорового виводу

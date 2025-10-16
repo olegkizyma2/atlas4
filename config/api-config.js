@@ -287,13 +287,16 @@ export const VOICE_CONFIG = {
     maxDuration: 60000
   },
 
-  // Whisper конфігурація
+  // Whisper конфігурація (локальний Whisper.cpp з Metal GPU)
   whisper: {
-    model: 'whisper-1',
+    backend: 'cpp',                    // whisper.cpp (не OpenAI API)
+    device: 'metal',                   // Metal GPU acceleration
+    model: 'ggml-large-v3.bin',        // Локальна модель
     language: 'uk',
     response_format: 'json',
     temperature: 0.2,
-    apiUrl: process.env.WHISPER_API_URL || 'https://api.openai.com/v1/audio/transcriptions'
+    port: 3002,
+    apiUrl: `http://localhost:3002/transcribe`  // Локальний сервіс
   },
 
   // Фільтрація фонових фраз
