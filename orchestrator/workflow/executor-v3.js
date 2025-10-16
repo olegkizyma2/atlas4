@@ -180,6 +180,11 @@ function extractModeFromResponse(content) {
  * @returns {Promise<Object>} Final summary result
  */
 async function executeMCPWorkflow(userMessage, session, res, container) {
+  // 🔥 VERSION MARKER: 2025-01-16T16:45:00Z - WITH DIAGNOSTICS
+  console.log('🔥🔥🔥 [VERSION-CHECK] executeMCPWorkflow v2025-01-16-16:45 🔥🔥🔥');
+  // DIAGNOSTIC 16.10.2025 - Verify this code is actually loaded
+  logger.system('executor', `[FUNCTION-ENTRY] executeMCPWorkflow STARTED with FIXED CODE (timestamp: ${new Date().toISOString()})`);
+  
   logger.workflow('init', 'mcp', 'Starting MCP Dynamic TODO Workflow', {
     sessionId: session.id,
     userMessage: userMessage.substring(0, 100)
@@ -259,7 +264,7 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
     // ===============================================
     // Handle CHAT mode - Simple response from Atlas
     // ===============================================
-    logger.info('executor', `[CHAT-MODE-CHECK] mode=${mode}, typeof=${typeof mode}, mode===chat: ${mode === 'chat'}`);
+    logger.system('executor', `[CHAT-MODE-CHECK] mode=${mode}, typeof=${typeof mode}, mode===chat: ${mode === 'chat'}`);
     
     if (mode === 'chat') {
       logger.workflow('stage', 'atlas', 'Chat mode detected - Atlas will respond directly', { 
@@ -267,37 +272,37 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
       });
 
       // DIAGNOSTIC - Add detailed logging to find where code execution stops
-      logger.info('executor', `[CHAT-DEBUG] About to enter chat try block`);
+      logger.system('executor', `[CHAT-DEBUG] About to enter chat try block`);
 
       // FIXED 16.10.2025 - Implement actual chat response from Atlas
       try {
-        logger.info('executor', `[CHAT-DEBUG] Step 1: Importing axios`);
+        logger.system('executor', `[CHAT-DEBUG] Step 1: Importing axios`);
         const axios = (await import('axios')).default;
-        logger.info('executor', `[CHAT-DEBUG] Step 2: Getting model config`);
+        logger.system('executor', `[CHAT-DEBUG] Step 2: Getting model config`);
         const modelConfig = GlobalConfig.AI_MODEL_CONFIG.models.chat;
-        logger.info('executor', `[CHAT-DEBUG] Step 3: Model config retrieved: ${JSON.stringify(modelConfig)}`);
+        logger.system('executor', `[CHAT-DEBUG] Step 3: Model config retrieved: ${JSON.stringify(modelConfig)}`);
         
         // FIXED 16.10.2025 - Initialize chatThread if not exists
         if (!session.chatThread) {
-          logger.info('executor', `[CHAT-DEBUG] Step 4: Initializing new chatThread`);
+          logger.system('executor', `[CHAT-DEBUG] Step 4: Initializing new chatThread`);
           session.chatThread = { messages: [], lastTopic: undefined };
         } else {
-          logger.info('executor', `[CHAT-DEBUG] Step 4: ChatThread exists with ${session.chatThread.messages.length} messages`);
+          logger.system('executor', `[CHAT-DEBUG] Step 4: ChatThread exists with ${session.chatThread.messages.length} messages`);
         }
         
         // FIXED 16.10.2025 - Add current user message to session history BEFORE building context
-        logger.info('executor', `[CHAT-DEBUG] Step 5: Adding user message to history`);
+        logger.system('executor', `[CHAT-DEBUG] Step 5: Adding user message to history`);
         session.chatThread.messages.push({
           role: 'user',
           content: userMessage,
           timestamp: new Date().toISOString()
         });
-        logger.info('executor', `[CHAT-DEBUG] Step 6: User message added, total messages: ${session.chatThread.messages.length}`);
+        logger.system('executor', `[CHAT-DEBUG] Step 6: User message added, total messages: ${session.chatThread.messages.length}`);
         
         // DIAGNOSTIC 16.10.2025 - Log session state
-        logger.info('executor', `[CHAT-CONTEXT] SessionId: ${session.id}`);
-        logger.info('executor', `[CHAT-CONTEXT] Total messages in history: ${session.chatThread.messages.length}`);
-        logger.info('executor', `[CHAT-CONTEXT] History: ${JSON.stringify(session.chatThread.messages.map(m => ({ role: m.role, content: m.content.substring(0, 50) })), null, 2)}`);
+        logger.system('executor', `[CHAT-CONTEXT] SessionId: ${session.id}`);
+        logger.system('executor', `[CHAT-CONTEXT] Total messages in history: ${session.chatThread.messages.length}`);
+        logger.system('executor', `[CHAT-CONTEXT] History: ${JSON.stringify(session.chatThread.messages.map(m => ({ role: m.role, content: m.content.substring(0, 50) })), null, 2)}`);
         
         // Build chat context from recent messages (last 5 exchanges = 10 messages)
         const recentMessages = session.chatThread.messages.slice(-10).map(msg => ({
@@ -305,14 +310,14 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
           content: msg.content
         }));
         
-        logger.info('executor', `[CHAT-CONTEXT] Sending ${recentMessages.length} messages to LLM`);
-        logger.info('executor', `[CHAT-CONTEXT] Context for LLM: ${JSON.stringify(recentMessages.map(m => ({ role: m.role, preview: m.content.substring(0, 40) })), null, 2)}`);
+        logger.system('executor', `[CHAT-CONTEXT] Sending ${recentMessages.length} messages to LLM`);
+        logger.system('executor', `[CHAT-CONTEXT] Context for LLM: ${JSON.stringify(recentMessages.map(m => ({ role: m.role, preview: m.content.substring(0, 40) })), null, 2)}`);
         
         // Get API endpoint
         const apiEndpointConfig = GlobalConfig.AI_MODEL_CONFIG.apiEndpoint;
         let apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
         
-        logger.info('executor', `Calling chat API at ${apiUrl} with model ${modelConfig.model}`);
+        logger.system('executor', `Calling chat API at ${apiUrl} with model ${modelConfig.model}`);
         
         // Call LLM for chat response with fallback support
         let chatResponse;
@@ -359,7 +364,7 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
                 headers: { 'Content-Type': 'application/json' },
                 timeout: 30000
               });
-              logger.info('executor', `✅ Chat API fallback succeeded`);
+              logger.system('executor', `✅ Chat API fallback succeeded`);
               
             } catch (fallbackError) {
               logger.error('executor', `Chat API fallback also failed: ${fallbackError.message}`);
@@ -376,7 +381,7 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
           throw new Error('Empty response from chat API');
         }
         
-        logger.info('executor', `Atlas chat response: ${atlasResponse.substring(0, 100)}...`);
+        logger.system('executor', `Atlas chat response: ${atlasResponse.substring(0, 100)}...`);
         
         // Send response via WebSocket
         if (wsManager) {
@@ -409,7 +414,7 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
           });
           
           // DIAGNOSTIC 16.10.2025
-          logger.info('executor', `[CHAT-CONTEXT] Assistant response added. Total messages now: ${session.chatThread.messages.length}`);
+          logger.system('executor', `[CHAT-CONTEXT] Assistant response added. Total messages now: ${session.chatThread.messages.length}`);
         }
         
         logger.workflow('complete', 'atlas', 'Chat response completed', { sessionId: session.id });
