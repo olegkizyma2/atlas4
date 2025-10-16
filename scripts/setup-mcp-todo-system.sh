@@ -69,26 +69,26 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 
 log_info "Встановлення глобальних MCP серверів..."
 
-# MCP packages to install (6 operational servers, 92 tools)
+# MCP packages to install (5 operational servers, 65 tools)
 MCP_PACKAGES=(
     "@modelcontextprotocol/server-filesystem"
     "@executeautomation/playwright-mcp-server"
     "super-shell-mcp"
     "@peakmojo/applescript-mcp"
-    "@cyanheads/git-mcp-server"
+    # "@cyanheads/git-mcp-server"  # DISABLED 17.10.2025: crashes on startup (logger conflict)
     "@modelcontextprotocol/server-memory"
 )
 
 echo ""
-echo -e "${BLUE}📦 MCP Сервери що будуть встановлені (6 серверів, 92 tools):${NC}"
+echo -e "${BLUE}📦 MCP Сервери що будуть встановлені (5 серверів, 65 tools):${NC}"
 echo -e "  ${GREEN}1. filesystem${NC}          - 14 tools - Робота з файлами та директоріями"
 echo -e "  ${GREEN}2. playwright${NC}          - 32 tools - Автоматизація браузера та web scraping"
-echo -e "  ${GREEN}3. super-shell${NC}         -  9 tools - Shell команди та системні операції"
-echo -e "  ${GREEN}4. applescript${NC}         -  1 tool  - macOS GUI автоматизація (FIXED 14.10.2025)"
-echo -e "  ${GREEN}5. git-mcp${NC}             - 27 tools - Git операції (commit, push, pull, merge)"
-echo -e "  ${GREEN}6. memory${NC}              -  9 tools - Тривала пам'ять AI між сесіями"
+echo -e "  ${GREEN}3. super-shell${NC}         -  9 tools - Shell команди + git операції"
+echo -e "  ${GREEN}4. applescript${NC}         -  1 tool  - macOS GUI автоматизація"
+echo -e "  ${GREEN}5. memory${NC}              -  9 tools - Тривала пам'ять AI між сесіями"
 echo ""
-log_warn "⚠️  github-lightweight (@wipiano) - ВИМКНЕНО через SDK compatibility issue"
+log_warn "⚠️  git-mcp (@cyanheads) - ВИМКНЕНО через logger crash (git через shell)"
+log_warn "⚠️  github-lightweight (@wipiano) - ВИМКНЕНО через SDK compatibility"
 echo ""
 
 for package in "${MCP_PACKAGES[@]}"; do

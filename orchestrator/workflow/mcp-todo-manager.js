@@ -1016,11 +1016,88 @@ Create precise MCP tool execution plan.
                     }
                 }
 
+                // Auto-correct Playwright parameters if LLM used wrong field names (FIXED 2025-10-17)
+                if (toolCall.server === 'playwright') {
+                    // playwright_fill: correct 'text' → 'value'
+                    if (toolCall.tool === 'playwright_fill') {
+                        if (!parameters.value && parameters.text) {
+                            parameters.value = parameters.text;
+                            delete parameters.text;
+                            this.logger.warn('mcp-todo', `[TODO] ⚠️ Auto-corrected playwright_fill: 'text' → 'value' (value="${parameters.value}")`);
+                        }
+                        if (!parameters.value && parameters.input) {
+                            parameters.value = parameters.input;
+                            delete parameters.input;
+                            this.logger.warn('mcp-todo', `[TODO] ⚠️ Auto-corrected playwright_fill: 'input' → 'value' (value="${parameters.value}")`);
+                        }
+                        if (!parameters.value && parameters.content) {
+                            parameters.value = parameters.content;
+                            delete parameters.content;
+                            this.logger.warn('mcp-todo', `[TODO] ⚠️ Auto-corrected playwright_fill: 'content' → 'value' (value="${parameters.value}")`);
+                        }
+                    }
+
+                    // playwright_click: correct 'element'/'target' → 'selector'
+                    if (toolCall.tool === 'playwright_click') {
+                        if (!parameters.selector && parameters.element) {
+                            parameters.selector = parameters.element;
+                            delete parameters.element;
+                            this.logger.warn('mcp-todo', `[TODO] ⚠️ Auto-corrected playwright_click: 'element' → 'selector' (selector="${parameters.selector}")`);
+                        }
+                        if (!parameters.selector && parameters.target) {
+                            parameters.selector = parameters.target;
+                            delete parameters.target;
+                            this.logger.warn('mcp-todo', `[TODO] ⚠️ Auto-corrected playwright_click: 'target' → 'selector' (selector="${parameters.selector}")`);
+                        }
+                    }
+
+                    // playwright_navigate: correct 'link'/'address' → 'url'
+                    if (toolCall.tool === 'playwright_navigate') {
+                        if (!parameters.url && parameters.link) {
+                            parameters.url = parameters.link;
+                            delete parameters.link;
+                            this.logger.warn('mcp-todo', `[TODO] ⚠️ Auto-corrected playwright_navigate: 'link' → 'url' (url="${parameters.url}")`);
+                        }
+                        if (!parameters.url && parameters.address) {
+                            parameters.url = parameters.address;
+                            delete parameters.address;
+                            this.logger.warn('mcp-todo', `[TODO] ⚠️ Auto-corrected playwright_navigate: 'address' → 'url' (url="${parameters.url}")`);
+                        }
+                    }
+
+                    // playwright_get_visible_text: correct 'element' → 'selector'
+                    if (toolCall.tool === 'playwright_get_visible_text') {
+                        if (!parameters.selector && parameters.element) {
+                            parameters.selector = parameters.element;
+                            delete parameters.element;
+                            this.logger.warn('mcp-todo', `[TODO] ⚠️ Auto-corrected playwright_get_visible_text: 'element' → 'selector' (selector="${parameters.selector}")`);
+                        }
+                    }
+                }
+
+                // Log final parameters BEFORE execution (diagnostic - ADDED 2025-10-17)
+                this.logger.debug('mcp-todo', `[TOOL-PARAMS] ${toolCall.server}.${toolCall.tool} parameters:`, {
+                    original: toolCall.parameters,
+                    final: parameters,
+                    corrected: JSON.stringify(parameters) !== JSON.stringify(toolCall.parameters)
+                });
+
                 const result = await this.mcpManager.executeTool(
                     toolCall.server,
                     toolCall.tool,
                     parameters
                 );
+
+                // Log result structure for validation layer development (diagnostic - ADDED 2025-10-17)
+                this.logger.debug('mcp-todo', `[TOOL-RESULT] ${toolCall.server}.${toolCall.tool} returned:`, {
+                    resultType: typeof result,
+                    resultKeys: result && typeof result === 'object' ? Object.keys(result) : [],
+                    isError: result?.isError || false,
+                    hasContent: !!result?.content,
+                    contentType: typeof result?.content,
+                    contentLength: typeof result?.content === 'string' ? result.content.length :
+                        Array.isArray(result?.content) ? result.content.length : 0
+                });
 
                 results.push({
                     tool: toolCall.tool,
@@ -1055,13 +1132,19 @@ Create precise MCP tool execution plan.
             }
         }
 
+        // Count successful and failed calls
+        const successful_calls = results.filter(r => r.success).length;
+        const failed_calls = results.filter(r => !r.success).length;
+
         const execution = {
             results,
             all_successful: allSuccessful,
+            successful_calls,
+            failed_calls,
             tts_phrase: this._generateExecutionTTS(results, item, allSuccessful)
         };
 
-        this.logger.system('mcp-todo', `[TODO] Tool execution ${allSuccessful ? 'successful' : 'partial'} for item ${item.id}`);
+        this.logger.system('mcp-todo', `[TODO] Tool execution ${allSuccessful ? 'successful' : 'partial'} for item ${item.id} (${successful_calls} succeeded, ${failed_calls} failed)`);
 
         return execution;
     }

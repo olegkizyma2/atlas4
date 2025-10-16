@@ -47,7 +47,7 @@ MCP_PACKAGES=(
     "@executeautomation/playwright-mcp-server"
     "super-shell-mcp"
     "@peakmojo/applescript-mcp"
-    "@cyanheads/git-mcp-server"
+    # "@cyanheads/git-mcp-server"  # DISABLED 17.10.2025: crashes on startup
     "@modelcontextprotocol/server-memory"
 )
 
@@ -116,8 +116,8 @@ if [ $FAILED -eq 0 ]; then
     echo -e "${GREEN}✅ ВСІ ТЕСТИ ПРОЙДЕНО УСПІШНО!${NC}"
     echo ""
     echo "ATLAS v5.0 Pure MCP Edition готовий до роботи:"
-    echo "  • 6/6 MCP серверів встановлено"
-    echo "  • 92 tools доступно"
+    echo "  • 5/5 MCP серверів встановлено"
+    echo "  • 65 tools доступно (git через shell)"
     echo "  • .env налаштовано (AI_BACKEND_MODE=mcp)"
     echo "  • Goose залежності видалено"
     echo ""
@@ -133,7 +133,7 @@ else
     echo "  npm install -g @executeautomation/playwright-mcp-server"
     echo "  npm install -g super-shell-mcp"
     echo "  npm install -g @peakmojo/applescript-mcp"
-    echo "  npm install -g @cyanheads/git-mcp-server"
+    # echo "  npm install -g @cyanheads/git-mcp-server"  # DISABLED: crashes
     echo "  npm install -g @modelcontextprotocol/server-memory"
 fi
 echo "════════════════════════════════════════════════════════════════"

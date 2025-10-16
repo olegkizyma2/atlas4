@@ -123,6 +123,75 @@ System will VALIDATE your plan and REJECT invalid tools.
   "reasoning": "Введення математичного виразу через клавіатуру"
 }
 
+**Приклад 3 - Playwright Web Automation (Пошук в Google):**
+{
+  "server": "playwright",
+  "tool": "playwright_navigate",
+  "parameters": {
+    "url": "https://www.google.com"
+  },
+  "reasoning": "Відкриття Google для пошуку"
+}
+
+**Приклад 4 - Заповнення форми (КРИТИЧНО - параметр 'value'):**
+{
+  "server": "playwright",
+  "tool": "playwright_fill",
+  "parameters": {
+    "selector": "[name='q']",
+    "value": "Хатіко фільм"
+  },
+  "reasoning": "Заповнення пошукового поля"
+}
+⚠️ КРИТИЧНО для playwright_fill:
+- ✅ ПРАВИЛЬНО: параметр "value" (NOT "text", NOT "input", NOT "content")
+- ❌ НЕПРАВИЛЬНО: "text", "input", "content" - ці параметри НЕ ПРАЦЮЮТЬ
+
+**Приклад 5 - Клік по елементу:**
+{
+  "server": "playwright",
+  "tool": "playwright_click",
+  "parameters": {
+    "selector": "button[type='submit']"
+  },
+  "reasoning": "Натискання кнопки пошуку"
+}
+
+**Приклад 6 - Screenshot для перевірки:**
+{
+  "server": "playwright",
+  "tool": "playwright_screenshot",
+  "parameters": {
+    "path": "/tmp/verification.png"
+  },
+  "reasoning": "Скріншот для перевірки результату"
+}
+
+## PLAYWRIGHT ПАРАМЕТРИ - ПРАВИЛЬНА СПЕЦИФІКАЦІЯ
+
+⚠️ КРИТИЧНО - Playwright MCP вимагає ТОЧНІ назви параметрів:
+
+**playwright_fill:**
+- ✅ selector (string) - CSS selector елементу
+- ✅ value (string) - текст для заповнення
+- ❌ НЕ ВИКОРИСТОВУЙ: text, input, content, data
+
+**playwright_click:**
+- ✅ selector (string) - CSS selector елементу
+- ❌ НЕ ВИКОРИСТОВУЙ: element, target, button
+
+**playwright_navigate:**
+- ✅ url (string) - повний URL адреса
+- ❌ НЕ ВИКОРИСТОВУЙ: link, address, page, website
+
+**playwright_get_visible_text:**
+- ✅ selector (string) - CSS selector елементу
+- ❌ НЕ ВИКОРИСТОВУЙ: element, target
+
+**Типові помилки (НЕ РОБИ ТАК):**
+❌ {"selector": "[name='q']", "text": "пошук"} - параметр 'text' НЕ ІСНУЄ
+✅ {"selector": "[name='q']", "value": "пошук"} - параметр 'value' ПРАВИЛЬНИЙ
+
 ## ФОРМАТ ВІДПОВІДІ
 
 ⚠️ КРИТИЧНО - JSON БЕЗ ПОМИЛОК:

@@ -298,9 +298,12 @@ export const AI_BACKEND_CONFIG = {
         },
         */
 
-        // NOTE 14.10.2025: @cyanheads/git-mcp-server часто не повертає tools list (timeout)
-        // Сервер ініціалізується успішно, але tools/list request не відповідає вчасно
-        // Це не критично - git операції можна виконувати через shell MCP server
+        // DISABLED 17.10.2025: @cyanheads/git-mcp-server КРАШИТЬСЯ при запуску
+        // Проблема: "Error flushing logger: the worker has exited"
+        // Корінь: Pino multi-threaded logger конфліктує з STDIO protocol
+        // Альтернатива: Git операції через shell MCP server (git commands)
+        // TODO: Спробувати інший Git MCP package коли з'явиться
+        /*
         git: {
           command: 'npx',
           args: ['-y', '@cyanheads/git-mcp-server'],
@@ -309,6 +312,7 @@ export const AI_BACKEND_CONFIG = {
             GIT_AUTHOR_EMAIL: process.env.GIT_AUTHOR_EMAIL || 'atlas@example.com'
           }
         },
+        */
 
         memory: {
           command: 'npx',
