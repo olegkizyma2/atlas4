@@ -161,15 +161,7 @@ echo "            • Швидко, без overhead"
 echo "            • 6 серверів, 92 tools"
 echo "            • Короткі TTS фрази агентів"
 echo ""
-echo "  ${YELLOW}2) goose${NC}     - Тільки Goose Desktop"
-echo "            • Потребує Goose Desktop"
-echo "            • Повільніше через WebSocket"
-echo ""
-echo "  ${BLUE}3) hybrid${NC}    - Автоматичний вибір"
-echo "            • Складні tasks → Goose"
-echo "            • Прості tasks → MCP"
-echo ""
-read -p "Введіть номер (1-3, default: 1 MCP): " MODE_CHOICE
+read -p "Введіть номер (1 для MCP, Enter для default): " MODE_CHOICE
 
 case $MODE_CHOICE in
     1|"")
@@ -177,21 +169,7 @@ case $MODE_CHOICE in
         AI_PRIMARY="mcp"
         AI_FALLBACK="mcp"
         AI_DISABLE_FALLBACK="true"
-        log_success "✅ Режим: Чистий Dynamic TODO MCP (БЕЗ Goose fallback)"
-        ;;
-    2)
-        AI_MODE="goose"
-        AI_PRIMARY="goose"
-        AI_FALLBACK="goose"
-        AI_DISABLE_FALLBACK="false"
-        log_warn "⚠️  Режим: Тільки Goose (потребує Goose Desktop)"
-        ;;
-    3)
-        AI_MODE="hybrid"
-        AI_PRIMARY="goose"
-        AI_FALLBACK="mcp"
-        AI_DISABLE_FALLBACK="false"
-        log_info "🔄 Режим: Hybrid (Goose primary, MCP fallback)"
+        log_success "✅ Режим: Чистий Dynamic TODO MCP"
         ;;
     *)
         AI_MODE="mcp"
@@ -295,8 +273,6 @@ echo "   tail -f logs/orchestrator.log | grep -E 'MCP|TODO|STAGE|TTS'"
 echo ""
 echo "7. Змінити режим пізніше (в .env):"
 echo "   AI_BACKEND_MODE=mcp                # чистий Dynamic TODO MCP (default)"
-echo "   AI_BACKEND_MODE=goose              # тільки Goose"
-echo "   AI_BACKEND_MODE=hybrid             # автовибір"
 echo "   AI_BACKEND_DISABLE_FALLBACK=true  # strict mode (для testing)"
 echo ""
 echo "📚 ДОКУМЕНТАЦІЯ:"

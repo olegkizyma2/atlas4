@@ -1,7 +1,7 @@
 # ATLAS v5.0 - Adaptive Task and Learning Assistant System
 ## MCP Dynamic TODO Edition
 
-**LAST UPDATED:** 16 жовтня 2025 - День ~11:30 (v5.0 - Mode Selection Stage додано)
+**LAST UPDATED:** 16 жовтня 2025 - День ~21:15 (Setup scripts: 6 MCP servers, Goose повністю видалено)
 
 ---
 
@@ -113,13 +113,17 @@ ATLAS/
 - executor-v3.js: 1428 → 675 lines (-53%)
 - Чистий root directory (146 → 25 files, -83%)
 - Всі legacy prompts → archive/legacy-prompts/
+- Всі .md файли в docs/ (окрім README.md в корені)
+- Setup script: Goose перевірка видалена (deprecated)
 
 ❌ ЗАБОРОНЕНО:
-- Файли в корені (окрім config файлів)
+- Файли в корені (окрім README.md та config файлів)
+- .md файли в корені (ТІЛЬКИ в docs/)
 - Дублікати функцій в різних файлах
 - Hardcoded values замість config
 - Створення файлів БЕЗ перевірки існуючих
 - Використання Goose (deprecated в v5.0)
+- Перевірка Goose в setup scripts
 ```
 
 ---
@@ -392,6 +396,89 @@ ATLAS is an intelligent multi-agent orchestration system with Flask web frontend
   - **DEFAULT** до task mode при помилці класифікації
   - **WebSocket** підписка на 'chat' канал обов'язкова
 - **Детально:** `docs/MODE_SELECTION_STAGE_IMPLEMENTATION.md`, `docs/MODE_SELECTION_QUICK_REF.md`, `docs/MODE_SELECTION_COMPLETE_SUMMARY_2025-10-16.md`
+
+### ✅ MCP Server Installation in Setup Scripts (FIXED 16.10.2025 - день ~21:15)
+- **Проблема:** setup-macos.sh встановлював 3 DEPRECATED Goose-era MCP сервери
+- **Симптом:** @anthropic/computer-use (застарілий), інші застарілі пакети
+- **Корінь:** Складна логіка install_goose() + configure_goose() (~330 LOC legacy коду)
+- **Рішення:** Повна заміна на 6 operational MCP servers з setup-mcp-todo-system.sh
+- **Виправлено setup-macos.sh:**
+  - **ВИДАЛЕНО функції (~335 LOC):**
+    - `install_goose()` - Desktop/CLI Goose installation (140 LOC)
+    - `install_goose_direct()` - GitHub releases fallback (50 LOC)
+    - `configure_goose()` - config.yaml generation з GitHub Models (140 LOC)
+    - `run_goose_configure()` - deprecated v4.0 legacy (5 LOC)
+  - **СТВОРЕНО функцію `install_mcp_servers()` (60 LOC):**
+    ```bash
+    local MCP_PACKAGES=(
+      "@modelcontextprotocol/server-filesystem"      # 14 tools
+      "@executeautomation/playwright-mcp-server"     # 32 tools
+      "super-shell-mcp"                              # 9 tools
+      "@peakmojo/applescript-mcp"                    # 1 tool
+      "@cyanheads/git-mcp-server"                    # 27 tools
+      "@modelcontextprotocol/server-memory"          # 9 tools
+    )
+    # Всього: 92 tools
+    ```
+  - **ОНОВЛЕНО функції:**
+    - `create_directories()` - видалено Goose paths
+    - `test_installation()` - перевірка 6/6 MCP servers
+    - `print_final_instructions()` - список MCP servers (92 tools)
+    - `main()` - КРОК 7: install_mcp_servers замість install_goose
+- **Виправлено setup-mcp-todo-system.sh:**
+  - Видалено режими "goose" та "hybrid"
+  - Тільки режим "mcp" (Pure MCP)
+  - Спрощено case statement (30→15 LOC, -50%)
+  - Видалено Goose інструкції з final output
+- **Створено test-setup-mcp.sh (130 LOC):**
+  - TEST 1: Node.js availability (v22.19.0)
+  - TEST 2: npm availability (10.9.3)
+  - TEST 3: 6/6 MCP servers installed globally
+  - TEST 4: .env configuration (AI_BACKEND_MODE=mcp)
+  - TEST 5: Goose references removed
+- **Результат:**
+  - ✅ 6/6 MCP servers встановлюються автоматично
+  - ✅ 92 tools доступно з коробки
+  - ✅ setup-macos.sh: 1,201 → 1,050 LOC (-151, -12.6%)
+  - ✅ setup-mcp-todo-system.sh: 215 → 195 LOC (-20, -9.3%)
+  - ✅ Немає Goose залежностей (видалено 335 LOC)
+  - ✅ Простіше підтримувати (npm замість binary downloads)
+  - ✅ 100% test coverage (test-setup-mcp.sh)
+- **Критично:**
+  - **ЗАВЖДИ встановлювати ці 6 MCP серверів** (не інші!)
+  - **НЕ встановлювати:** Goose Desktop, @anthropic/computer-use, @wipiano/github-mcp-lightweight
+  - **Глобальна установка:** `npm install -g <package>` для доступу orchestrator
+  - **AI_BACKEND_MODE:** тільки "mcp" (goose/hybrid deprecated в v5.0)
+  - **Тестування:** `./test-setup-mcp.sh` після змін setup scripts
+- **Детально:** `docs/SETUP_SCRIPTS_CLEANUP_2025-10-16.md`
+
+### ✅ Setup and Restart Scripts Cleanup (FIXED 16.10.2025 - день ~18:30)
+- **Проблема:** Застарілі Goose посилання в setup та restart scripts (v4.0 legacy)
+- **Симптом:** "ℹ️ Goose: Config готовий. Перевірити провайдерів: goose providers list" після setup
+- **Виправлено setup-macos.sh (3 зміни):**
+  - Line 1001: Fallback message → "v5.0 Pure MCP mode - Goose config не потрібен"
+  - Lines 1140-1154: Success message → MCP info замість Goose інструкцій
+  - Line 1164: "ATLAS v4.0" → "ATLAS v5.0 (Pure MCP Edition)"
+- **Виправлено restart_system.sh (16 змін):**
+  - Line 527: "🦆 Goose Server" → "🤖 LLM API" (port 4000) в ACCESS POINTS
+  - Line 542: Видалено `stop_service "Goose Web Server"`
+  - Lines 589-590: Видалено Goose port note, оновлено API port note
+  - Line 634: Видалено `check_service "Goose Web Server"`
+  - Line 745: Видалено Goose port з діагностики, додано Whisper
+  - Lines 809-817: Help text → Pure MCP інструкції замість Goose
+- **Змінні видалено:** `GOOSE_SERVER_PORT`, `goose_web.pid`
+- **Змінні додано:** `LLM_API_ENDPOINT` (default: http://localhost:4000)
+- **Результат:**
+  - ✅ Немає згадок Goose в setup output
+  - ✅ restart показує правильні ACCESS POINTS (LLM API замість Goose)
+  - ✅ Help text описує Pure MCP архітектуру
+  - ✅ Версія правильна - v5.0 Pure MCP Edition
+- **Критично:**
+  - **setup-macos.sh:** НЕ має показувати Goose інструкції
+  - **restart_system.sh:** НЕ має згадувати Goose Web Server
+  - **v5.0:** Pure MCP mode - LLM API на port 4000 (OpenRouter або локальний)
+  - **Goose deprecated:** Весь Goose код в archive/goose/
+- **Детально:** `docs/GOOSE_REMOVAL_v5_2025-10-16.md`
 
 ### ✅ Screenshot and Adjustment Feature - Stage 2.1.5 (NEW 16.10.2025 - день ~17:00)
 - **Нова функція:** Тетяна тепер робить скріншот та коригує план ПЕРЕД виконанням кожного завдання

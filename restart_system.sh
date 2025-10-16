@@ -4,7 +4,7 @@
 # ATLAS v5.0 Universal System Management Script
 # =============================================================================
 # Єдиний скрипт для управління всім стеком ATLAS
-# v5.0: Pure MCP режим без Goose залежностей
+# v5.0: Pure MCP режим з 6 операційними серверами
 # =============================================================================
 
 set -e
@@ -198,36 +198,9 @@ stop_service() {
 # =============================================================================
 
 # ===================================================================
-# DEPRECATED FUNCTIONS (v4.0 Legacy - Goose Integration)
-# ===================================================================
-# These functions are kept for backward compatibility only
-# v5.0 uses Pure MCP mode without Goose dependencies
-# ===================================================================
-
-start_goose_web_server() {
-    log_warn "Goose integration is deprecated in ATLAS v5.0"
-    log_info "System now uses Pure MCP mode for all operations"
-    log_info "If you need Goose, please use ATLAS v4.0 or configure manually"
-    return 0  # Return success to not block startup
-}
-
-validate_goose_config() {
-    # Deprecated - no-op
-    return 0
-}
-
-repair_goose_config() {
-    # Deprecated - no-op
-    return 0
-}
-
-detect_goose_port() {
-    # Deprecated - return empty
-    echo ""
-}
-
-# ===================================================================
 # End of deprecated functions
+# ===================================================================
+
 # ===================================================================
 
 start_tts_service() {
@@ -406,7 +379,6 @@ start_orchestrator() {
         
         export FALLBACK_API_BASE="http://127.0.0.1:$FALLBACK_PORT/v1"
         export ORCH_SSE_FOR_GITHUB_COPILOT="${ORCH_SSE_FOR_GITHUB_COPILOT:-false}"
-        export ORCH_FORCE_GOOSE_REPLY="${ORCH_FORCE_GOOSE_REPLY:-false}"
         
         node server.js > "$LOGS_DIR/orchestrator.log" 2>&1 &
         echo $! > "$LOGS_DIR/orchestrator.pid"
@@ -499,10 +471,7 @@ cmd_start() {
     
     init_directories
     
-    # v5.0: Goose is deprecated, using Pure MCP mode
-    # start_goose_web_server  # DEPRECATED in v5.0
-    
-    # Start all other services in order
+    # Start all services in order
     start_tts_service
     start_whisper_service
     start_orchestrator
@@ -524,9 +493,9 @@ cmd_start() {
     echo -e "${CYAN}║${WHITE}                     ACCESS POINTS                             ${CYAN}║${NC}"
     echo -e "${CYAN}╠════════════════════════════════════════════════════════════════╣${NC}"
     echo -e "${CYAN}║${WHITE} 🌐 Web Interface:     http://localhost:$FRONTEND_PORT              ${CYAN}║${NC}"
-    echo -e "${CYAN}║${WHITE} 🦆 Goose Server:      http://localhost:$GOOSE_SERVER_PORT              ${CYAN}║${NC}"
     echo -e "${CYAN}║${WHITE} 🎭 Orchestrator API:  http://localhost:$ORCHESTRATOR_PORT              ${CYAN}║${NC}"
     echo -e "${CYAN}║${WHITE} 🔧 Recovery Bridge:   ws://localhost:$RECOVERY_PORT               ${CYAN}║${NC}"
+    echo -e "${CYAN}║${WHITE} 🤖 LLM API:           http://localhost:4000                 ${CYAN}║${NC}"
     echo -e "${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
 }
@@ -539,7 +508,6 @@ cmd_stop() {
     stop_service "Recovery Bridge" "$LOGS_DIR/recovery.pid"
     stop_service "Frontend" "$LOGS_DIR/frontend.pid"
     stop_service "Orchestrator" "$LOGS_DIR/orchestrator.pid"
-    stop_service "Goose Web Server" "$LOGS_DIR/goose_web.pid"
     stop_service "TTS Service" "$LOGS_DIR/tts.pid"
     stop_service "Whisper Service" "$LOGS_DIR/whisper.pid"
     stop_service "Fallback LLM" "$LOGS_DIR/fallback.pid"
@@ -566,7 +534,7 @@ cmd_stop() {
         done
     fi
     
-    # Clean up any remaining processes on ports (except Goose port and external API port 4000)
+    # Clean up any remaining processes on ports (except external API port 4000)
     # NOTE: Port 4000 is NOT touched - it's an external API service (OpenRouter/local LLM)
     # CRITICAL: Port 4000 is explicitly excluded from cleanup to preserve LLM API service
     for port in $FRONTEND_PORT $ORCHESTRATOR_PORT $RECOVERY_PORT $TTS_PORT $WHISPER_SERVICE_PORT $FALLBACK_PORT; do
@@ -585,14 +553,9 @@ cmd_stop() {
         fi
     done
     
-    # Note about Goose port
-    if ! check_port "$GOOSE_SERVER_PORT"; then
-        log_info "Goose Desktop is still running on port $GOOSE_SERVER_PORT (not touched)"
-    fi
-    
     # Note about external API port
     if ! check_port "4000"; then
-        log_info "External API service is running on port 4000 (not touched - managed separately)"
+        log_info "External LLM API service is running on port 4000 (not touched - managed separately)"
     fi
     
     # Clean up PID files
@@ -631,7 +594,6 @@ cmd_status() {
         fi
     }
     
-    check_service "Goose Web Server" "$LOGS_DIR/goose_web.pid" "$GOOSE_SERVER_PORT"
     check_service "Frontend" "$LOGS_DIR/frontend.pid" "$FRONTEND_PORT"
     check_service "Orchestrator" "$LOGS_DIR/orchestrator.pid" "$ORCHESTRATOR_PORT"
     check_service "Recovery Bridge" "$LOGS_DIR/recovery.pid" "$RECOVERY_PORT"
@@ -738,11 +700,11 @@ cmd_diagnose() {
         echo "  Run: $goose_bin configure"
     fi
     
-    # Check ports
+    # Check ports (v5.0: no Goose port)
     echo ""
     echo -e "${CYAN}Port Status:${NC}"
     echo "─────────────────────────────────────────"
-    for port_info in "Goose:$GOOSE_SERVER_PORT" "Frontend:$FRONTEND_PORT" "Orchestrator:$ORCHESTRATOR_PORT" "Recovery:$RECOVERY_PORT" "TTS:$TTS_PORT"; do
+    for port_info in "Frontend:$FRONTEND_PORT" "Orchestrator:$ORCHESTRATOR_PORT" "Recovery:$RECOVERY_PORT" "TTS:$TTS_PORT" "Whisper:$WHISPER_SERVICE_PORT"; do
         local name=$(echo "$port_info" | cut -d: -f1)
         local port=$(echo "$port_info" | cut -d: -f2)
         
@@ -806,16 +768,16 @@ cmd_help() {
     echo "  help      - Show this help message"
     echo ""
     echo "Environment Variables:"
-    echo "  GOOSE_SERVER_PORT     - Goose server port to connect to (default: 3000)"
     echo "  REAL_TTS_MODE         - Use real TTS instead of mock (default: true)"
     echo "  TTS_DEVICE            - TTS device (default: mps for macOS)"
     echo "  ENABLE_LOCAL_FALLBACK - Enable local fallback LLM (default: false)"
     echo "  FORCE_FREE_PORTS      - Force free busy ports (default: false)"
+    echo "  LLM_API_ENDPOINT      - LLM API endpoint (default: http://localhost:4000)"
     echo ""
-    echo "Important Notes:"
-    echo "  • Goose Desktop must be started manually by the user"
-    echo "  • Make sure Goose Desktop is running on port $GOOSE_SERVER_PORT"
-    echo "  • This script only connects to existing Goose instance"
+    echo "Important Notes (v5.0):"
+    echo "  • ATLAS v5.0 uses Pure MCP mode (no Goose dependencies)"
+    echo "  • LLM API server should run on port 4000 (OpenRouter or local)"
+    echo "  • MCP servers start automatically through orchestrator"
     echo ""
     echo "Examples:"
     echo "  $0 start                    # Start system"

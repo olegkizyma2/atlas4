@@ -7,7 +7,7 @@
 # після клонування з GitHub
 #
 # v5.0 CHANGES:
-# - Pure MCP mode (Goose integration removed)
+# - Pure MCP mode with 6 operational servers
 # - Mac Studio M1 MAX optimizations
 # - Centralized configuration through .env
 #
@@ -321,134 +321,57 @@ install_dependencies() {
 }
 
 # =============================================================================
-# Встановлення Goose Desktop
+# Встановлення MCP Серверів (v5.0 Pure MCP)
 # =============================================================================
 
-install_goose() {
-    log_step "КРОК 7: Встановлення Goose AI"
+install_mcp_servers() {
+    log_step "КРОК 7: Встановлення MCP серверів (6 серверів, 92 tools)"
     
-    # Спочатку перевірити Desktop версію (найкраща)
-    if [ -x "/Applications/Goose.app/Contents/MacOS/goose" ]; then
-        log_success "Goose Desktop вже встановлено"
-        export GOOSE_BIN="/Applications/Goose.app/Contents/MacOS/goose"
-        return 0
-    fi
+    log_info "ATLAS v5.0 використовує Pure MCP mode - встановлення глобальних серверів..."
     
-    # Перевірити CLI через команду
-    if check_command goose; then
-        log_success "Goose CLI вже доступний"
-        export GOOSE_BIN="goose"
-        return 0
-    fi
+    # MCP packages (6 operational servers з setup-mcp-todo-system.sh)
+    local MCP_PACKAGES=(
+        "@modelcontextprotocol/server-filesystem"
+        "@executeautomation/playwright-mcp-server"
+        "super-shell-mcp"
+        "@peakmojo/applescript-mcp"
+        "@cyanheads/git-mcp-server"
+        "@modelcontextprotocol/server-memory"
+    )
     
-    # Спробувати прямий download з GitHub (більш надійний)
-    log_info "Встановлення Goose через GitHub releases..."
-    if install_goose_direct; then
-        export GOOSE_BIN="goose"
-        return 0
-    fi
+    echo ""
+    log_info "📦 MCP Сервери (6 серверів, 92 tools):"
+    echo -e "  ${GREEN}1. filesystem${NC}   - 14 tools - Файли та директорії"
+    echo -e "  ${GREEN}2. playwright${NC}   - 32 tools - Браузер automation"
+    echo -e "  ${GREEN}3. shell${NC}        -  9 tools - Shell команди"
+    echo -e "  ${GREEN}4. applescript${NC}  -  1 tool  - macOS GUI automation"
+    echo -e "  ${GREEN}5. git${NC}          - 27 tools - Git операції"
+    echo -e "  ${GREEN}6. memory${NC}       -  9 tools - Cross-session пам'ять"
+    echo ""
     
-    # Fallback: встановлення через PyPI з Python 3.11
-    log_warn "GitHub метод не спрацював, спробуємо PyPI..."
+    local all_installed=true
     
-    # Перевірити що Python 3.11 доступний
-    if ! check_command python3.11; then
-        log_info "Встановлення Python 3.11..."
-        brew install python@3.11
-    fi
-    
-    # Встановити pipx якщо потрібно
-    if ! check_command pipx; then
-        log_info "Встановлення pipx..."
-        brew install pipx
-        pipx ensurepath
-        # Reload PATH for current session
-        export PATH="$HOME/.local/bin:$PATH"
-    fi
-    
-    # Встановити goose-ai через pipx з Python 3.11
-    log_info "Встановлення goose-ai через pipx з Python 3.11..."
-    if pipx install --python python3.11 goose-ai 2>/dev/null; then
-        log_success "Goose успішно встановлено через PyPI"
-        export GOOSE_BIN="goose"
-        return 0
-    fi
-    
-    # Фінальна перевірка
-    if check_command goose; then
-        log_success "Goose встановлено"
-        export GOOSE_BIN="goose"
-    else
-        log_error "❌ Не вдалося встановити Goose автоматично"
-        log_warn "Будь ласка, встановіть Goose вручну:"
-        log_warn "1. Desktop: https://github.com/block/goose/releases"
-        log_warn "2. CLI: pipx install --python python3.11 goose-ai"
-        log_warn "3. Direct: curl -sSL https://github.com/block/goose/releases/download/v1.9.3/download_cli.sh | bash"
-        return 1
-    fi
-    
-    log_warn ""
-    log_warn "💡 РЕКОМЕНДАЦІЯ: Для кращої продуктивності використовуйте Goose Desktop:"
-    log_warn "Завантажте з: https://github.com/block/goose/releases"
-    log_warn ""
-}
-
-# Fallback метод встановлення Goose через GitHub releases
-install_goose_direct() {
-    log_info "Спроба прямого завантаження з GitHub releases..."
-    
-    # Визначити архітектуру
-    ARCH=$(uname -m)
-    if [ "$ARCH" = "arm64" ]; then
-        GOOSE_ARCHIVE="goose-aarch64-apple-darwin.tar.bz2"
-    else
-        GOOSE_ARCHIVE="goose-x86_64-apple-darwin.tar.bz2"
-    fi
-    
-    # Завантажити та встановити
-    TEMP_DIR=$(mktemp -d)
-    DOWNLOAD_URL="https://github.com/block/goose/releases/download/v1.9.3/$GOOSE_ARCHIVE"
-    
-    log_info "Завантаження $GOOSE_ARCHIVE..."
-    if curl -L -o "$TEMP_DIR/$GOOSE_ARCHIVE" "$DOWNLOAD_URL" >/dev/null 2>&1; then
-        cd "$TEMP_DIR"
-        tar -xjf "$GOOSE_ARCHIVE" >/dev/null 2>&1
-        
-        # Знайти goose binary та встановити
-        if [ -f "./goose" ]; then
-            # Спробувати встановити в /usr/local/bin (потребує sudo)
-            if sudo cp "./goose" /usr/local/bin/goose 2>/dev/null && sudo chmod +x /usr/local/bin/goose 2>/dev/null; then
-                log_success "Goose встановлено в /usr/local/bin/goose"
-            else
-                # Fallback: встановити в home директорію
-                mkdir -p "$HOME/bin"
-                cp "./goose" "$HOME/bin/goose"
-                chmod +x "$HOME/bin/goose"
-                
-                # Додати до PATH якщо потрібно
-                if [[ ":$PATH:" != *":$HOME/bin:"* ]]; then
-                    export PATH="$HOME/bin:$PATH"
-                    echo 'export PATH="$HOME/bin:$PATH"' >> ~/.zshrc
-                fi
-                
-                log_success "Goose встановлено в $HOME/bin/goose"
-            fi
+    for package in "${MCP_PACKAGES[@]}"; do
+        log_info "Встановлення $package..."
+        if npm list -g "$package" >/dev/null 2>&1; then
+            log_success "$package вже встановлено"
         else
-            log_error "Не знайдено goose binary в архіві"
-            cd - > /dev/null
-            rm -rf "$TEMP_DIR"
-            return 1
+            if npm install -g "$package" 2>/dev/null; then
+                log_success "$package встановлено"
+            else
+                log_error "Не вдалося встановити $package"
+                all_installed=false
+            fi
         fi
-        
-        # Очистити temp files
-        cd - > /dev/null
-        rm -rf "$TEMP_DIR"
-        
-        return 0
+    done
+    
+    echo ""
+    if [ "$all_installed" = true ]; then
+        log_success "Всі MCP сервери встановлено (6/6)"
+        log_info "Total tools: 92 (14+32+9+1+27+9)"
     else
-        log_error "Не вдалося завантажити Goose з GitHub"
-        rm -rf "$TEMP_DIR"
-        return 1
+        log_warn "Деякі MCP сервери не встановились - перевірте помилки вище"
+        log_warn "Система працюватиме з доступними серверами"
     fi
 }
 
@@ -688,8 +611,6 @@ create_directories() {
     mkdir -p "$LOGS_DIR/archive"
     mkdir -p "$MODELS_DIR/whisper"
     mkdir -p "$MODELS_DIR/tts"
-    mkdir -p "$HOME/.local/share/goose/sessions"
-    mkdir -p "$HOME/.config/goose"
     mkdir -p data
     mkdir -p "$REPO_ROOT/web/static/assets"
     
@@ -761,6 +682,10 @@ download_3d_models() {
 # Налаштування конфігурації
 # =============================================================================
 
+# =============================================================================
+# Налаштування конфігурації (v5.0)
+# =============================================================================
+
 configure_system() {
     log_step "КРОК 14: Налаштування системної конфігурації"
     
@@ -797,7 +722,7 @@ LLM_API_FALLBACK_ENDPOINT=
 LLM_API_USE_FALLBACK=true
 LLM_API_TIMEOUT=60000
 
-# === AI BACKEND CONFIGURATION ===
+# === AI BACKEND CONFIGURATION (Pure MCP Mode) ===
 AI_BACKEND_MODE=mcp
 AI_BACKEND_PRIMARY=mcp
 AI_BACKEND_DISABLE_FALLBACK=false
@@ -833,183 +758,24 @@ EOF
     fi
     
     log_success "Системна конфігурація завершена"
-    fi
 }
 
 # =============================================================================
-# Налаштування Goose
+# Налаштування конфігурації (v5.0)
 # =============================================================================
 
-configure_goose() {
-    log_step "КРОК 15: Налаштування Goose AI з MCP Extensions"
-    
-    # Перевірка чи Goose вже налаштований
-    if [ -f "$HOME/.config/goose/config.yaml" ]; then
-        # Перевірка чи provider налаштований
-        if grep -q "provider:" "$HOME/.config/goose/config.yaml" 2>/dev/null; then
-            # Перевірка чи є MCP extensions
-            if grep -q "extensions:" "$HOME/.config/goose/config.yaml" 2>/dev/null; then
-                log_success "Goose вже налаштовано з MCP extensions"
-                return 0
-            else
-                log_warn "Goose налаштовано, але БЕЗ MCP extensions - оновлюємо..."
-            fi
-        fi
-    fi
-    
-    # Goose НЕ налаштований - потрібна конфігурація
-    log_warn ""
-    log_warn "═══════════════════════════════════════════════════════════════"
-    log_warn "  Goose потребує налаштування AI provider + MCP Extensions"
-    log_warn "═══════════════════════════════════════════════════════════════"
-    log_warn ""
-    
-    # Створити директорію config якщо не існує
-    mkdir -p "$HOME/.config/goose"
-    
-    # Встановити MCP npm packages глобально
-    log_info "Встановлення MCP extensions packages..."
-    npm install -g @modelcontextprotocol/server-filesystem \
-                   @executeautomation/playwright-mcp-server \
-                   @anthropic/computer-use 2>/dev/null || {
-        log_warn "Деякі MCP packages не встановились - спробуйте вручну після установки"
-    }
-    
-    # Спробувати автоматичну конфігурацію з GitHub Models + MCP
-    if [ -f "$REPO_ROOT/config/config.yaml" ]; then
-        log_info "Створення Goose config з GitHub Models + MCP Extensions..."
-        
-        # Створити повний Goose config з MCP extensions
-        cat > "$HOME/.config/goose/config.yaml" << 'GOOSE_CONFIG'
-# Goose AI Configuration for ATLAS v4.0
-# Provider: GitHub Models (free access to multiple AI models)
-# MCP Extensions: developer, playwright, computercontroller
+configure_system() {
 
-provider: openai
-model: gpt-4o  # GitHub Models default
-
-# GitHub Models API Configuration
-openai:
-  api_key: ${GITHUB_TOKEN}
-  base_url: https://models.inference.ai.azure.com
-
-# MCP Extensions для ATLAS агентів (Тетяна, Гриша)
-extensions:
-  # Developer Tools (файли, команди, процеси)
-  - name: developer
-    type: mcp
-    config:
-      command: npx
-      args:
-        - -y
-        - "@modelcontextprotocol/server-filesystem"
-      env:
-        ALLOWED_DIRECTORIES: "/Users,/tmp,/Desktop,/Applications"
-    
-  # Playwright (браузер automation)
-  - name: playwright
-    type: mcp
-    config:
-      command: npx
-      args:
-        - -y
-        - "@executeautomation/playwright-mcp-server"
-      env:
-        HEADLESS: "false"
-    
-  # Computer Controller (mouse, keyboard, screenshots)
-  - name: computercontroller
-    type: mcp
-    config:
-      command: npx
-      args:
-        - -y
-        - "@anthropic/computer-use"
-      env:
-        DISPLAY_NUM: ":0"
-
-# Налаштування безпеки
-security:
-  allow_code_execution: true
-  allow_file_access: true
-  allow_network_access: true
-
-# Available GitHub Models (безкоштовні):
-# - gpt-4o (рекомендовано)
-# - gpt-4o-mini (швидка)
-# - Meta-Llama-3.1-405B-Instruct
-# - Meta-Llama-3.1-70B-Instruct
-# - Mistral-large-2407
-# - Phi-3.5-mini-instruct
-# та багато інших...
-GOOSE_CONFIG
-        
-        log_success "Goose config створено: $HOME/.config/goose/config.yaml"
-        log_success "MCP Extensions налаштовані: developer, playwright, computercontroller"
-        log_info ""
-        log_info "⚠️  ВАЖЛИВО: Налаштуйте GitHub Token для AI моделей"
-        log_info ""
-        log_info "Як отримати GitHub Token:"
-        log_info "  1. Відкрийте: https://github.com/settings/tokens"
-        log_info "  2. Generate new token (classic)"
-        log_info "  3. Виберіть scopes: read:user, read:project"
-        log_info "  4. Додайте до environment:"
-        log_info "     export GITHUB_TOKEN='ghp_...'"
-        log_info "     echo 'export GITHUB_TOKEN=\"ghp_...\"' >> ~/.zshrc"
-        log_info ""
-        log_info "  5. Або запустіть: ./scripts/configure-goose.sh"
-        log_info ""
-        log_info "📚 Детальна документація MCP: docs/GOOSE_MCP_SETUP_GUIDE.md"
-        log_info ""
-        
-        # Перевірка чи є GitHub Token in environment
-        if [ -n "$GITHUB_TOKEN" ]; then
-            log_success "✅ GITHUB_TOKEN знайдено в environment"
-            log_success "✅ Goose готовий до роботи з GitHub Models + MCP!"
-        else
-            log_warn "⚠️  GITHUB_TOKEN НЕ знайдено в environment"
-            log_warn "   Запустіть: ./scripts/configure-goose.sh"
-            log_warn "   Або додайте вручну до ~/.zshrc"
-        fi
-        
-        # Перевірка MCP packages
-        log_info ""
-        log_info "Перевірка MCP packages..."
-        local mcp_ok=true
-        
-        if ! npm list -g @modelcontextprotocol/server-filesystem >/dev/null 2>&1; then
-            log_warn "⚠️  MCP filesystem server не встановлено"
-            mcp_ok=false
-        fi
-        
-        if ! npm list -g @executeautomation/playwright-mcp-server >/dev/null 2>&1; then
-            log_warn "⚠️  MCP playwright server не встановлено"
-            mcp_ok=false
-        fi
-        
-        if [ "$mcp_ok" = "true" ]; then
-            log_success "✅ MCP packages встановлено"
-        else
-            log_warn "Деякі MCP packages відсутні. Встановіть вручну:"
-            log_warn "  npm install -g @modelcontextprotocol/server-filesystem"
-            log_warn "  npm install -g @executeautomation/playwright-mcp-server"
-        fi
-        
-    else
-        # Fallback: manual setup needed
-        log_warn "OpenRouter config не знайдено в ATLAS config"
-        log_info "Goose буде використовувати дефолтні налаштування"
-        log_info "Для зміни провайдера: goose providers list"
-        log_info ""
-    fi
-}
+# =============================================================================
+# Тестування установки
+# =============================================================================
 
 # =============================================================================
 # Тестування установки
 # =============================================================================
 
 test_installation() {
-    log_step "КРОК 16: Тестування установки"
+    log_step "КРОК 15: Тестування установки"
     
     local all_ok=true
     
@@ -1029,13 +795,18 @@ test_installation() {
         all_ok=false
     fi
     
-    # Goose
-    if [ -n "$GOOSE_BIN" ] && [ -x "$GOOSE_BIN" ]; then
-        log_success "Goose: доступний"
-    else
-        log_error "Goose не встановлено"
-        all_ok=false
-    fi
+    # MCP Servers
+    log_info "Перевірка MCP серверів..."
+    local mcp_installed=0
+    local mcp_total=6
+    
+    for package in "@modelcontextprotocol/server-filesystem" "@executeautomation/playwright-mcp-server" "super-shell-mcp" "@peakmojo/applescript-mcp" "@cyanheads/git-mcp-server" "@modelcontextprotocol/server-memory"; do
+        if npm list -g "$package" >/dev/null 2>&1; then
+            ((mcp_installed++))
+        fi
+    done
+    
+    log_success "MCP Servers: $mcp_installed/$mcp_total встановлено"
     
     # Whisper binary
     local whisper_bin="$REPO_ROOT/third_party/whisper.cpp.upstream/build/bin/whisper-cli"
@@ -1078,22 +849,7 @@ test_installation() {
 }
 
 # =============================================================================
-# Фінальне налаштування Goose (опційно)
-# =============================================================================
-
-# =============================================================================
-# DEPRECATED: Goose Configuration (v4.0 Legacy)
-# =============================================================================
-# v5.0 uses Pure MCP mode - Goose integration is deprecated
-
-run_goose_configure() {
-    log_warn "Goose configuration is deprecated in ATLAS v5.0"
-    log_info "System now uses Pure MCP mode for all operations"
-    return 0
-}
-
-# =============================================================================
-# Фінальні інструкції
+# Фінальні інструкції (v5.0)
 # =============================================================================
 
 print_final_instructions() {
@@ -1103,12 +859,20 @@ print_final_instructions() {
     echo -e "${GREEN}╚════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
     echo -e "${CYAN}🚀 ATLAS v5.0 Features:${NC}"
-    echo -e "   ${WHITE}✓${NC} Pure MCP режим (без Goose залежностей)"
+    echo -e "   ${WHITE}✓${NC} Pure MCP режим (6 серверів, 92 tools)"
     echo -e "   ${WHITE}✓${NC} Mac Studio M1 MAX оптимізації"
     echo -e "   ${WHITE}✓${NC} Централізована конфігурація через .env"
     echo -e "   ${WHITE}✓${NC} Metal GPU acceleration для Whisper та TTS"
     echo ""
-    echo -e "${CYAN}📋 Наступні кроки:${NC}"
+    echo -e "${CYAN}� MCP Servers (6/6):${NC}"
+    echo -e "   ${WHITE}•${NC} filesystem (14 tools) - Файли та директорії"
+    echo -e "   ${WHITE}•${NC} playwright (32 tools) - Браузер automation"
+    echo -e "   ${WHITE}•${NC} shell (9 tools) - Системні команди"
+    echo -e "   ${WHITE}•${NC} applescript (1 tool) - macOS GUI"
+    echo -e "   ${WHITE}•${NC} git (27 tools) - Версійний контроль"
+    echo -e "   ${WHITE}•${NC} memory (9 tools) - Cross-session пам'ять"
+    echo ""
+    echo -e "${CYAN}�📋 Наступні кроки:${NC}"
     echo ""
     echo -e "${YELLOW}1.${NC} Запустити систему:"
     echo -e "   ${WHITE}./restart_system.sh start${NC}"
@@ -1145,17 +909,11 @@ print_final_instructions() {
     echo -e "   ${WHITE}make help${NC}            - Показати всі Make команди"
     echo -e "   ${WHITE}./restart_system.sh help${NC} - Показати опції управління"
     echo ""
-    
-    if [ ! -f "$HOME/.config/goose/config.yaml" ]; then
-        echo -e "${YELLOW}⚠️  ВАЖЛИВО:${NC}"
-        echo ""
-        echo -e "   Goose config буде створено автоматично при першому запуску"
-        echo -e "   ${WHITE}goose session start${NC}"
-        echo ""
-    else
-        echo -e "${CYAN}ℹ️  Goose:${NC} Config готовий. Перевірити провайдерів: ${WHITE}goose providers list${NC}"
-    fi
-    
+    echo -e "${CYAN}ℹ️  ATLAS v5.0:${NC} Pure MCP режим"
+    echo ""
+    echo -e "   MCP сервери запускаються автоматично через orchestrator"
+    echo -e "   LLM API: ${WHITE}http://localhost:4000${NC} (OpenRouter або локальний сервер)"
+    echo ""
     echo -e "${GREEN}✨ Система готова до роботи!${NC}"
     echo ""
 }
@@ -1167,7 +925,7 @@ print_final_instructions() {
 main() {
     print_banner
     
-    log_info "Розпочато установку ATLAS v4.0 на macOS"
+    log_info "Розпочато установку ATLAS v5.0 (Pure MCP Edition) на macOS"
     log_info "Робоча директорія: $REPO_ROOT"
     echo ""
     
@@ -1178,7 +936,7 @@ main() {
     install_nodejs
     install_git
     install_dependencies
-    # install_goose  # DEPRECATED in v5.0 - Pure MCP mode
+    install_mcp_servers
     setup_python_venv
     setup_nodejs_packages
     build_whisper_cpp
@@ -1186,9 +944,7 @@ main() {
     create_directories
     download_3d_models
     configure_system
-    # configure_goose  # DEPRECATED in v5.0
     test_installation
-    # run_goose_configure  # DEPRECATED in v5.0
     
     # Фінальні інструкції
     print_final_instructions
