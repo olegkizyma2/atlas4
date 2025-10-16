@@ -1,0 +1,45 @@
+feat: Add Screenshot and Adjustment Feature (Stage 2.1.5)
+
+Added intelligent screenshot-before-execution workflow step for Tetyana.
+Now before executing each TODO item, Tetyana:
+1. Takes screenshot of current state (playwright or shell)
+2. Analyzes if plan matches reality
+3. Adjusts plan if needed (or keeps as-is)
+
+Implementation:
+- New prompt: prompts/mcp/tetyana_screenshot_and_adjust.js (156 LOC)
+- New methods in mcp-todo-manager.js:
+  * screenshotAndAdjust(plan, item) - main method (150 LOC)
+  * _takeShellScreenshot(itemId) - shell helper
+  * _parseScreenshotAdjustment(response) - JSON parser
+- Integration in executeItemWithRetry() between Stage 2.1 and 2.2
+- Updated prompts/mcp/index.js with new export
+
+Benefits:
+- Smarter execution (adapts to real system state)
+- Fewer errors (skips unnecessary steps)
+- Better success rate (knows what's already done)
+- ~1.5-2.5s overhead per item, but saves time on retries
+
+Examples:
+- Calculator already open → skip "open" step
+- Browser on google.com → skip navigate, fill search directly
+- Clean desktop → execute plan as-is
+
+Features:
+- Playwright screenshot preferred (better quality)
+- Shell screencapture fallback (always works on macOS)
+- LLM analysis with temperature=0.2 (precise)
+- Graceful degradation (continues with original plan on errors)
+- TTS feedback: "Скрін готовий" or "Коригую план"
+
+Documentation:
+- docs/SCREENSHOT_AND_ADJUSTMENT_FEATURE_2025-10-16.md (full)
+- docs/SCREENSHOT_ADJUSTMENT_QUICK_REF_2025-10-16.md (quick ref)
+- SCREENSHOT_ADJUSTMENT_IMPLEMENTATION_SUMMARY.md (technical)
+- SCREENSHOT_FEATURE_READY_UA.md (user-facing, Ukrainian)
+- Updated .github/copilot-instructions.md
+
+Version: 4.2.0
+Status: Ready for testing
+Total changes: ~1000 LOC, 4 new files, 3 modified files
