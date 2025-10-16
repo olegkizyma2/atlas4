@@ -1,7 +1,7 @@
 # ATLAS v5.0 - Adaptive Task and Learning Assistant System
 ## MCP Dynamic TODO Edition
 
-**LAST UPDATED:** 16 жовтня 2025 - День ~22:00 (v5.0 Release - MCP-only refactoring завершено)
+**LAST UPDATED:** 16 жовтня 2025 - День ~11:30 (v5.0 - Mode Selection Stage додано)
 
 ---
 
@@ -347,6 +347,51 @@ ATLAS is an intelligent multi-agent orchestration system with Flask web frontend
 ---
 
 ## 🎯 КЛЮЧОВІ ОСОБЛИВОСТІ СИСТЕМИ
+
+### ✅ Mode Selection Stage - Stage 0-MCP (NEW 16.10.2025 - день ~11:00)
+- **Нова стадія:** Система тепер визначає режим роботи (chat/task) ПЕРЕД початком виконання
+- **Workflow оновлено:** User Message → 🆕 Stage 0-MCP (Mode Selection) → Stage 1-MCP (TODO Planning) → ...
+- **Що робить Stage 0-MCP:**
+  1. 🔍 Аналізує повідомлення користувача через LLM (gpt-4o-mini, T=0.1)
+  2. ⚖️ Класифікує як `chat` (розмова) або `task` (завдання з інструментами)
+  3. 📊 Повертає впевненість класифікації (0-100%)
+  4. 💬 Показує режим у чаті: "Режим: 💬 Розмова / 🔧 Завдання (впевненість: X%)"
+- **Патерни класифікації:**
+  - **Task:** "Відкрий", "Запусти", "Створи", "Збережи", "Open", "Launch", "Create", "Save"
+  - **Chat:** "Привіт", "Розкажи", "Поясни", "Що", "Як", "Hello", "Tell me", "Explain"
+- **Файли створено:**
+  - `prompts/mcp/stage0_mode_selection.js` - промпт класифікатора (1960 символів)
+  - `orchestrator/workflow/stages/mode-selection-processor.js` - процесор стадії (164 LOC)
+  - `tests/test-mode-selection-unit.sh` - unit тести
+- **Файли оновлено:**
+  - `orchestrator/workflow/executor-v3.js` - інтеграція Stage 0 перед Stage 1
+  - `orchestrator/core/service-registry.js` - реєстрація в DI Container
+  - `prompts/mcp/index.js`, `orchestrator/workflow/stages/index.js` - експорти
+- **Виправлення відображення агентів у чаті:**
+  - Додано WebSocket обробники для `agent_message` та `chat_message` подій
+  - Всі агенти тепер показуються з timestamps: `13:25:54 [ATLAS] повідомлення`
+  - TTS автоматично озвучує всі повідомлення з правильними голосами:
+    - Atlas → mykyta, Тетяна → tetiana, Гриша → dmytro
+- **WebSocket flow:**
+  ```javascript
+  Backend: wsManager.broadcastToSubscribers('chat', 'agent_message', {content, agent})
+     ↓
+  Frontend: webSocket.on('agent-message', () => chat.handleAgentMessage())
+     ↓
+  Chat: addMessage(content, agent) + ttsManager.speak(text, {voice})
+  ```
+- **Performance:** 
+  - Overhead: ~1-2 сек (LLM API call)
+  - Benefit: Краща маршрутизація, явний показ режиму
+  - Default: task mode при помилці (безпечніше)
+- **Майбутнє покращення:** Реалізувати окремий handler для chat mode (зараз fallthrough до task)
+- **Критично:**
+  - **ЗАВЖДИ** класифікувати режим перед TODO плануванням
+  - **ЗАВЖДИ** відправляти режим у чат через WebSocket
+  - **ЗАВЖДИ** використовувати `agent_message` event (НЕ chat_message) для агентів
+  - **DEFAULT** до task mode при помилці класифікації
+  - **WebSocket** підписка на 'chat' канал обов'язкова
+- **Детально:** `docs/MODE_SELECTION_STAGE_IMPLEMENTATION.md`, `docs/MODE_SELECTION_QUICK_REF.md`, `docs/MODE_SELECTION_COMPLETE_SUMMARY_2025-10-16.md`
 
 ### ✅ Screenshot and Adjustment Feature - Stage 2.1.5 (NEW 16.10.2025 - день ~17:00)
 - **Нова функція:** Тетяна тепер робить скріншот та коригує план ПЕРЕД виконанням кожного завдання
