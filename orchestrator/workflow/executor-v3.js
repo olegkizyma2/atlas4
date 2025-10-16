@@ -297,26 +297,65 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
         
         // Get API endpoint
         const apiEndpointConfig = GlobalConfig.AI_MODEL_CONFIG.apiEndpoint;
-        const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
+        let apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
         
         logger.info('executor', `Calling chat API at ${apiUrl} with model ${modelConfig.model}`);
         
-        // Call LLM for chat response
-        const chatResponse = await axios.post(apiUrl, {
-          model: modelConfig.model,
-          messages: [
-            { 
-              role: 'system', 
-              content: 'Ти - Atlas, AI-асистент. Відповідай природно, дружньо та по-українськи. Будь стислим та корисним.' 
-            },
-            ...recentMessages
-          ],
-          temperature: modelConfig.temperature,
-          max_tokens: modelConfig.max_tokens
-        }, {
-          headers: { 'Content-Type': 'application/json' },
-          timeout: 30000
-        });
+        // Call LLM for chat response with fallback support
+        let chatResponse;
+        let usedFallback = false;
+        
+        try {
+          const response = await axios.post(apiUrl, {
+            model: modelConfig.model,
+            messages: [
+              { 
+                role: 'system', 
+                content: 'Ти - Atlas, AI-асистент. Відповідай природно, дружньо та по-українськи. Будь стислим та корисним.' 
+              },
+              ...recentMessages
+            ],
+            temperature: modelConfig.temperature,
+            max_tokens: modelConfig.max_tokens
+          }, {
+            headers: { 'Content-Type': 'application/json' },
+            timeout: 30000
+          });
+          chatResponse = response;
+          
+        } catch (primaryError) {
+          // Try fallback if primary fails
+          if (apiEndpointConfig.fallback && !usedFallback) {
+            logger.warn('executor', `Chat API failed: ${primaryError.message}, attempting fallback...`);
+            apiUrl = apiEndpointConfig.fallback;
+            usedFallback = true;
+            
+            try {
+              chatResponse = await axios.post(apiUrl, {
+                model: modelConfig.model,
+                messages: [
+                  { 
+                    role: 'system', 
+                    content: 'Ти - Atlas, AI-асистент. Відповідай природно, дружньо та по-українськи. Будь стислим та корисним.' 
+                  },
+                  ...recentMessages
+                ],
+                temperature: modelConfig.temperature,
+                max_tokens: modelConfig.max_tokens
+              }, {
+                headers: { 'Content-Type': 'application/json' },
+                timeout: 30000
+              });
+              logger.info('executor', `✅ Chat API fallback succeeded`);
+              
+            } catch (fallbackError) {
+              logger.error('executor', `Chat API fallback also failed: ${fallbackError.message}`);
+              throw fallbackError;
+            }
+          } else {
+            throw primaryError;
+          }
+        }
         
         const atlasResponse = chatResponse.data?.choices?.[0]?.message?.content;
         

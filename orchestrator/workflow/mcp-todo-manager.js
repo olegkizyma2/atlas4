@@ -200,7 +200,6 @@ export class MCPTodoManager {
             // Wait for rate limit (ADDED 14.10.2025)
             await this._waitForRateLimit();
 
-            // FIXED 13.10.2025 - Use FULL prompt with JSON schema and examples
             // FIXED 14.10.2025 - Use MCP_MODEL_CONFIG for per-stage models
             const modelConfig = MCP_MODEL_CONFIG.getStageConfig('todo_planning');
 
@@ -208,30 +207,94 @@ export class MCPTodoManager {
             this.logger.system('mcp-todo', `[TODO] Using model: ${modelConfig.model} (temp: ${modelConfig.temperature}, max_tokens: ${modelConfig.max_tokens})`);
 
             // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
+            // IMPROVED 16.10.2025 - Support fallback API endpoint with automatic retry
             const apiEndpointConfig = MCP_MODEL_CONFIG.apiEndpoint;
-            const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
+            let apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
+            
+            this.logger.system('mcp-todo', `[TODO] Using primary API endpoint: ${apiUrl}`);
 
-            const apiResponse = await axios.post(apiUrl, {
-                model: modelConfig.model,
-                messages: [
-                    { role: 'system', content: todoPrompt.systemPrompt },
-                    { role: 'user', content: userMessage }
-                ],
-                temperature: modelConfig.temperature,
-                max_tokens: modelConfig.max_tokens
-            }, {
-                headers: { 'Content-Type': 'application/json' },
-                timeout: 120000  // FIXED 14.10.2025 - 120s для mistral-small-2503 (повільна але якісна модель)
-            });
+            let apiResponse;
+            let usedFallback = false;
+
+            try {
+                const apiResponse_attempt = await axios.post(apiUrl, {
+                    model: modelConfig.model,
+                    messages: [
+                        { role: 'system', content: todoPrompt.systemPrompt },
+                        { role: 'user', content: userMessage }
+                    ],
+                    temperature: modelConfig.temperature,
+                    max_tokens: modelConfig.max_tokens
+                }, {
+                    headers: { 'Content-Type': 'application/json' },
+                    timeout: 120000  // FIXED 14.10.2025 - 120s для mistral-small-2503 (повільна але якісна модель)
+                });
+                apiResponse = apiResponse_attempt;
+                
+            } catch (primaryError) {
+                // Try fallback if primary fails
+                if (apiEndpointConfig.fallback && !usedFallback) {
+                    this.logger.warn('mcp-todo', `[TODO] Primary API failed, attempting fallback endpoint...`, {
+                        category: 'mcp-todo',
+                        primaryError: primaryError.message,
+                        code: primaryError.code
+                    });
+                    
+                    apiUrl = apiEndpointConfig.fallback;
+                    usedFallback = true;
+                    this.logger.system('mcp-todo', `[TODO] Using fallback API endpoint: ${apiUrl}`);
+                    
+                    try {
+                        const apiResponse_fallback = await axios.post(apiUrl, {
+                            model: modelConfig.model,
+                            messages: [
+                                { role: 'system', content: todoPrompt.systemPrompt },
+                                { role: 'user', content: userMessage }
+                            ],
+                            temperature: modelConfig.temperature,
+                            max_tokens: modelConfig.max_tokens
+                        }, {
+                            headers: { 'Content-Type': 'application/json' },
+                            timeout: 120000
+                        });
+                        apiResponse = apiResponse_fallback;
+                        this.logger.system('mcp-todo', `[TODO] ✅ Fallback API succeeded`);
+                        
+                    } catch (fallbackError) {
+                        this.logger.error('mcp-todo', `[TODO] Fallback API also failed: ${fallbackError.message}`, {
+                            category: 'mcp-todo',
+                            code: fallbackError.code
+                        });
+                        throw fallbackError;
+                    }
+                } else {
+                    throw primaryError;
+                }
+            }
 
             // FIXED 16.10.2025 - Validate API response structure before accessing
+            // LOG RAW RESPONSE FIRST FOR DEBUGGING
+            this.logger.system('mcp-todo', `[TODO] Raw API response status: ${apiResponse.status}`);
+            this.logger.system('mcp-todo', `[TODO] Raw API response data keys: ${Object.keys(apiResponse.data).join(', ')}`);
+            this.logger.system('mcp-todo', `[TODO] Raw API response: ${JSON.stringify(apiResponse.data).substring(0, 500)}...`);
+            
             if (!apiResponse.data) {
                 throw new Error('API response missing data field');
             }
             if (!apiResponse.data.choices || !Array.isArray(apiResponse.data.choices) || apiResponse.data.choices.length === 0) {
+                this.logger.error('mcp-todo', `Invalid choices array: ${JSON.stringify(apiResponse.data)}`, {
+                    category: 'mcp-todo',
+                    component: 'mcp-todo',
+                    responseKeys: Object.keys(apiResponse.data)
+                });
                 throw new Error('API response missing choices array');
             }
             if (!apiResponse.data.choices[0].message) {
+                this.logger.error('mcp-todo', `Missing message in choices[0]: ${JSON.stringify(apiResponse.data.choices[0])}`, {
+                    category: 'mcp-todo',
+                    component: 'mcp-todo',
+                    choiceKeys: Object.keys(apiResponse.data.choices[0])
+                });
                 throw new Error('API response missing message in choices[0]');
             }
             if (!apiResponse.data.choices[0].message.content) {
@@ -286,7 +349,45 @@ export class MCPTodoManager {
             return todo;
 
         } catch (error) {
-            this.logger.error(`[MCP-TODO] Failed to create TODO: ${error.message}`, { category: 'mcp-todo', component: 'mcp-todo' });
+            // FIXED 16.10.2025 - Log API errors with full context
+            if (error.response) {
+                // API responded with error status
+                this.logger.error(`[MCP-TODO] LLM API error: ${error.response.status} ${error.response.statusText}`, {
+                    category: 'mcp-todo',
+                    component: 'mcp-todo',
+                    status: error.response.status,
+                    data: typeof error.response.data === 'object' ? JSON.stringify(error.response.data).substring(0, 500) : String(error.response.data).substring(0, 500),
+                    url: error.config?.url,
+                    method: error.config?.method
+                });
+            } else if (error.code === 'ECONNREFUSED') {
+                // Connection refused - API likely not running
+                this.logger.error(`[MCP-TODO] LLM API not available: Connection refused`, {
+                    category: 'mcp-todo',
+                    component: 'mcp-todo',
+                    code: error.code,
+                    address: error.address,
+                    port: error.port,
+                    message: 'Make sure LLM API is running on port 4000 (e.g., openrouter.ai proxy or localhost service)'
+                });
+            } else if (error.code === 'ENOTFOUND') {
+                // DNS resolution failed
+                this.logger.error(`[MCP-TODO] LLM API DNS error: ${error.message}`, {
+                    category: 'mcp-todo',
+                    component: 'mcp-todo',
+                    code: error.code,
+                    hostname: error.hostname
+                });
+            } else {
+                // Other error (timeout, network, etc)
+                this.logger.error(`[MCP-TODO] LLM API request failed: ${error.message}`, {
+                    category: 'mcp-todo',
+                    component: 'mcp-todo',
+                    code: error.code,
+                    stack: error.stack?.substring(0, 500)
+                });
+            }
+            
             throw new Error(`TODO creation failed: ${error.message}`);
         }
     }
