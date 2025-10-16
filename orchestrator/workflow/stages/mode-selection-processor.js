@@ -27,14 +27,14 @@ export class ModeSelectionProcessor {
     constructor({ llmClient, logger: loggerInstance }) {
         this.llmClient = llmClient;
         this.logger = loggerInstance || logger;
-        
+
         // Get API endpoint from GlobalConfig with fallback support
         const apiConfig = GlobalConfig.AI_MODEL_CONFIG.apiEndpoint;
-        this.apiEndpoint = apiConfig.useFallback && apiConfig.fallback 
-            ? apiConfig.fallback 
+        this.apiEndpoint = apiConfig.useFallback && apiConfig.fallback
+            ? apiConfig.fallback
             : apiConfig.primary;
         this.apiTimeout = apiConfig.timeout || 60000;
-        
+
         this.logger.system('mode-selection', `[STAGE-0-MCP] 🔧 Using API endpoint: ${this.apiEndpoint}`);
     }
 
@@ -64,8 +64,8 @@ export class ModeSelectionProcessor {
 
             // Call LLM API
             this.logger.system('mode-selection', `[STAGE-0-MCP] Calling API: ${this.apiEndpoint}`);
-            this.logger.system('mode-selection', `[STAGE-0-MCP] Messages: ${JSON.stringify(messages.map(m => ({role: m.role, content: m.content.substring(0, 80)})))}`);
-            
+            this.logger.system('mode-selection', `[STAGE-0-MCP] Messages: ${JSON.stringify(messages.map(m => ({ role: m.role, content: m.content.substring(0, 80) })))}`);
+
             const response = await axios.post(this.apiEndpoint, {
                 model: 'openai/gpt-4o-mini',  // Fast model for classification
                 messages,
@@ -76,13 +76,13 @@ export class ModeSelectionProcessor {
             });
 
             this.logger.system('mode-selection', `[STAGE-0-MCP] Response received: status=${response.status}, has_data=${!!response.data}, has_choices=${!!response.data.choices}`);
-            
+
             if (!response.data || !response.data.choices || response.data.choices.length === 0) {
                 throw new Error('Invalid API response structure');
             }
 
             const rawResponse = response.data.choices[0].message.content;
-            
+
             this.logger.system('mode-selection', `[STAGE-0-MCP] Raw response: ${rawResponse}`);
 
             // Parse JSON response
@@ -107,20 +107,24 @@ export class ModeSelectionProcessor {
             this.logger.error(`[STAGE-0-MCP] Mode selection failed: ${error.message}`);
             this.logger.error(`[STAGE-0-MCP] Error stack: ${error.stack}`);
             this.logger.error(`[STAGE-0-MCP] Error name: ${error.name}`);
-            
+
             // Log axios-specific details
             if (error.response) {
                 this.logger.error(`[STAGE-0-MCP] API Response Error: status=${error.response.status}, data=${JSON.stringify(error.response.data)}`);
             } else if (error.request) {
                 this.logger.error(`[STAGE-0-MCP] No response received from API`);
             }
-            
-            // Default to task mode on error for safety (prevents chat spam)
+
+            // FIXED 16.10.2025: Default to chat mode on error (intelligent fallback)
+            // Причина: Chat безпечніше за Task при помилці класифікації
+            // - Chat: розмова (користувач просто говорить)
+            // - Task: виконання дій (ризик випадкового запуску команд)
+            this.logger.warn(`[STAGE-0-MCP] ⚠️ Intelligent fallback: використовую CHAT mode замість task`);
             return {
                 success: true,
-                mode: 'task',
+                mode: 'chat',
                 confidence: 0.5,
-                reasoning: 'Помилка класифікації, використовую task mode'
+                reasoning: 'Помилка класифікації, використовую chat mode (інтелектуальний fallback)'
             };
         }
     }
@@ -162,7 +166,7 @@ export class ModeSelectionProcessor {
             this.logger.warn('mode-selection', `Raw response: ${rawResponse}`);
 
             // Simple fallback parsing
-            if (rawResponse.toLowerCase().includes('"mode":"chat"') || 
+            if (rawResponse.toLowerCase().includes('"mode":"chat"') ||
                 rawResponse.toLowerCase().includes("'mode':'chat'")) {
                 return { mode: 'chat', confidence: 0.7, reasoning: 'Fallback parsing' };
             }

@@ -63,32 +63,32 @@ export MCP_TEMP_MODE_SELECTION=0.05
 # ============================================
 # Stage 1: Atlas TODO Planning
 # Змінна: MCP_MODEL_TODO_PLANNING / MCP_TEMP_TODO_PLANNING
-# Default: mistral-small-2503 @ 0.3
+# Default: xai/grok-3 @ 0.3
 # 
 # Функція: Планування завдання на кроки
 # Поради: T=0.3 дозволяє креативність у плануванні
-export MCP_MODEL_TODO_PLANNING=mistral-ai/mistral-small-2503
+export MCP_MODEL_TODO_PLANNING=xai/grok-3
 export MCP_TEMP_TODO_PLANNING=0.3
 
 # ============================================
 # Stage 2.1: Tetyana Plan Tools
 # Змінна: MCP_MODEL_PLAN_TOOLS / MCP_TEMP_PLAN_TOOLS
-# Default: mistral-small-2503 @ 0.1
-# ⭐ ВАЖЛИВО: mistral-small-2503 генерує ЧИСТИЙ JSON без markdown!
+# Default: openai/gpt-4o @ 0.1
+# ⭐ ВАЖЛИВО: openai/gpt-4o генерує ЧИСТИЙ JSON без markdown!
 # 
 # Функція: Визначити які tools потрібні для кожного кроку
 # Поради: T=0.1 - мінімальна варіативність для JSON
-export MCP_MODEL_PLAN_TOOLS=mistral-ai/mistral-small-2503
+export MCP_MODEL_PLAN_TOOLS=openai/gpt-4o
 export MCP_TEMP_PLAN_TOOLS=0.1
 
 # ============================================
 # Stage 2.3: Grisha Verify Item
 # Змінна: MCP_MODEL_VERIFY_ITEM / MCP_TEMP_VERIFY_ITEM
-# Default: mistral-small-2503 @ 0.15
+# Default: openai/gpt-4.1 @ 0.15
 #
 # Функція: Перевірити чи виконано кроку
 # Поради: T=0.15 - точність з мінімальною варіативністю
-export MCP_MODEL_VERIFY_ITEM=mistral-ai/mistral-small-2503
+export MCP_MODEL_VERIFY_ITEM=openai/gpt-4.1
 export MCP_TEMP_VERIFY_ITEM=0.15
 
 # ============================================

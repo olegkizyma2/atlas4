@@ -173,29 +173,29 @@ export const MCP_MODEL_CONFIG = {
 
     // Stage 1-MCP: Atlas TODO Planning
     // T=0.3 для балансу планування (точність + креатив для генерації ідей)
-    // mistral-small-2503: 40 req/min (якість + швидкість)
+    // xai/grok-3: Потужна модель для планування
     todo_planning: {
-      get model() { return process.env.MCP_MODEL_TODO_PLANNING || 'mistral-ai/mistral-small-2503'; },
+      get model() { return process.env.MCP_MODEL_TODO_PLANNING || 'xai/grok-3'; },
       get temperature() { return parseFloat(process.env.MCP_TEMP_TODO_PLANNING || '0.3'); },
       max_tokens: 4000,
-      description: 'Atlas TODO Planning - баланс точності та креативу (40 req/min)'
+      description: 'Atlas TODO Planning - баланс точності та креативу (xai/grok-3)'
     },
 
     // Stage 2.1-MCP: Tetyana Plan Tools
     // T=0.1 для ЧИСТОГО JSON output без варіацій (критично важливо!)
-    // mistral-small-2503: 40 req/min (генерує чистий JSON без markdown)
+    // openai/gpt-4o: Чистий JSON, надійна структура
     plan_tools: {
-      get model() { return process.env.MCP_MODEL_PLAN_TOOLS || 'mistral-ai/mistral-small-2503'; },
+      get model() { return process.env.MCP_MODEL_PLAN_TOOLS || 'openai/gpt-4o'; },
       get temperature() { return parseFloat(process.env.MCP_TEMP_PLAN_TOOLS || '0.1'); },
       max_tokens: 2500,
-      description: 'Tetyana Plan Tools - чистий JSON без markdown (40 req/min)'
+      description: 'Tetyana Plan Tools - чистий JSON без markdown (openai/gpt-4o)'
     },
 
     // Stage 2.3-MCP: Grisha Verify Item
     // T=0.15 для точної верифікації з мінімальною варіативністю
-    // mistral-small-2503: 40 req/min (чистий JSON для верифікації)
+    // openai/gpt-4.1: Потужна верифікація, точна
     verify_item: {
-      get model() { return process.env.MCP_MODEL_VERIFY_ITEM || 'mistral-ai/mistral-small-2503'; },
+      get model() { return process.env.MCP_MODEL_VERIFY_ITEM || 'openai/gpt-4.1'; },
       get temperature() { return parseFloat(process.env.MCP_TEMP_VERIFY_ITEM || '0.15'); },
       max_tokens: 800,
       description: 'Grisha Verify Item - точна верифікація з JSON output (40 req/min)'
