@@ -379,8 +379,35 @@ export class MCPTodoManager {
                 this.logger.system('mcp-todo', `[TODO] Item ${item.id} - Attempt ${attempt}/${item.max_attempts}`);
                 // Skip retry message - handled by verification
 
-                // Stage 2.1: Plan Tools (Tetyana)
-                const plan = await this.planTools(item, todo);
+                // Stage 2.0: Server Selection (SYSTEM - pre-filter MCP servers)
+                // ADDED 16.10.2025 - Select optimal MCP servers BEFORE tool planning
+                let selectedServers = null;
+                let toolsSummary = null;
+                
+                try {
+                    const serverSelection = await this._selectMCPServers(item, todo);
+                    selectedServers = serverSelection.selected_servers;
+                    
+                    // Generate tools summary ONLY for selected servers
+                    if (selectedServers && selectedServers.length > 0) {
+                        toolsSummary = this.mcpManager.getDetailedToolsSummary(selectedServers);
+                        this.logger.system('mcp-todo', `[TODO] 🎯 Pre-selected ${selectedServers.length} MCP servers: ${selectedServers.join(', ')}`);
+                    }
+                } catch (selectionError) {
+                    this.logger.warn(`[MCP-TODO] Server selection failed: ${selectionError.message}. Falling back to all servers.`, {
+                        category: 'mcp-todo',
+                        component: 'mcp-todo'
+                    });
+                    // Fallback: use all servers
+                    selectedServers = null;
+                    toolsSummary = null;
+                }
+
+                // Stage 2.1: Plan Tools (Tetyana) - with pre-selected servers
+                const plan = await this.planTools(item, todo, { 
+                    selectedServers, 
+                    toolsSummary 
+                });
                 await this._safeTTSSpeak(plan.tts_phrase, { mode: 'quick', duration: 150, agent: 'tetyana' });
 
                 // Stage 2.2: Execute Tools (Tetyana)
@@ -388,8 +415,11 @@ export class MCPTodoManager {
                 this._sendChatMessage(`✅ ✅ Виконано: "${item.action}"`, 'tetyana');
                 await this._safeTTSSpeak(execution.tts_phrase, { mode: 'normal', duration: 800, agent: 'tetyana' });
 
-                // Stage 2.3: Verify Item (Grisha)
-                const verification = await this.verifyItem(item, execution);
+                // Stage 2.3: Verify Item (Grisha) - with same pre-selected servers
+                const verification = await this.verifyItem(item, execution, { 
+                    selectedServers,  // ADDED 16.10.2025 - Pass same servers to Grisha
+                    toolsSummary 
+                });
                 // FIXED 14.10.2025 NIGHT - Grisha's voice for verification
                 await this._safeTTSSpeak(verification.tts_phrase, { mode: 'normal', duration: 800, agent: 'grisha' });
 
@@ -482,14 +512,29 @@ export class MCPTodoManager {
             }
 
             // OPTIMIZATION 15.10.2025 - Use compact tools summary instead of full schemas
-            // Reduces prompt size from 8000+ to ~500 tokens
+            // ENHANCEMENT 16.10.2025 - Use pre-selected servers if available
+            // Reduces prompt size from 8000+ to ~500 tokens (all servers) or ~150 tokens (2 servers)
             let toolsSummary;
-            if (options.toolsSummary) {
-                // Use pre-generated summary from stage processor (preferred)
+            let availableTools;
+
+            // PRIORITY 1: Use pre-filtered tools from options (Stage 2.0 selection)
+            if (options.selectedServers && Array.isArray(options.selectedServers) && options.selectedServers.length > 0) {
+                this.logger.system('mcp-todo', `[TODO] 🎯 Using ${options.selectedServers.length} pre-selected servers: ${options.selectedServers.join(', ')}`);
+                
+                // Get tools ONLY from selected servers
+                availableTools = this.mcpManager.getToolsFromServers(options.selectedServers);
+                toolsSummary = options.toolsSummary || this.mcpManager.getDetailedToolsSummary(options.selectedServers);
+                
+                const totalTools = availableTools.length;
+                this.logger.system('mcp-todo', `[TODO] 🎯 Filtered to ${totalTools} tools (was 92+) - ${Math.round((1 - totalTools/92) * 100)}% reduction`);
+            }
+            // PRIORITY 2: Use pre-generated summary (legacy compatibility)
+            else if (options.toolsSummary) {
                 toolsSummary = options.toolsSummary;
                 this.logger.system('mcp-todo', `[TODO] Using provided tools summary (${toolsSummary.length} chars)`);
-            } else {
-                // Fallback: generate compact summary ourselves
+            }
+            // FALLBACK: Generate summary for ALL servers (not recommended - 92+ tools)
+            else {
                 if (typeof this.mcpManager.getToolsSummary !== 'function') {
                     this.logger.error(`[MCP-TODO] MCP Manager missing getToolsSummary method!`, {
                         category: 'mcp-todo',
@@ -498,7 +543,10 @@ export class MCPTodoManager {
                     throw new Error('MCP Manager does not have getToolsSummary() method. Update to latest version.');
                 }
                 toolsSummary = this.mcpManager.getToolsSummary();
-                this.logger.system('mcp-todo', `[TODO] Generated tools summary (${toolsSummary.length} chars)`);
+                this.logger.warn(`[TODO] ⚠️ No server pre-selection - using ALL 92+ tools (performance warning)`, {
+                    category: 'mcp-todo',
+                    component: 'mcp-todo'
+                });
             }
 
             // Import Tetyana Plan Tools prompt
@@ -1564,8 +1612,19 @@ Context: ${JSON.stringify(context, null, 2)}
         this.logger.system('mcp-todo', `[TODO] 🔍 Grisha planning verification tools for item ${item.id}`);
 
         try {
-            // Get tools summary
-            const toolsSummary = options.toolsSummary || this.mcpManager.getToolsSummary();
+            // ENHANCEMENT 16.10.2025 - Use pre-selected servers if available (same as Tetyana)
+            let toolsSummary;
+            
+            if (options.selectedServers && Array.isArray(options.selectedServers) && options.selectedServers.length > 0) {
+                this.logger.system('mcp-todo', `[TODO] 🎯 Grisha using ${options.selectedServers.length} pre-selected servers: ${options.selectedServers.join(', ')}`);
+                toolsSummary = options.toolsSummary || this.mcpManager.getDetailedToolsSummary(options.selectedServers);
+            } else {
+                toolsSummary = options.toolsSummary || this.mcpManager.getToolsSummary();
+                this.logger.warn(`[TODO] ⚠️ Grisha using ALL servers for verification (no pre-selection)`, {
+                    category: 'mcp-todo',
+                    component: 'mcp-todo'
+                });
+            }
 
             // Build prompt for Grisha to plan verification tools
             const planPrompt = `Ти Гриша - верифікатор. Визнач які MCP інструменти потрібні для перевірки виконання.
@@ -1807,6 +1866,146 @@ Return ONLY JSON:
                 stack: error.stack
             });
             throw new Error(`Verification analysis failed: ${error.message}`);
+        }
+    }
+
+    /**
+     * Stage 2.0: Select optimal MCP servers for TODO item
+     * ADDED 16.10.2025 - Intelligent server pre-selection
+     * 
+     * @param {TodoItem} item - TODO item
+     * @param {TodoList} todo - Parent TODO list
+     * @returns {Promise<Object>} {selected_servers: string[], reasoning: string}
+     * @private
+     */
+    async _selectMCPServers(item, todo) {
+        this.logger.system('mcp-todo', `[TODO] 🎯 Stage 2.0: Selecting optimal MCP servers for item ${item.id}`);
+
+        try {
+            // Get available MCP servers with tool counts
+            const availableServers = [];
+            for (const [serverName, server] of this.mcpManager.servers) {
+                if (Array.isArray(server.tools) && server.tools.length > 0) {
+                    availableServers.push({
+                        name: serverName,
+                        tool_count: server.tools.length
+                    });
+                }
+            }
+
+            if (availableServers.length === 0) {
+                throw new Error('No MCP servers available');
+            }
+
+            // Build servers description for LLM
+            const serversDescription = availableServers.map(s => 
+                `- ${s.name} (${s.tool_count} tools)`
+            ).join('\n');
+
+            // Import Server Selection prompt
+            const { MCP_PROMPTS } = await import('../../prompts/mcp/index.js');
+            const selectionPrompt = MCP_PROMPTS.SERVER_SELECTION;
+
+            if (!selectionPrompt) {
+                this.logger.warn('[MCP-TODO] SERVER_SELECTION prompt not found, using all servers', {
+                    category: 'mcp-todo',
+                    component: 'mcp-todo'
+                });
+                return {
+                    selected_servers: availableServers.map(s => s.name),
+                    reasoning: 'Prompt not available - using all servers'
+                };
+            }
+
+            const userMessage = `
+TODO Item: ${item.action}
+Success Criteria: ${item.success_criteria}
+Available MCP Servers:
+${serversDescription}
+
+Select 1-2 most relevant servers.
+`;
+
+            // Use fast classification model for server selection
+            const modelConfig = MCP_MODEL_CONFIG.getStageConfig('classification');
+
+            // Wait for rate limit
+            await this._waitForRateLimit();
+
+            const apiResponse = await axios.post(MCP_MODEL_CONFIG.apiEndpoint, {
+                model: modelConfig.model,
+                messages: [
+                    {
+                        role: 'system',
+                        content: selectionPrompt.systemPrompt || selectionPrompt.SYSTEM_PROMPT
+                    },
+                    {
+                        role: 'user',
+                        content: userMessage
+                    }
+                ],
+                temperature: modelConfig.temperature,
+                max_tokens: modelConfig.max_tokens
+            }, {
+                headers: { 'Content-Type': 'application/json' },
+                timeout: 30000
+            });
+
+            const response = apiResponse.data.choices[0].message.content;
+
+            // Parse JSON response
+            let cleanResponse = response;
+            if (typeof response === 'string') {
+                cleanResponse = response
+                    .replace(/^```json\s*/i, '')
+                    .replace(/^```\s*/i, '')
+                    .replace(/\s*```$/i, '')
+                    .trim();
+
+                const firstBrace = cleanResponse.indexOf('{');
+                const lastBrace = cleanResponse.lastIndexOf('}');
+                if (firstBrace !== -1 && lastBrace !== -1) {
+                    cleanResponse = cleanResponse.substring(firstBrace, lastBrace + 1);
+                }
+            }
+
+            const parsed = JSON.parse(cleanResponse);
+            const selectedServers = parsed.selected_servers || [];
+
+            // Validate selected servers exist
+            const validServers = selectedServers.filter(s => 
+                availableServers.some(avail => avail.name === s)
+            );
+
+            if (validServers.length === 0) {
+                this.logger.warn('[MCP-TODO] No valid servers selected, using all', {
+                    category: 'mcp-todo',
+                    component: 'mcp-todo',
+                    selected: selectedServers,
+                    available: availableServers.map(s => s.name)
+                });
+                return {
+                    selected_servers: availableServers.map(s => s.name),
+                    reasoning: 'Invalid selection - using all servers'
+                };
+            }
+
+            this.logger.system('mcp-todo', `[TODO] 🎯 Selected ${validServers.length} servers: ${validServers.join(', ')}`);
+            this.logger.system('mcp-todo', `[TODO] 📊 Reasoning: ${parsed.reasoning || 'N/A'}`);
+
+            return {
+                selected_servers: validServers,
+                reasoning: parsed.reasoning || '',
+                confidence: parsed.confidence || 0
+            };
+
+        } catch (error) {
+            this.logger.error(`[MCP-TODO] Server selection failed: ${error.message}`, {
+                category: 'mcp-todo',
+                component: 'mcp-todo',
+                stack: error.stack
+            });
+            throw error;
         }
     }
 }
