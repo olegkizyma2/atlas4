@@ -621,7 +621,7 @@ Create precise MCP tool execution plan.
                     messages: [
                         {
                             role: 'system',
-                            content: planPrompt.systemPrompt || planPrompt.SYSTEM_PROMPT
+                            content: systemPrompt  // FIXED: Use substituted systemPrompt, not original planPrompt.systemPrompt
                         },
                         {
                             role: 'user',
