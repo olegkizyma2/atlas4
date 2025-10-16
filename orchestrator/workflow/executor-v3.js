@@ -24,6 +24,7 @@ function getPluralForm(count, one, few, many) {
 
 // MCP Stage Processors
 import {
+    ModeSelectionProcessor,
     AtlasTodoPlanningProcessor,
     TetyanaПlanToolsProcessor,
     TetyanaExecuteToolsProcessor,
@@ -203,6 +204,7 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
 
   try {
     // Resolve processors from DI Container
+    const modeProcessor = container.resolve('modeSelectionProcessor');
     const todoProcessor = container.resolve('atlasTodoPlanningProcessor');
     const planProcessor = container.resolve('tetyanaПlanToolsProcessor');
     const executeProcessor = container.resolve('tetyanaExecuteToolsProcessor');
@@ -210,7 +212,82 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
     const adjustProcessor = container.resolve('atlasAdjustTodoProcessor');
     const summaryProcessor = container.resolve('mcpFinalSummaryProcessor');
 
+    // ===============================================
+    // Stage 0-MCP: Mode Selection (NEW 16.10.2025)
+    // ===============================================
+    logger.workflow('stage', 'system', 'Stage 0-MCP: Mode Selection', { sessionId: session.id });
+    
+    const modeResult = await modeProcessor.execute({
+      userMessage,
+      session
+    });
+
+    const mode = modeResult.mode;
+    const confidence = modeResult.confidence;
+    
+    logger.workflow('stage', 'system', `Mode selected: ${mode} (confidence: ${confidence})`, { 
+      sessionId: session.id,
+      reasoning: modeResult.reasoning
+    });
+
+    // Send mode selection to frontend via SSE
+    if (res.writable && !res.writableEnded) {
+      res.write(`data: ${JSON.stringify({
+        type: 'mode_selected',
+        data: {
+          mode,
+          confidence,
+          reasoning: modeResult.reasoning
+        }
+      })}\n\n`);
+    }
+
+    // Send mode selection message to chat via WebSocket
+    if (wsManager) {
+      try {
+        wsManager.broadcastToSubscribers('chat', 'agent_message', {
+          content: `Режим: ${mode === 'chat' ? '💬 Розмова' : '🔧 Завдання'} (впевненість: ${Math.round(confidence * 100)}%)`,
+          agent: 'system',
+          sessionId: session.id,
+          timestamp: new Date().toISOString()
+        });
+      } catch (error) {
+        logger.warn('executor', `Failed to send mode selection WebSocket message: ${error.message}`);
+      }
+    }
+
+    // ===============================================
+    // Handle CHAT mode - Simple response from Atlas
+    // ===============================================
+    if (mode === 'chat') {
+      logger.workflow('stage', 'atlas', 'Chat mode detected - Atlas will respond directly', { 
+        sessionId: session.id 
+      });
+
+      // TODO: Implement simple chat response from Atlas
+      // For now, we'll just send a message and continue to task mode
+      // This can be expanded later to use a dedicated chat prompt
+      
+      if (wsManager) {
+        try {
+          wsManager.broadcastToSubscribers('chat', 'agent_message', {
+            content: 'Режим розмови поки що в розробці. Переходжу до виконання як завдання...',
+            agent: 'atlas',
+            sessionId: session.id,
+            timestamp: new Date().toISOString()
+          });
+        } catch (error) {
+          logger.warn('executor', `Failed to send chat mode message: ${error.message}`);
+        }
+      }
+      
+      // For now, fall through to task mode
+      // In the future, we can return here after handling chat
+    }
+
+    // ===============================================
     // Stage 1-MCP: Atlas TODO Planning
+    // ===============================================
     logger.workflow('stage', 'atlas', 'Stage 1-MCP: TODO Planning', { sessionId: session.id });
     
     const todoResult = await todoProcessor.execute({

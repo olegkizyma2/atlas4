@@ -10,10 +10,14 @@
  * NEW 15.10.2025: Server Selection Stage for intelligent tool filtering
  * - stage2_0_server_selection.js (NEW) - Pre-selects 1-2 MCP servers before Tetyana
  * 
- * @version 4.2.0
- * @date 2025-10-15
+ * NEW 16.10.2025: Mode Selection Stage for chat vs task routing
+ * - stage0_mode_selection.js (NEW) - Determines if request is chat or task
+ * 
+ * @version 5.0.0
+ * @date 2025-10-16
  */
 
+import modeSelection from './stage0_mode_selection.js';  // NEW 16.10.2025
 import atlasTodoPlanning from './atlas_todo_planning_optimized.js';  // OPTIMIZED 15.10.2025
 import serverSelection from './stage2_0_server_selection.js';  // NEW 15.10.2025
 import tetyanaPlanTools from './tetyana_plan_tools_optimized.js';  // OPTIMIZED 15.10.2025
@@ -23,6 +27,9 @@ import atlasAdjustTodo from './atlas_adjust_todo.js';
 import mcpFinalSummary from './mcp_final_summary.js';
 
 export const MCP_PROMPTS = {
+    // Stage 0-MCP: Mode Selection (NEW 16.10.2025)
+    MODE_SELECTION: modeSelection,
+
     // Stage 1-MCP: Atlas creates TODO
     ATLAS_TODO_PLANNING: atlasTodoPlanning,
 
@@ -49,6 +56,7 @@ export default MCP_PROMPTS;
 
 // Individual exports for direct import
 export {
+    modeSelection,
     atlasTodoPlanning,
     serverSelection,
     tetyanaPlanTools,
