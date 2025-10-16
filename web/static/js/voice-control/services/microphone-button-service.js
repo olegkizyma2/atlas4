@@ -153,8 +153,8 @@ export class MicrophoneButtonService extends BaseService {
       // Перевірка доступності медіа API (non-blocking - тільки попередження)
       try {
         await this.checkMediaSupport();
-      } catch (mediaError) {
-        this.logger.warn('Media support check failed during initialization (will retry on first use)', null, mediaError);
+      } catch {
+        this.logger.info('Media support check skipped during initialization (will check on first use)');
         // НЕ блокуємо ініціалізацію - перевірка відбудеться при спробі запису
       }
 

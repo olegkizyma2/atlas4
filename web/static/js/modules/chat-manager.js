@@ -438,6 +438,14 @@ export class ChatManager {
       case 'workflow_error':
         this.handleWorkflowError(data.data);
         break;
+      // FIXED 16.10.2025 - Handle mode_selected event
+      case 'mode_selected':
+        this.handleModeSelected(data.data);
+        break;
+      // FIXED 16.10.2025 - Handle mcp_workflow_error event
+      case 'mcp_workflow_error':
+        this.handleMCPWorkflowError(data.data);
+        break;
       default:
         this.logger.debug('Unknown stream message type', data.type);
     }
@@ -744,6 +752,21 @@ export class ChatManager {
   handleWorkflowError(data) {
     this.logger.error('❌ Workflow error', data.error);
     this.addMessage(`❌ Помилка: ${data.error}`, 'system');
+  }
+
+  // FIXED 16.10.2025 - Handler for mode_selected event
+  handleModeSelected(data) {
+    this.logger.info('🎯 Mode selected', data);
+    if (data.mode) {
+      this.logger.debug(`Chat mode: ${data.mode}`);
+    }
+  }
+
+  // FIXED 16.10.2025 - Handler for mcp_workflow_error event
+  handleMCPWorkflowError(data) {
+    this.logger.error('❌ MCP Workflow error', data.error || data.message);
+    const errorMsg = data.error || data.message || 'Невідома помилка MCP workflow';
+    this.addMessage(`❌ MCP: ${errorMsg}`, 'system');
   }
 
   destroy() {

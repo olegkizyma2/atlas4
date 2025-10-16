@@ -207,7 +207,11 @@ export class MCPTodoManager {
             // LOG MODEL SELECTION (ADDED 14.10.2025 - Debugging)
             this.logger.system('mcp-todo', `[TODO] Using model: ${modelConfig.model} (temp: ${modelConfig.temperature}, max_tokens: ${modelConfig.max_tokens})`);
 
-            const apiResponse = await axios.post(MCP_MODEL_CONFIG.apiEndpoint, {
+            // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
+            const apiEndpointConfig = MCP_MODEL_CONFIG.apiEndpoint;
+            const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
+
+            const apiResponse = await axios.post(apiUrl, {
                 model: modelConfig.model,
                 messages: [
                     { role: 'system', content: todoPrompt.systemPrompt },
@@ -219,6 +223,20 @@ export class MCPTodoManager {
                 headers: { 'Content-Type': 'application/json' },
                 timeout: 120000  // FIXED 14.10.2025 - 120s для mistral-small-2503 (повільна але якісна модель)
             });
+
+            // FIXED 16.10.2025 - Validate API response structure before accessing
+            if (!apiResponse.data) {
+                throw new Error('API response missing data field');
+            }
+            if (!apiResponse.data.choices || !Array.isArray(apiResponse.data.choices) || apiResponse.data.choices.length === 0) {
+                throw new Error('API response missing choices array');
+            }
+            if (!apiResponse.data.choices[0].message) {
+                throw new Error('API response missing message in choices[0]');
+            }
+            if (!apiResponse.data.choices[0].message.content) {
+                throw new Error('API response missing content in message');
+            }
 
             const response = apiResponse.data.choices[0].message.content;
 
@@ -622,7 +640,11 @@ Create precise MCP tool execution plan.
 
                 // LOG MODEL SELECTION (ADDED 14.10.2025 - Debugging)
                 this.logger.system('mcp-todo', `[TODO] Planning tools with model: ${modelConfig.model} (temp: ${modelConfig.temperature}, max_tokens: ${modelConfig.max_tokens})`);
-                this.logger.system('mcp-todo', `[TODO] Calling LLM API at ${MCP_MODEL_CONFIG.apiEndpoint}...`);
+
+                // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
+                const apiEndpointConfig = MCP_MODEL_CONFIG.apiEndpoint;
+                const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
+                this.logger.system('mcp-todo', `[TODO] Calling LLM API at ${apiUrl}...`);
 
                 // Wait for rate limit (ADDED 14.10.2025)
                 await this._waitForRateLimit();
@@ -632,7 +654,7 @@ Create precise MCP tool execution plan.
                 const isReasoningModel = modelConfig.model.includes('reasoning') || modelConfig.model.includes('phi-4');
                 const timeoutMs = isReasoningModel ? 180000 : 120000;  // 180s for reasoning, 120s for others
 
-                apiResponse = await axios.post(MCP_MODEL_CONFIG.apiEndpoint, {
+                apiResponse = await axios.post(apiUrl, {
                     model: modelConfig.model,
                     messages: [
                         {
@@ -777,7 +799,11 @@ Create precise MCP tool execution plan.
 
             await this._waitForRateLimit();
 
-            const apiResponse = await axios.post(MCP_MODEL_CONFIG.apiEndpoint, {
+            // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
+            const apiEndpointConfig = MCP_MODEL_CONFIG.apiEndpoint;
+            const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
+
+            const apiResponse = await axios.post(apiUrl, {
                 model: modelConfig.model,
                 messages: [
                     { role: 'system', content: adjustPrompt.systemPrompt },
@@ -1024,7 +1050,11 @@ Attempt: ${attempt}/${item.max_attempts}
             // Wait for rate limit (ADDED 14.10.2025)
             await this._waitForRateLimit();
 
-            const apiResponse = await axios.post(MCP_MODEL_CONFIG.apiEndpoint, {
+            // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
+            const apiEndpointConfig = MCP_MODEL_CONFIG.apiEndpoint;
+            const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
+
+            const apiResponse = await axios.post(apiUrl, {
                 model: modelConfig.model,
                 messages: [
                     {
@@ -1125,7 +1155,11 @@ Results: ${JSON.stringify(todo.items.map(i => ({
             // Wait for rate limit (ADDED 14.10.2025)
             await this._waitForRateLimit();
 
-            const apiResponse = await axios.post(MCP_MODEL_CONFIG.apiEndpoint, {
+            // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
+            const apiEndpointConfig = MCP_MODEL_CONFIG.apiEndpoint;
+            const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
+
+            const apiResponse = await axios.post(apiUrl, {
                 model: modelConfig.model,
                 messages: [
                     { role: 'system', content: 'MCP_FINAL_SUMMARY' },
@@ -1883,8 +1917,12 @@ Return ONLY JSON:
 
             await this._waitForRateLimit();
 
+            // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
+            const apiEndpointConfig = MCP_MODEL_CONFIG.apiEndpoint;
+            const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
+
             const modelConfig = MCP_MODEL_CONFIG.getStageConfig('verify_item');
-            const apiResponse = await axios.post(MCP_MODEL_CONFIG.apiEndpoint, {
+            const apiResponse = await axios.post(apiUrl, {
                 model: modelConfig.model,
                 messages: [
                     { role: 'system', content: 'You are a JSON-only API. Return ONLY valid JSON, no markdown, no explanations.' },
@@ -2011,55 +2049,24 @@ Return ONLY JSON:
                 return truncated;
             });
 
-            const analysisPrompt = `Ти Гриша - верифікатор. Проаналізуй докази та визнач чи виконано завдання.
+            const beforePath = verificationResults.results.find(r => r.tool === 'screenshot').result.path;
+            const afterPath = verificationResults.results.find(r => r.tool === 'screenshot').result.path;
 
-TODO Item: ${item.action}
-Success Criteria: ${item.success_criteria}
+            const analysisPrompt = `Compare these two screenshots and determine if they show the same state.
 
-Tetyana's Execution Results:
-${JSON.stringify(truncatedExecution, null, 2)}
+Before screenshot: ${beforePath}
+After screenshot: ${afterPath}
 
-Grisha's Verification Evidence (screenshot, file checks, etc):
-${JSON.stringify(truncatedVerification, null, 2)}
-
-⚠️ КРИТИЧНО ВАЖЛИВІ ПРАВИЛА ВЕРИФІКАЦІЇ:
-
-1. **Якщо Tetyana's execution показує success=true + Grisha's tools виконані успішно:**
-   → verified=true (ДОВІРЯЙ інструментам!)
-   
-2. **Якщо Tetyana's execution показує error АБО Grisha's tools показують error:**
-   → verified=false
-   
-3. **Якщо screenshot/file check показують КОНКРЕТНУ помилку:**
-   → verified=false + опиши помилку
-
-4. **Якщо ВСІ інструменти виконані успішно (success=true):**
-   → verified=true (НЕ вигадуй проблеми!)
-
-ПРИКЛАДИ:
-
-✅ ПРАВИЛЬНО:
-Tetyana: applescript_execute success=true
-Grisha: playwright_screenshot success=true
-→ {"verified": true, "reason": "Калькулятор відкрито успішно"}
-
-❌ НЕПРАВИЛЬНО:
-Tetyana: applescript_execute success=true
-Grisha: playwright_screenshot success=true
-→ {"verified": false, "reason": "Немає доказів"} ← ЦЕ ПОМИЛКА! Інструменти успішні!
-
-Return ONLY JSON:
-{
-  "verified": boolean,
-  "reason": "string",
-  "evidence": {...},
-  "tts_phrase": "Підтверджено" або "Не підтверджено"
-}`;
+Respond with JSON: { "same_state": true/false, "confidence": 0-100, "differences": ["..."] }`;
 
             await this._waitForRateLimit();
 
+            // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
+            const apiEndpointConfig = MCP_MODEL_CONFIG.apiEndpoint;
+            const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
+
             const modelConfig = MCP_MODEL_CONFIG.getStageConfig('verify_item');
-            const apiResponse = await axios.post(MCP_MODEL_CONFIG.apiEndpoint, {
+            const apiResponse = await axios.post(apiUrl, {
                 model: modelConfig.model,
                 messages: [
                     { role: 'system', content: 'You are a JSON-only API. Return ONLY valid JSON, no markdown, no explanations.' },
@@ -2157,7 +2164,11 @@ Select 1-2 most relevant servers.
             // Wait for rate limit
             await this._waitForRateLimit();
 
-            const apiResponse = await axios.post(MCP_MODEL_CONFIG.apiEndpoint, {
+            // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
+            const apiEndpointConfig = MCP_MODEL_CONFIG.apiEndpoint;
+            const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
+
+            const apiResponse = await axios.post(apiUrl, {
                 model: modelConfig.model,
                 messages: [
                     {

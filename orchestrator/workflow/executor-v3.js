@@ -264,25 +264,109 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
         sessionId: session.id 
       });
 
-      // TODO: Implement simple chat response from Atlas
-      // For now, we'll just send a message and continue to task mode
-      // This can be expanded later to use a dedicated chat prompt
-      
-      if (wsManager) {
-        try {
+      // FIXED 16.10.2025 - Implement actual chat response from Atlas
+      try {
+        const axios = (await import('axios')).default;
+        const modelConfig = GlobalConfig.AI_MODEL_CONFIG.models.chat;
+        
+        // Build chat context from recent messages
+        const recentMessages = (session.chatThread?.messages || []).slice(-5).map(msg => ({
+          role: msg.role === 'user' ? 'user' : 'assistant',
+          content: msg.content
+        }));
+        
+        // Add current user message
+        recentMessages.push({ role: 'user', content: userMessage });
+        
+        // Get API endpoint
+        const apiEndpointConfig = GlobalConfig.AI_MODEL_CONFIG.apiEndpoint;
+        const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
+        
+        logger.info('executor', `Calling chat API at ${apiUrl} with model ${modelConfig.model}`);
+        
+        // Call LLM for chat response
+        const chatResponse = await axios.post(apiUrl, {
+          model: modelConfig.model,
+          messages: [
+            { 
+              role: 'system', 
+              content: 'Ти - Atlas, AI-асистент. Відповідай природно, дружньо та по-українськи. Будь стислим та корисним.' 
+            },
+            ...recentMessages
+          ],
+          temperature: modelConfig.temperature,
+          max_tokens: modelConfig.max_tokens
+        }, {
+          headers: { 'Content-Type': 'application/json' },
+          timeout: 30000
+        });
+        
+        const atlasResponse = chatResponse.data?.choices?.[0]?.message?.content;
+        
+        if (!atlasResponse) {
+          throw new Error('Empty response from chat API');
+        }
+        
+        logger.info('executor', `Atlas chat response: ${atlasResponse.substring(0, 100)}...`);
+        
+        // Send response via WebSocket
+        if (wsManager) {
           wsManager.broadcastToSubscribers('chat', 'agent_message', {
-            content: 'Режим розмови поки що в розробці. Переходжу до виконання як завдання...',
+            content: atlasResponse,
             agent: 'atlas',
             sessionId: session.id,
             timestamp: new Date().toISOString()
           });
-        } catch (error) {
-          logger.warn('executor', `Failed to send chat mode message: ${error.message}`);
         }
+        
+        // Send via SSE
+        if (res.writable && !res.writableEnded) {
+          res.write(`data: ${JSON.stringify({
+            type: 'chat_response',
+            data: {
+              content: atlasResponse,
+              agent: 'atlas'
+            }
+          })}\n\n`);
+        }
+        
+        // Add to session history
+        if (session.chatThread) {
+          session.chatThread.messages.push({
+            role: 'assistant',
+            content: atlasResponse,
+            agent: 'atlas',
+            timestamp: new Date().toISOString()
+          });
+        }
+        
+        logger.workflow('complete', 'atlas', 'Chat response completed', { sessionId: session.id });
+        
+        // CRITICAL: Return here to prevent falling through to TODO mode
+        return {
+          success: true,
+          mode: 'chat',
+          response: atlasResponse
+        };
+        
+      } catch (chatError) {
+        logger.error('executor', `Chat mode failed: ${chatError.message}`, { 
+          sessionId: session.id,
+          stack: chatError.stack 
+        });
+        
+        // Send error message
+        if (wsManager) {
+          wsManager.broadcastToSubscribers('chat', 'agent_message', {
+            content: 'Вибачте, виникла помилка при обробці вашого повідомлення.',
+            agent: 'atlas',
+            sessionId: session.id,
+            timestamp: new Date().toISOString()
+          });
+        }
+        
+        throw chatError;
       }
-      
-      // For now, fall through to task mode
-      // In the future, we can return here after handling chat
     }
 
     // ===============================================
