@@ -59,45 +59,69 @@ make test         # Запустити тести
 ./restart_system.sh help     # Довідка
 ```
 
-### Змінні середовища
+### Змінні середовища (.env)
+
+Скопіюйте `.env.example` до `.env` та налаштуйте:
 
 ```bash
-# Goose конфігурація
-GOOSE_DESKTOP_PATH=/Applications/Goose.app/Contents/MacOS/goose
-GOOSE_USE_DESKTOP=true      # Використовувати десктопну версію
-GOOSE_SERVER_PORT=3000      # Порт для Goose сервера
+# === LLM API CONFIGURATION ===
+LLM_API_ENDPOINT=http://localhost:4000/v1/chat/completions
+LLM_API_FALLBACK_ENDPOINT=https://your-ngrok-url.ngrok-free.app/v1/chat/completions
+LLM_API_USE_FALLBACK=true
 
-# TTS конфігурація
-REAL_TTS_MODE=true          # Реальний TTS замість mock
-TTS_DEVICE=mps              # mps для Apple Silicon
-TTS_PORT=3001               # Порт TTS сервера
+# === AI BACKEND ===
+AI_BACKEND_MODE=mcp              # Pure MCP mode (v5.0)
 
-# Додаткові налаштування
-FORCE_FREE_PORTS=true       # Автоматично звільняти порти
+# === TTS & VOICE ===
+REAL_TTS_MODE=true
+TTS_DEVICE=mps                   # Metal GPU для Apple Silicon
+TTS_PORT=3001
+
+# === WHISPER ===
+WHISPER_BACKEND=cpp
+WHISPER_DEVICE=metal             # Metal GPU acceleration
+WHISPER_PORT=3002
+WHISPER_SAMPLE_RATE=48000        # High quality audio
+
+# === MAC STUDIO M1 MAX OPTIMIZATIONS ===
+USE_METAL_GPU=true
+OPTIMIZE_FOR_M1_MAX=true
+WHISPER_CPP_THREADS=10           # M1 Max performance cores
+WHISPER_CPP_NGL=20               # GPU layers
+
+# === PORTS ===
+ORCHESTRATOR_PORT=5101
+WEB_PORT=5001
+FRONTEND_PORT=5001
 ```
 
 ## 🏗️ Архітектура
 
-### Основні компоненти
+### Основні компоненти (v5.0)
 
-- **Goose Desktop** (Port 3000) - Зовнішній AI інтерфейс через WebSocket
-- **Node.js Orchestrator** (Port 5101) - Координація агентів та workflow
+- **Node.js Orchestrator** (Port 5101) - Координація агентів та MCP workflow
 - **Python Frontend** (Port 5001) - Веб-інтерфейс Flask
-- **TTS Service** (Port 3001) - Український Text-to-Speech сервіс
-- **Whisper Service** (Port 3002) - Розпізнавання мовлення
+- **TTS Service** (Port 3001) - Український Text-to-Speech сервіс (Metal GPU)
+- **Whisper Service** (Port 3002) - Розпізнавання мовлення (Metal GPU)
+- **LLM API** (Port 4000) - Зовнішній API для моделей (localhost або ngrok)
+- **MCP Servers** - Direct MCP tools (filesystem, playwright, shell, applescript, git, memory)
 
-### Multi-Agent Framework
+### Multi-Agent Framework (Pure MCP)
 
-Всі агенти працюють через Goose Engine з GitHub Copilot:
+Система використовує MCP Dynamic TODO Workflow:
 
-- **🧠 ATLAS Agent** (зелений) - Координатор, стратег, куратор завдань
-- **💪 TETYANA Agent** (блакитний) - Основний виконавець завдань
-- **🛡️ GRISHA Agent** (жовтий) - Верифікатор, контроль якості результатів
+- **🧠 ATLAS Agent** (зелений) - Створює TODO плани з item-by-item розбивкою
+- **💪 TETYANA Agent** (блакитний) - Виконує кожен пункт через MCP tools
+- **🛡️ GRISHA Agent** (жовтий) - Перевіряє виконання кожного item окремо
 
-### Workflow етапи:
-1. **Stage 1**: ATLAS - Початкова обробка (формалізація завдання)
-2. **Stage 2**: TETYANA - Виконання завдання  
-3. **Stage 3**: ATLAS - Уточнення (за потреби)
+### MCP Workflow етапи:
+1. **Stage 0**: Mode Selection (chat vs task)
+2. **Stage 1-MCP**: ATLAS - TODO Planning (створює динамічний план)
+3. **Stage 2.1-MCP**: TETYANA - Plan Tools (підбирає MCP tools)
+4. **Stage 2.2-MCP**: TETYANA - Execute Tools (виконує через MCP)
+5. **Stage 2.3-MCP**: GRISHA - Verify Item (перевіряє окремий item)
+6. **Stage 3-MCP**: ATLAS - Adjust TODO (коригує при failing)
+7. **Stage 8-MCP**: Final Summary (загальний результат)
 4. **Stage 4**: TETYANA - Повторне виконання з уточненнями
 5. **Stage 5**: GRISHA - Діагностика (якщо блокування)
 6. **Stage 6**: ATLAS - Корекція завдання  

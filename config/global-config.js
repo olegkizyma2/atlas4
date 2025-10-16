@@ -49,12 +49,24 @@ export const USER_CONFIG = {
 };
 
 // === AI MODELS CONFIGURATION ===
-// Конфігурація моделей для різних стадій (система використовує LLM API на порту 4000)
+// Конфігурація моделей для різних стадій (система використовує LLM API)
+// v5.0: Підтримка fallback endpoint для remote access
 export const AI_MODEL_CONFIG = {
-  // API endpoint для system stages
-  apiEndpoint: 'http://localhost:4000/v1/chat/completions',
+  // API endpoint для system stages (підтримує fallback)
+  get apiEndpoint() {
+    const primary = process.env.LLM_API_ENDPOINT || 'http://localhost:4000/v1/chat/completions';
+    const fallback = process.env.LLM_API_FALLBACK_ENDPOINT;
+    const useFallback = process.env.LLM_API_USE_FALLBACK === 'true';
+    
+    return {
+      primary,
+      fallback: fallback || null,
+      useFallback,
+      timeout: parseInt(process.env.LLM_API_TIMEOUT || '60000', 10)
+    };
+  },
 
-  // Моделі для різних типів завдань (ТІЛЬКИ доступні через localhost:4000!)
+  // Моделі для різних типів завдань
   models: {
     // Класифікація та швидкі рішення
     // PATTERN-BASED: Clear action patterns with examples
@@ -107,9 +119,21 @@ export const AI_MODEL_CONFIG = {
 // === MCP MODELS CONFIGURATION (NEW 14.10.2025) ===
 // Окрема конфігурація моделей для кожного MCP стейджу з ENV підтримкою
 // Детально: docs/MCP_MODEL_SELECTION_GUIDE.md
+// v5.0: Підтримка fallback API endpoint
 export const MCP_MODEL_CONFIG = {
-  // API endpoint
-  apiEndpoint: 'http://localhost:4000/v1/chat/completions',
+  // API endpoint (підтримує fallback)
+  get apiEndpoint() {
+    const primary = process.env.LLM_API_ENDPOINT || 'http://localhost:4000/v1/chat/completions';
+    const fallback = process.env.LLM_API_FALLBACK_ENDPOINT;
+    const useFallback = process.env.LLM_API_USE_FALLBACK === 'true';
+    
+    return {
+      primary,
+      fallback: fallback || null,
+      useFallback,
+      timeout: parseInt(process.env.LLM_API_TIMEOUT || '60000', 10)
+    };
+  },
 
   // Моделі для кожного MCP stage (читаємо з ENV для гнучкості)
   stages: {
