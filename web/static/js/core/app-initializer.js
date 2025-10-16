@@ -279,19 +279,35 @@ export class AppInitializer {
     });
 
     // ADDED 16.10.2025 - Handle agent and chat messages from WebSocket
-    webSocket.on('agent-message', (data) => {
+    webSocket.on('agent-message', (payload) => {
       if (chatManager && chatManager.addMessage) {
+        // Payload має структуру: { type: 'agent_message', data: { content, agent, ... } }
+        const data = payload.data || payload;
         const { content, agent } = data;
-        chatManager.addMessage(content, agent);
-        loggingSystem.info(`📨 Повідомлення від ${agent.toUpperCase()}`, 'CHAT');
+        
+        if (content && agent) {
+          chatManager.addMessage(content, agent);
+          loggingSystem.info(`📨 Повідомлення від ${agent.toUpperCase()}`, 'CHAT');
+        } else {
+          loggingSystem.warn('⚠️ Incomplete agent-message payload', 'CHAT');
+          console.warn('[CHAT] Incomplete agent-message:', payload);
+        }
       }
     });
 
-    webSocket.on('chat-message', (data) => {
+    webSocket.on('chat-message', (payload) => {
       if (chatManager && chatManager.addMessage) {
+        // Payload має структуру: { type: 'chat_message', data: { message, messageType, ... } }
+        const data = payload.data || payload;
         const { message, messageType } = data;
-        chatManager.addMessage(message, messageType || 'system');
-        loggingSystem.info(`📨 Системне повідомлення`, 'CHAT');
+        
+        if (message) {
+          chatManager.addMessage(message, messageType || 'system');
+          loggingSystem.info(`📨 Системне повідомлення`, 'CHAT');
+        } else {
+          loggingSystem.warn('⚠️ Incomplete chat-message payload', 'CHAT');
+          console.warn('[CHAT] Incomplete chat-message:', payload);
+        }
       }
     });
 

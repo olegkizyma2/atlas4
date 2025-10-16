@@ -139,11 +139,12 @@ export const MCP_MODEL_CONFIG = {
 
     // Stage 2.1-MCP: Tetyana Plan Tools
     // OPTIMIZED 15.10.2025 - mistral-small-2503 для ЧИСТОГО JSON без markdown (40 req/min)
+    // FIXED 16.10.2025 - Збільшено max_tokens з 1200 до 2500 для складних багатокрокових планів
     // Причина зміни: phi-4 та nemo генерували ```json wrappers, mistral-small - чистий JSON
     plan_tools: {
       get model() { return process.env.MCP_MODEL_PLAN_TOOLS || 'mistral-ai/mistral-small-2503'; },
       get temperature() { return parseFloat(process.env.MCP_TEMP_PLAN_TOOLS || '0.15'); },  // Нижче для точності
-      max_tokens: 1200,  // Збільшено для складних планів
+      max_tokens: 2500,  // FIXED 16.10.2025 - Збільшено з 1200 для складних планів (було обрізання JSON)
       description: 'Tool matching - mistral-small для ЧИСТОГО JSON output (40 req/min)'
     },
 
