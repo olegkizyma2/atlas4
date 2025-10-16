@@ -121,14 +121,14 @@ timeout: timeoutMs                          // 30s for gpt-4o-mini
 
 ### Performance Metrics
 
-| Metric | Before | After | Improvement |
-|--------|--------|-------|-------------|
-| Model | gpt-4.1 | gpt-4o-mini | ✅ |
-| Timeout | 60s | 30s | -50% |
-| Rate Limit | 40 req/min | 90 req/min | +125% |
-| Avg Response | ~6-8s | ~2-3s | -60% |
-| Temperature | hardcoded: 0.3 | config: 0.15 | ✅ |
-| Max Tokens | hardcoded: 2000 | config: 800 | -60% |
+| Metric       | Before          | After        | Improvement |
+| ------------ | --------------- | ------------ | ----------- |
+| Model        | gpt-4.1         | gpt-4o-mini  | ✅           |
+| Timeout      | 60s             | 30s          | -50%        |
+| Rate Limit   | 40 req/min      | 90 req/min   | +125%       |
+| Avg Response | ~6-8s           | ~2-3s        | -60%        |
+| Temperature  | hardcoded: 0.3  | config: 0.15 | ✅           |
+| Max Tokens   | hardcoded: 2000 | config: 800  | -60%        |
 
 ### Workflow Logs (Verification Proof)
 
