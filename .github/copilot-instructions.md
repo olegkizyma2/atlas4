@@ -1,6 +1,7 @@
-# ATLAS v4.0 - Adaptive Task and Learning Assistant System
+# ATLAS v5.0 - Adaptive Task and Learning Assistant System
+## MCP Dynamic TODO Edition
 
-**LAST UPDATED:** 16 жовтня 2025 - День ~17:00 (Screenshot and Adjustment Feature - Тетяна тепер коригує план перед виконанням)
+**LAST UPDATED:** 16 жовтня 2025 - День ~22:00 (v5.0 Release - MCP-only refactoring завершено)
 
 ---
 
@@ -8,9 +9,11 @@
 
 ### 🎯 Загальні принципи
 
-**ATLAS** - інтелектуальна система оркестрації з Flask frontend, Node.js orchestrator, українською TTS/STT, 3D GLB інтерфейсом. Працює на **Mac Studio M1 MAX** з оптимізацією під Metal GPU.
+**ATLAS v5.0** - спрощена інтелектуальна система оркестрації з **MCP Dynamic TODO** workflow, українською TTS/STT, 3D GLB інтерфейсом. Працює на **Mac Studio M1 MAX** з оптимізацією під Metal GPU.
 
 **КРИТИЧНО:** ЦІ ІНСТРУКЦІЇ - ЄДИНЕ ДЖЕРЕЛО ІСТИНИ. ЗАВЖДИ перевіряйте їх ПЕРЕД будь-якими змінами коду.
+
+**АРХІТЕКТУРНИЙ ПРИНЦИП v5.0:** Pure MCP Dynamic TODO - без Goose fallback, без hybrid режимів. Один чіткий шлях виконання.
 
 ---
 
@@ -60,7 +63,7 @@ grep -r "function НАЗВА_ФУНКЦІЇ" . --include="*.js"
 ls docs/*ТЕМА*.md 2>/dev/null
 ```
 
-#### Стандартна структура:
+#### Стандартна структура (v5.0):
 
 ```
 ATLAS/
@@ -75,27 +78,48 @@ ATLAS/
 │   │   │   └── utils/             # Утиліти (filters, voice-utils)
 │   │   └── core/                  # Ядро (DI, config, events)
 │   └── templates/                 # Jinja2 HTML
-├── orchestrator/                   # Node.js backend
+├── orchestrator/                   # Node.js backend (MCP-only)
 │   ├── core/                      # DI Container, logger
-│   ├── workflow/                  # Multi-agent coordination
-│   └── ai/                        # LLM integration (Goose)
+│   ├── workflow/                  # MCP Dynamic TODO coordination
+│   │   ├── mcp-todo-manager.js   # Головний TODO менеджер
+│   │   ├── tts-sync-manager.js   # TTS синхронізація
+│   │   ├── executor-v3.js        # MCP-only executor (675 LOC)
+│   │   └── stages/               # 7 MCP stage processors
+│   └── ai/                        # MCP integration
+│       ├── mcp-manager.js        # MCP servers lifecycle
+│       ├── mcp-backend.js        # MCP backend provider
+│       └── llm-client.js         # LLM для reasoning
 ├── config/                        # Централізована конфігурація
-│   ├── global-config.js           # Master config
+│   ├── global-config.js           # Master config (MCP-only)
 │   ├── agents-config.js           # Agent definitions
-│   └── workflow-config.js         # Stage flow
-├── prompts/                       # AI prompts (atlas/tetyana/grisha)
-├── docs/                          # Документація з датами
-│   ├── *_2025-10-12.md           # Поточні fixes
-│   └── refactoring/              # Refactoring reports
+│   └── workflow-config.js         # MCP stage flow
+├── prompts/                       # AI prompts
+│   └── mcp/                       # MCP Dynamic TODO prompts (АКТИВНІ)
+├── archive/                       # Архівовані компоненти (v4.0)
+│   ├── goose/                    # Goose integration (deprecated)
+│   ├── legacy-prompts/           # Old prompts (deprecated)
+│   ├── docs/                     # Old documentation (100+ files)
+│   └── scripts/                  # Old test scripts (20+ files)
+├── docs/                          # Документація
+│   ├── MCP_*.md                  # MCP system docs
+│   └── MIGRATION.md              # v4→v5 migration guide
 ├── ukrainian-tts/                 # TTS система
 ├── services/whisper/              # Whisper.cpp service
 └── logs/                          # Runtime logs
+
+✅ v5.0 ЗМІНИ (16.10.2025):
+- Видалено Goose integration → archive/goose/
+- Тільки MCP workflow (no hybrid, no fallback)
+- executor-v3.js: 1428 → 675 lines (-53%)
+- Чистий root directory (146 → 25 files, -83%)
+- Всі legacy prompts → archive/legacy-prompts/
 
 ❌ ЗАБОРОНЕНО:
 - Файли в корені (окрім config файлів)
 - Дублікати функцій в різних файлах
 - Hardcoded values замість config
 - Створення файлів БЕЗ перевірки існуючих
+- Використання Goose (deprecated в v5.0)
 ```
 
 ---
