@@ -410,8 +410,24 @@ export class MCPTodoManager {
                 });
                 await this._safeTTSSpeak(plan.tts_phrase, { mode: 'quick', duration: 150, agent: 'tetyana' });
 
-                // Stage 2.2: Execute Tools (Tetyana)
-                const execution = await this.executeTools(plan, item);
+                // Stage 2.1.5: Screenshot and Adjust (NEW 16.10.2025 - Tetyana)
+                // Take screenshot and optionally adjust plan based on current state
+                const screenshotResult = await this.screenshotAndAdjust(plan, item);
+                const finalPlan = screenshotResult.plan;
+                
+                // TTS feedback about screenshot/adjustment
+                await this._safeTTSSpeak(finalPlan.tts_phrase || 'Скрін готовий', { 
+                    mode: 'quick', 
+                    duration: screenshotResult.adjusted ? 200 : 100, 
+                    agent: 'tetyana' 
+                });
+
+                if (screenshotResult.adjusted) {
+                    this.logger.system('mcp-todo', `[TODO] 🔧 Plan adjusted: ${screenshotResult.reason}`);
+                }
+
+                // Stage 2.2: Execute Tools (Tetyana) - using potentially adjusted plan
+                const execution = await this.executeTools(finalPlan, item);
                 this._sendChatMessage(`✅ ✅ Виконано: "${item.action}"`, 'tetyana');
                 await this._safeTTSSpeak(execution.tts_phrase, { mode: 'normal', duration: 800, agent: 'tetyana' });
 
@@ -696,6 +712,146 @@ Create precise MCP tool execution plan.
             });
             throw new Error(`Tool planning failed: ${error.message}`);
         }
+    }
+
+    /**
+     * Screenshot and Adjust (Stage 2.1.5 - Tetyana)
+     * Takes screenshot of current state and optionally adjusts the plan
+     * 
+     * @param {Object} plan - Original tool execution plan
+     * @param {TodoItem} item - Item being executed
+     * @returns {Promise<Object>} Potentially adjusted plan with screenshot info
+     */
+    async screenshotAndAdjust(plan, item) {
+        this.logger.system('mcp-todo', `[TODO] 📸 Taking screenshot and analyzing plan for item ${item.id}`);
+
+        try {
+            // Step 1: Take screenshot (always)
+            let screenshotPath = null;
+            let screenshotTool = null;
+
+            // Determine best screenshot method
+            const hasPlaywright = this.mcpManager.getServer('playwright');
+            const hasShell = this.mcpManager.getServer('shell');
+
+            if (hasPlaywright) {
+                // Prefer playwright screenshot (captures active window)
+                try {
+                    screenshotPath = `/tmp/atlas_task_${item.id}_before.png`;
+                    await this.mcpManager.executeTool('playwright', 'playwright_screenshot', {
+                        path: screenshotPath,
+                        full_page: false
+                    });
+                    screenshotTool = 'playwright';
+                    this.logger.system('mcp-todo', `[TODO] 📸 Screenshot saved via playwright: ${screenshotPath}`);
+                } catch (playwrightError) {
+                    this.logger.warn(`[MCP-TODO] Playwright screenshot failed: ${playwrightError.message}`, {
+                        category: 'mcp-todo',
+                        component: 'mcp-todo'
+                    });
+                    // Fall back to shell
+                    hasShell && await this._takeShellScreenshot(item.id);
+                }
+            } else if (hasShell) {
+                screenshotPath = await this._takeShellScreenshot(item.id);
+                screenshotTool = 'shell';
+            } else {
+                this.logger.warn('[MCP-TODO] No screenshot tools available (playwright/shell)', {
+                    category: 'mcp-todo',
+                    component: 'mcp-todo'
+                });
+            }
+
+            // Step 2: Call LLM to analyze screenshot and decide on adjustment
+            const { MCP_PROMPTS } = await import('../../prompts/mcp/index.js');
+            const adjustPrompt = MCP_PROMPTS.TETYANA_SCREENSHOT_AND_ADJUST;
+
+            const userMessage = adjustPrompt.userPrompt
+                .replace('{{ACTION}}', item.action)
+                .replace('{{SUCCESS_CRITERIA}}', item.success_criteria)
+                .replace('{{CURRENT_PLAN}}', JSON.stringify(plan, null, 2));
+
+            const modelConfig = MCP_MODEL_CONFIG.getStageConfig('plan_tools'); // Reuse same model as planning
+
+            this.logger.system('mcp-todo', `[TODO] Analyzing screenshot with model: ${modelConfig.model}`);
+
+            await this._waitForRateLimit();
+
+            const apiResponse = await axios.post(MCP_MODEL_CONFIG.apiEndpoint, {
+                model: modelConfig.model,
+                messages: [
+                    { role: 'system', content: adjustPrompt.systemPrompt },
+                    { role: 'user', content: userMessage }
+                ],
+                temperature: 0.2, // Lower temperature for precise analysis
+                max_tokens: 2000
+            }, {
+                headers: { 'Content-Type': 'application/json' },
+                timeout: 120000
+            });
+
+            const response = apiResponse.data.choices[0].message.content;
+            this.logger.system('mcp-todo', `[TODO] Screenshot analysis response: ${response.substring(0, 200)}...`);
+
+            // Parse adjustment decision
+            const adjustment = this._parseScreenshotAdjustment(response);
+
+            // Log decision
+            if (adjustment.needs_adjustment) {
+                this.logger.system('mcp-todo', `[TODO] 🔧 Plan adjustment needed: ${adjustment.adjustment_reason}`);
+                this._sendChatMessage(`🔧 Коригую план: ${adjustment.adjustment_reason}`, 'tetyana');
+            } else {
+                this.logger.system('mcp-todo', `[TODO] ✅ Plan approved, proceeding with execution`);
+            }
+
+            // Return adjusted or original plan
+            const finalPlan = adjustment.needs_adjustment && adjustment.adjusted_plan 
+                ? { ...adjustment.adjusted_plan, tts_phrase: adjustment.tts_phrase }
+                : { ...plan, tts_phrase: adjustment.tts_phrase || 'Скрін готовий' };
+
+            return {
+                plan: finalPlan,
+                screenshot: {
+                    path: screenshotPath,
+                    tool: screenshotTool,
+                    analysis: adjustment.screenshot_analysis
+                },
+                adjusted: adjustment.needs_adjustment,
+                reason: adjustment.adjustment_reason
+            };
+
+        } catch (error) {
+            this.logger.error(`[MCP-TODO] Screenshot and adjust failed: ${error.message}`, {
+                category: 'mcp-todo',
+                component: 'mcp-todo',
+                itemId: item.id,
+                stack: error.stack
+            });
+            // Don't fail the whole task - return original plan
+            this.logger.warn('[MCP-TODO] Continuing with original plan despite screenshot failure', {
+                category: 'mcp-todo',
+                component: 'mcp-todo'
+            });
+            return {
+                plan,
+                screenshot: null,
+                adjusted: false,
+                reason: 'Screenshot failed, using original plan'
+            };
+        }
+    }
+
+    /**
+     * Helper: Take screenshot using shell command
+     * @private
+     */
+    async _takeShellScreenshot(itemId) {
+        const screenshotPath = `/tmp/atlas_task_${itemId}_before.png`;
+        await this.mcpManager.executeTool('shell', 'execute_command', {
+            command: `screencapture -x ${screenshotPath}`
+        });
+        this.logger.system('mcp-todo', `[TODO] 📸 Screenshot saved via shell: ${screenshotPath}`);
+        return screenshotPath;
     }
 
     /**
@@ -1404,6 +1560,75 @@ Context: ${JSON.stringify(context, null, 2)}
                 parseError: error.message
             });
             throw new Error(`Failed to parse adjustment: ${error.message}`);
+        }
+    }
+
+    _parseScreenshotAdjustment(response) {
+        try {
+            // Same aggressive cleaning as other parse methods
+            let cleanResponse = response;
+            if (typeof response === 'string') {
+                // Step 1: Cut everything from <think> onwards
+                const thinkIndex = response.indexOf('<think>');
+                if (thinkIndex !== -1) {
+                    cleanResponse = response.substring(0, thinkIndex).trim();
+                } else {
+                    cleanResponse = response;
+                }
+
+                // Step 2: Clean markdown wrappers
+                cleanResponse = cleanResponse
+                    .replace(/^```json\s*/i, '')
+                    .replace(/^```\s*/i, '')
+                    .replace(/\s*```$/i, '')
+                    .trim();
+
+                // Step 3: Extract JSON object
+                const firstBrace = cleanResponse.indexOf('{');
+                const lastBrace = cleanResponse.lastIndexOf('}');
+
+                if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+                    cleanResponse = cleanResponse.substring(firstBrace, lastBrace + 1);
+                }
+            }
+
+            // Parse JSON
+            let parsed;
+            if (typeof cleanResponse === 'string') {
+                try {
+                    parsed = JSON.parse(cleanResponse);
+                } catch (parseError) {
+                    // Try sanitization
+                    const sanitized = this._sanitizeJsonString(cleanResponse);
+                    parsed = JSON.parse(sanitized);
+                }
+            } else {
+                parsed = cleanResponse;
+            }
+
+            return {
+                screenshot_taken: parsed.screenshot_taken || false,
+                screenshot_analysis: parsed.screenshot_analysis || '',
+                needs_adjustment: parsed.needs_adjustment || false,
+                adjustment_reason: parsed.adjustment_reason || '',
+                adjusted_plan: parsed.adjusted_plan || null,
+                tts_phrase: parsed.tts_phrase || 'Скрін готовий'
+            };
+        } catch (error) {
+            this.logger.error(`[MCP-TODO] Failed to parse screenshot adjustment: ${error.message}`, {
+                category: 'mcp-todo',
+                component: 'mcp-todo',
+                response: response.substring(0, 300)
+            });
+            // Return safe fallback - no adjustment
+            return {
+                screenshot_taken: true,
+                screenshot_analysis: 'Помилка аналізу',
+                needs_adjustment: false,
+                adjustment_reason: '',
+                adjusted_plan: null,
+                tts_phrase: 'Скрін готовий'
+            };
         }
     }
 

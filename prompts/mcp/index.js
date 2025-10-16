@@ -17,6 +17,7 @@
 import atlasTodoPlanning from './atlas_todo_planning_optimized.js';  // OPTIMIZED 15.10.2025
 import serverSelection from './stage2_0_server_selection.js';  // NEW 15.10.2025
 import tetyanaPlanTools from './tetyana_plan_tools_optimized.js';  // OPTIMIZED 15.10.2025
+import tetyanaScreenshotAndAdjust from './tetyana_screenshot_and_adjust.js';  // NEW 16.10.2025
 import grishaVerifyItem from './grisha_verify_item_optimized.js';  // OPTIMIZED 15.10.2025
 import atlasAdjustTodo from './atlas_adjust_todo.js';
 import mcpFinalSummary from './mcp_final_summary.js';
@@ -30,6 +31,9 @@ export const MCP_PROMPTS = {
 
     // Stage 2.1-MCP: Tetyana plans tools (OPTIMIZED)
     TETYANA_PLAN_TOOLS: tetyanaPlanTools,
+
+    // Stage 2.1.5-MCP: Tetyana screenshot and adjust (NEW 16.10.2025)
+    TETYANA_SCREENSHOT_AND_ADJUST: tetyanaScreenshotAndAdjust,
 
     // Stage 2.3-MCP: Grisha verifies item (OPTIMIZED)
     GRISHA_VERIFY_ITEM: grishaVerifyItem,
@@ -48,6 +52,7 @@ export {
     atlasTodoPlanning,
     serverSelection,
     tetyanaPlanTools,
+    tetyanaScreenshotAndAdjust,
     grishaVerifyItem,
     atlasAdjustTodo,
     mcpFinalSummary
