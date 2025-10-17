@@ -815,6 +815,21 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
       }
     });
 
+    // OPTIMIZED 2025-10-17: Clean up session history to prevent memory leaks
+    // Keep only last 20 messages for context
+    if (session.history && session.history.length > 20) {
+      const removed = session.history.length - 20;
+      session.history = session.history.slice(-20);
+      logger.system('executor', `[CLEANUP] Trimmed session.history: ${removed} old messages removed, ${session.history.length} kept`);
+    }
+
+    // Clean up chatThread messages
+    if (session.chatThread && session.chatThread.messages && session.chatThread.messages.length > 20) {
+      const removed = session.chatThread.messages.length - 20;
+      session.chatThread.messages = session.chatThread.messages.slice(-20);
+      logger.system('executor', `[CLEANUP] Trimmed chatThread: ${removed} old messages removed, ${session.chatThread.messages.length} kept`);
+    }
+
     logger.workflow('complete', 'mcp', 'MCP workflow completed', {
       sessionId: session.id,
       duration: Date.now() - workflowStart,

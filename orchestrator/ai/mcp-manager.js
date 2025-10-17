@@ -1,7 +1,7 @@
 /**
  * @fileoverview MCP Manager - управління прямими MCP серверами
  * Запускає та керує lifecycle MCP серверів через stdio protocol
- * 
+ *
  * @version 4.0.0
  * @date 2025-10-13
  */
@@ -246,7 +246,7 @@ class MCPServer {
 
   /**
    * Викликати tool через MCP protocol
-   * 
+   *
    * @param {string} toolName - Назва tool
    * @param {Object} parameters - Параметри для tool
    * @returns {Promise<Object>} Результат виконання
@@ -334,6 +334,7 @@ class MCPServer {
 
 /**
  * Менеджер для управління множиною MCP серверів
+ * OPTIMIZED 2025-10-17: Added tool caching and dynamic loading
  */
 export class MCPManager {
   /**
@@ -342,20 +343,49 @@ export class MCPManager {
   constructor(serversConfig) {
     this.config = serversConfig;
     this.servers = new Map();
+
+    // OPTIMIZED: Cache available tools to avoid repeated lookups
+    this.toolsCache = null;
+    this.toolsCacheTimestamp = 0;
+    this.toolsCacheTTL = 60000; // 1 minute cache
+
+    // OPTIMIZED: Track tool usage statistics
+    this.toolStats = new Map(); // toolName -> { calls, errors, avgTime }
   }
 
   /**
    * Повертає список всіх доступних tools з усіх MCP серверів
+   * OPTIMIZED: Added caching
    * @returns {Array<string>} Масив назв tools
    */
   listTools() {
+    // Check cache first
+    const now = Date.now();
+    if (this.toolsCache && (now - this.toolsCacheTimestamp) < this.toolsCacheTTL) {
+      return this.toolsCache;
+    }
+
+    // Rebuild cache
     const allTools = [];
     for (const server of this.servers.values()) {
       if (Array.isArray(server.tools)) {
         allTools.push(...server.tools);
       }
     }
+
+    this.toolsCache = allTools;
+    this.toolsCacheTimestamp = now;
+
     return allTools;
+  }
+
+  /**
+   * Invalidate tools cache (call after server restart)
+   */
+  invalidateToolsCache() {
+    this.toolsCache = null;
+    this.toolsCacheTimestamp = 0;
+    logger.debug('mcp-manager', '[MCP Manager] Tools cache invalidated');
   }
 
   /**
@@ -397,7 +427,7 @@ export class MCPManager {
 
   /**
    * Запустити один MCP server
-   * 
+   *
    * @param {string} name - Назва server (filesystem, playwright, etc)
    * @param {Object} config - Конфігурація { command, args, env }
    */
@@ -430,43 +460,103 @@ export class MCPManager {
   /**
    * Викликати tool на відповідному server
    * FIXED 14.10.2025 - Changed signature to accept (serverName, toolName, parameters)
-   * instead of using findServerForTool which was causing issues
-   * 
+   * OPTIMIZED 2025-10-17 - Added stats tracking and parameter validation
+   *
    * @param {string} serverName - Назва server (напр. "filesystem")
    * @param {string} toolName - Назва tool (напр. "createFile")
    * @param {Object} parameters - Параметри для tool
    * @returns {Promise<Object>} Результат виконання
    */
   async executeTool(serverName, toolName, parameters) {
-    // Знайти server за назвою
-    const server = this.servers.get(serverName);
+    const startTime = Date.now();
+    const toolKey = `${serverName}:${toolName}`;
 
-    if (!server) {
-      // FIXED 14.10.2025 - Better error message with list of available servers
-      const availableServers = Array.from(this.servers.keys()).join(', ');
-      throw new Error(`MCP server '${serverName}' not found. Available servers: ${availableServers}`);
+    // Initialize stats if not exists
+    if (!this.toolStats.has(toolKey)) {
+      this.toolStats.set(toolKey, { calls: 0, errors: 0, avgTime: 0 });
     }
 
-    if (!server.ready) {
-      throw new Error(`MCP server ${serverName} not ready`);
+    try {
+      // Знайти server за назвою
+      const server = this.servers.get(serverName);
+
+      if (!server) {
+        // FIXED 14.10.2025 - Better error message with list of available servers
+        const availableServers = Array.from(this.servers.keys()).join(', ');
+        throw new Error(`MCP server '${serverName}' not found. Available servers: ${availableServers}`);
+      }
+
+      if (!server.ready) {
+        throw new Error(`MCP server ${serverName} not ready`);
+      }
+
+      // Check if tool exists on server
+      if (!Array.isArray(server.tools) || !server.tools.some(t => t.name === toolName)) {
+        // FIXED 14.10.2025 - Better error message with list of available tools
+        const availableTools = Array.isArray(server.tools)
+          ? server.tools.map(t => t.name).join(', ')
+          : 'none';
+        throw new Error(`Tool '${toolName}' not available on server '${serverName}'. Available tools: ${availableTools}`);
+      }
+
+      // OPTIMIZED: Validate parameters before calling
+      const tool = server.tools.find(t => t.name === toolName);
+      if (tool && tool.inputSchema) {
+        this._validateParameters(tool, parameters);
+      }
+
+      logger.debug('mcp-manager', `[MCP Manager] Executing ${toolName} on ${serverName}`);
+
+      const result = await server.call(toolName, parameters);
+
+      // Update stats
+      const duration = Date.now() - startTime;
+      const stats = this.toolStats.get(toolKey);
+      stats.calls++;
+      stats.avgTime = Math.round((stats.avgTime * (stats.calls - 1) + duration) / stats.calls);
+
+      logger.debug('mcp-manager', `[MCP Manager] ✅ ${toolName} completed in ${duration}ms`);
+
+      return result;
+
+    } catch (error) {
+      // Update error stats
+      const stats = this.toolStats.get(toolKey);
+      if (stats) {
+        stats.errors++;
+      }
+
+      logger.error('mcp-manager', `[MCP Manager] ❌ ${toolName} failed: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Validate tool parameters against schema
+   * @param {Object} tool - Tool definition with inputSchema
+   * @param {Object} parameters - Parameters to validate
+   * @private
+   */
+  _validateParameters(tool, parameters) {
+    if (!tool.inputSchema || !tool.inputSchema.required) {
+      return; // No validation needed
     }
 
-    // Check if tool exists on server
-    if (!Array.isArray(server.tools) || !server.tools.some(t => t.name === toolName)) {
-      // FIXED 14.10.2025 - Better error message with list of available tools
-      const availableTools = Array.isArray(server.tools)
-        ? server.tools.map(t => t.name).join(', ')
-        : 'none';
-      throw new Error(`Tool '${toolName}' not available on server '${serverName}'. Available tools: ${availableTools}`);
+    const required = tool.inputSchema.required;
+    const missing = required.filter(param => !(param in parameters));
+
+    if (missing.length > 0) {
+      logger.warn('mcp-manager', `[MCP Manager] ⚠️ Missing required parameters for ${tool.name}: ${missing.join(', ')}`);
+      // Don't throw, let the MCP server handle it
     }
+  }
 
-    logger.debug('mcp-manager', `[MCP Manager] Executing ${toolName} on ${serverName}`);
-
-    const result = await server.call(toolName, parameters);
-
-    logger.debug('mcp-manager', `[MCP Manager] ✅ ${toolName} completed`);
-
-    return result;
+  /**
+   * Get tool usage statistics
+   * @returns {Map} Tool stats
+   */
+  getToolStats() {
+    return this.toolStats;
   }
 
   /**
@@ -520,7 +610,7 @@ export class MCPManager {
   /**
    * Отримати компактний опис доступних MCP серверів і tools
    * Використовується для підстановки в промпти ({{AVAILABLE_TOOLS}})
-   * 
+   *
    * @param {Array<string>} [filterServers] - Опціонально фільтрувати тільки ці сервери (NEW 15.10.2025)
    * @returns {string} Компактний текстовий опис всіх серверів і кількості tools
    */
@@ -552,7 +642,7 @@ export class MCPManager {
   /**
    * Отримати ДЕТАЛЬНИЙ опис tools для конкретних серверів
    * Повертає ВСІ tools (не тільки перші 5) для обраних серверів
-   * 
+   *
    * @param {Array<string>} serverNames - Назви серверів
    * @returns {string} Детальний опис всіх tools
    * @version 4.2.0
@@ -581,7 +671,7 @@ export class MCPManager {
 
   /**
    * Отримати tools тільки з конкретних серверів
-   * 
+   *
    * @param {Array<string>} serverNames - Назви серверів
    * @returns {Array<Object>} Tools з цих серверів
    * @version 4.2.0
@@ -610,7 +700,7 @@ export class MCPManager {
 
   /**
    * Валідувати tool_calls план проти доступних tools
-   * 
+   *
    * @param {Array} toolCalls - Масив tool_calls з LLM response
    * @returns {Object} {valid: boolean, errors: Array, suggestions: Array}
    */
