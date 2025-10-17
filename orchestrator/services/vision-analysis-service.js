@@ -22,6 +22,7 @@ import axios from 'axios';
 import fs from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
+import CircuitBreaker from '../utils/circuit-breaker.js';
 
 /**
  * Vision Analysis Service
@@ -64,6 +65,28 @@ export class VisionAnalysisService {
       ollamaCalls: 0,
       openrouterCalls: 0,
       avgResponseTime: 0
+    };
+
+    // OPTIMIZED: Add circuit breakers for each API endpoint
+    this.circuitBreakers = {
+      port4000: new CircuitBreaker({
+        name: 'Port4000-Vision',
+        failureThreshold: 3,
+        recoveryTimeout: 15000,
+        timeout: 15000
+      }),
+      ollama: new CircuitBreaker({
+        name: 'Ollama-Vision',
+        failureThreshold: 2,
+        recoveryTimeout: 30000,
+        timeout: 300000
+      }),
+      openrouter: new CircuitBreaker({
+        name: 'OpenRouter-Vision',
+        failureThreshold: 5,
+        recoveryTimeout: 30000,
+        timeout: 120000
+      })
     };
   }
 
