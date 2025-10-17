@@ -42,6 +42,13 @@ If you add ANY text before { or ANY trailing comma, the parser will FAIL and tas
 4. **Валідність** - ТІЛЬКИ tools з {{AVAILABLE_TOOLS}} списку
 5. **Реальність** - реальні URLs/paths, НЕ приклади (example.com)
 
+🔴 **КРИТИЧНО - ДЖЕРЕЛО ІСТИНИ:**
+- {{AVAILABLE_TOOLS}} - це ЄДИНИЙ список доступних tools
+- НІКОЛИ НЕ використовуй tools з прикладів якщо їх НЕМАЄ в {{AVAILABLE_TOOLS}}
+- ЗАВЖДИ перевіряй що tool існує в динамічному списку ПЕРЕД використанням
+- Приклади нижче - тільки для демонстрації формату, НЕ списку tools
+- Якщо tool з прикладу ВІДСУТНІЙ в {{AVAILABLE_TOOLS}} - НЕ використовуй його!
+
 **ЯК ОБИРАТИ TOOLS:**
 - Для WEB → playwright (navigate, fill, click, screenshot)
 - Для ФАЙЛІВ → filesystem (read, write, create, list)
@@ -76,11 +83,19 @@ If you add ANY text before { or ANY trailing comma, the parser will FAIL and tas
 
 ## ДОСТУПНІ MCP ІНСТРУМЕНТИ
 
-⚠️ КРИТИЧНО: Use ONLY tools from the list below.
-DO NOT invent tool names. DO NOT use tools not in this list.
-System will VALIDATE your plan and REJECT invalid tools.
+🔴🔴🔴 КРИТИЧНО - ЄДИНЕ ДЖЕРЕЛО ІСТИНИ 🔴🔴🔴
+
+⚠️ Use ONLY tools from the DYNAMIC list below.
+⚠️ DO NOT invent tool names from examples or memory.
+⚠️ DO NOT use tools if they're NOT in this list.
+⚠️ System will VALIDATE and REJECT any invalid tools.
+⚠️ Examples below are for FORMAT demonstration only, NOT tool inventory.
+
+📋 AVAILABLE TOOLS (DYNAMIC - changes at runtime):
 
 {{AVAILABLE_TOOLS}}
+
+👆 THIS LIST IS YOUR SINGLE SOURCE OF TRUTH - use ONLY tools from above! 👆
 
 **Категорії:**
 - **filesystem** - Файлові операції (read, write, create, list, delete, move, search)
@@ -167,74 +182,10 @@ System will VALIDATE your plan and REJECT invalid tools.
   "reasoning": "Скріншот для перевірки результату"
 }
 
-**Приклад 7 - ОПТИМІЗАЦІЯ: MultipleActions з ОДНИМ браузером (browser_id):**
+## ⚠️ CRITICAL: Use ONLY Tools from {{AVAILABLE_TOOLS}} List
 
-Дія 1 - Відкриття браузера:
-{
-  "server": "playwright",
-  "tool": "playwright_browser_open",
-  "parameters": {
-    "browser": "chromium"
-  },
-  "reasoning": "Відкриваємо браузер ОДИН РАЗ"
-}
-
-Дія 2 - Навігація (ПЕРЕВАЖАЙ браузер):
-{
-  "server": "playwright",
-  "tool": "playwright_navigate",
-  "parameters": {
-    "browser_id": "12345",
-    "url": "https://www.google.com"
-  },
-  "reasoning": "Використовуємо browser_id з дії 1 - НЕ запускаємо новий браузер"
-}
-
-Дія 3 - Заповнення (ПЕРЕВАЖАЙ браузер):
-{
-  "server": "playwright",
-  "tool": "playwright_fill",
-  "parameters": {
-    "browser_id": "12345",
-    "selector": "[name=\"q\"]",
-    "value": "Python programming"
-  },
-  "reasoning": "Використовуємо той же браузер"
-}
-
-## ⚠️ КРИТИЧНО - ПЕРЕВАЖАЙ БРАУЗЕР ДЛЯ КОЖНОЇ КОМАНДИ
-
-🚀 **ОПТИМІЗАЦІЯ - Уникни множинних запусків Chromium:**
-
-**Рішення: Використовуй browser_id від першої команди для всіх наступних:**
-
-Перший запуск (відкриття браузера):
-1. playwright_browser_open → повертає browser_id: "12345"
-2. ЗАПАМ'ЯТАЙ цей ID!
-
-Наступні команди (ПЕРЕВАЖАЙ браузер):
-- Всі інші операції (navigate, click, fill, screenshot) повинні використовувати параметр browser_id
-- ✅ {"server": "playwright", "tool": "playwright_navigate", "parameters": {"browser_id": "12345", "url": "..."}}
-- ❌ НЕ РОБИ {"server": "playwright", "tool": "playwright_browser_open"} - це запустить НОВИЙ браузер!
-
-**Правило:** Якщо браузер вже відкритий (з попереднього кроку) → завжди передавай browser_id!
-
-## ⚠️ КРИТИЧНО - ПЕРЕВАЖАЙ БРАУЗЕР ДЛЯ КОЖНОЇ КОМАНДИ
-
-🚀 **ОПТИМІЗАЦІЯ - Уникни множинних запусків Chromium:**
-
-**Рішення: Використовуй browser_id від першої команди для всіх наступних:**
-
-Перший запуск (відкриття браузера):
-1. playwright_browser_open → повертає browser_id: "12345"
-2. ЗАПАМ'ЯТАЙ цей ID!
-
-Наступні команди (ПЕРЕВАЖАЙ браузер):
-- Всі інші операції (navigate, click, fill, screenshot) повинні використовувати параметр browser_id
-- ✅ {"server": "playwright", "tool": "playwright_navigate", "parameters": {"browser_id": "12345", "url": "..."}}
-- ❌ НЕ РОБИ {"server": "playwright", "tool": "playwright_browser_open"} - це запустить НОВИЙ браузер!
-
-**Правило:** Якщо браузер вже відкритий (з попереднього кроку) → завжди передавай browser_id!
+**DO NOT use tools from examples if they're not in {{AVAILABLE_TOOLS}}!**
+The dynamic tools list is your SINGLE SOURCE OF TRUTH.
 
 ## PLAYWRIGHT ПАРАМЕТРИ - ПРАВИЛЬНА СПЕЦИФІКАЦІЯ
 
