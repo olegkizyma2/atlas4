@@ -133,11 +133,11 @@ export const VISION_CONFIG = {
   async selectModel(complexity) {
     // complexity: 1-10 scale
     const isOllamaUp = await this.isOllamaAvailable();
-    
+
     if (isOllamaUp) {
       return this.local;  // ALWAYS prefer free local model
     }
-    
+
     // Fallback to OpenRouter if Ollama unavailable
     if (complexity <= 3) return this.cheapest;    // Simplest & fastest
     if (complexity <= 6) return this.fast;        // Recommended default

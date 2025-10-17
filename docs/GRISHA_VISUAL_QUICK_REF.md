@@ -219,12 +219,12 @@ npm test tests/integration/visual-verification.test.js
 
 ## 📈 Performance
 
-| Operation | Time | Notes |
-|-----------|------|-------|
-| Screenshot capture | 50-200ms | macOS screencapture |
-| Vision AI analysis | 2-5s | GPT-4 Vision API call |
-| Total verification | 2-6s | Per TODO item |
-| Stuck detection | 5-10s | Multi-screenshot analysis |
+| Operation          | Time     | Notes                     |
+| ------------------ | -------- | ------------------------- |
+| Screenshot capture | 50-200ms | macOS screencapture       |
+| Vision AI analysis | 2-5s     | GPT-4 Vision API call     |
+| Total verification | 2-6s     | Per TODO item             |
+| Stuck detection    | 5-10s    | Multi-screenshot analysis |
 
 ---
 

@@ -39,7 +39,7 @@ export class GrishaVerifyItemProcessor {
     constructor({ mcpTodoManager, logger: loggerInstance, config = {} }) {
         this.mcpTodoManager = mcpTodoManager;
         this.logger = loggerInstance || logger;
-        
+
         // Initialize visual services
         this.visualCapture = new VisualCaptureService({
             logger: this.logger,
@@ -49,7 +49,7 @@ export class GrishaVerifyItemProcessor {
                 maxStoredScreenshots: config.maxStoredScreenshots || 10
             }
         });
-        
+
         this.visionAnalysis = new VisionAnalysisService({
             logger: this.logger,
             config: {
@@ -60,10 +60,10 @@ export class GrishaVerifyItemProcessor {
                 temperature: config.visionTemperature || 0.2
             }
         });
-        
+
         this.initialized = false;
     }
-    
+
     /**
      * Initialize visual verification services
      */
@@ -71,14 +71,14 @@ export class GrishaVerifyItemProcessor {
         if (this.initialized) {
             return;
         }
-        
+
         this.logger.system('grisha-verify-item', '[VISUAL-GRISHA] Initializing visual verification services...');
-        
+
         await Promise.all([
             this.visualCapture.initialize(),
             this.visionAnalysis.initialize()
         ]);
-        
+
         this.initialized = true;
         this.logger.system('grisha-verify-item', '[VISUAL-GRISHA] ✅ Visual verification services ready');
     }
@@ -95,7 +95,7 @@ export class GrishaVerifyItemProcessor {
     async execute(context) {
         // Ensure services are initialized
         await this.initialize();
-        
+
         this.logger.system('grisha-verify-item', '[VISUAL-GRISHA] 🔍 Starting visual verification...');
 
         const { currentItem, execution, todo } = context;
@@ -121,7 +121,7 @@ export class GrishaVerifyItemProcessor {
                 action: currentItem.action,
                 executionResults: execution.results || []
             };
-            
+
             const visionAnalysis = await this.visionAnalysis.analyzeScreenshot(
                 screenshot.filepath,
                 currentItem.success_criteria,
@@ -214,7 +214,7 @@ export class GrishaVerifyItemProcessor {
             if (verification.visual_evidence && verification.visual_evidence.observed) {
                 lines.push(`   Візуальні докази: ${verification.visual_evidence.observed}`);
             }
-            
+
             if (verification.confidence) {
                 lines.push(`   Впевненість: ${verification.confidence}%`);
             }
@@ -315,7 +315,7 @@ export class GrishaVerifyItemProcessor {
             // Start monitoring if not already
             if (!this.visualCapture.isMonitoring) {
                 await this.visualCapture.startMonitoring();
-                
+
                 // Wait for a few screenshots to accumulate
                 await new Promise(resolve => setTimeout(resolve, this.visualCapture.config.captureInterval * 3));
             }
@@ -349,7 +349,7 @@ export class GrishaVerifyItemProcessor {
                 category: 'grisha-verify-item',
                 component: 'grisha-verify-item'
             });
-            
+
             // Return not stuck on error (fail-safe)
             return {
                 stuck: false,
@@ -380,11 +380,11 @@ export class GrishaVerifyItemProcessor {
         if (this.visualCapture) {
             await this.visualCapture.destroy();
         }
-        
+
         if (this.visionAnalysis) {
             await this.visionAnalysis.destroy();
         }
-        
+
         this.initialized = false;
         this.logger.system('grisha-verify-item', '[VISUAL-GRISHA] Processor destroyed');
     }

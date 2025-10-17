@@ -392,15 +392,15 @@ Cost: $0.0003/image
 
 ## 📊 Summary
 
-| Aspect | Ollama (Local) | OpenRouter (Cloud) |
-|--------|--------|--------|
-| **Cost** | $0 | $0.0002-0.0003/img |
-| **Speed** | 2-5s | 0.8-2.5s |
-| **Accuracy** | 94-97% | 92-98% |
-| **Privacy** | ✅ Local | ⚠️ Cloud |
-| **Priority** | 🥇 PRIMARY | 🥈 Fallback |
-| **Setup** | `ollama serve` | Already running |
-| **Status** | ✅ Active | ✅ Active |
+| Aspect       | Ollama (Local) | OpenRouter (Cloud) |
+| ------------ | -------------- | ------------------ |
+| **Cost**     | $0             | $0.0002-0.0003/img |
+| **Speed**    | 2-5s           | 0.8-2.5s           |
+| **Accuracy** | 94-97%         | 92-98%             |
+| **Privacy**  | ✅ Local        | ⚠️ Cloud            |
+| **Priority** | 🥇 PRIMARY      | 🥈 Fallback         |
+| **Setup**    | `ollama serve` | Already running    |
+| **Status**   | ✅ Active       | ✅ Active           |
 
 **🎉 Bottom Line:** You now have FREE local vision verification with automatic cloud fallback!
 

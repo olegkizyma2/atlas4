@@ -9,12 +9,12 @@
 
 ## 📊 Available Vision Models on Port 4000
 
-| Model | Provider | Cost/Image | Speed | Rate Limit | Accuracy | Recommended For |
-|---|---|---|---|---|---|---|
-| **llama-3.2-11b-vision** ⭐ | Meta | $0.0002 | 0.8-1.2s | 6/min | 95% | **DEFAULT** - balanced |
-| **llama-3.2-90b-vision** | Meta | $0.0003 | 1.5-2.5s | 3/min | 97% | Complex UI analysis |
-| **phi-3.5-vision** | Microsoft | $0.0001 | 1-1.5s | 12/min | 92% | Simple checks |
-| ~~gpt-4-vision~~ ❌ | OpenAI | $0.01 | 2-5s | ∞ | 99% | **REMOVED** - too expensive |
+| Model                      | Provider  | Cost/Image | Speed    | Rate Limit | Accuracy | Recommended For             |
+| -------------------------- | --------- | ---------- | -------- | ---------- | -------- | --------------------------- |
+| **llama-3.2-11b-vision** ⭐ | Meta      | $0.0002    | 0.8-1.2s | 6/min      | 95%      | **DEFAULT** - balanced      |
+| **llama-3.2-90b-vision**   | Meta      | $0.0003    | 1.5-2.5s | 3/min      | 97%      | Complex UI analysis         |
+| **phi-3.5-vision**         | Microsoft | $0.0001    | 1-1.5s   | 12/min     | 92%      | Simple checks               |
+| ~~gpt-4-vision~~ ❌         | OpenAI    | $0.01      | 2-5s     | ∞          | 99%      | **REMOVED** - too expensive |
 
 ---
 

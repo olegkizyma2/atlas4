@@ -35,11 +35,11 @@ export class VisionAnalysisService {
     constructor({ logger, config = {} }) {
         this.logger = logger;
         this.config = config || {};
-        
+
         // Determine vision model (priority: Ollama → OpenRouter)
         this.visionProvider = config.visionProvider || 'auto'; // 'ollama', 'openrouter', or 'auto'
         this.visionModel = config.visionModel || null;
-        
+
         this.initialized = false;
         this.ollamaAvailable = false;
     }
@@ -50,10 +50,10 @@ export class VisionAnalysisService {
      */
     async initialize() {
         this.logger.system('vision-analysis', '[VISION] Initializing Vision Analysis Service...');
-        
+
         // Check if Ollama is available
         this.ollamaAvailable = await this._checkOllamaAvailability();
-        
+
         if (this.ollamaAvailable && this.visionProvider !== 'openrouter') {
             this.logger.system('vision-analysis', '[VISION] ✅ Ollama detected - using LOCAL llama3.2-vision (FREE!)');
             this.visionProvider = 'ollama';
@@ -75,8 +75,8 @@ export class VisionAnalysisService {
      */
     async _checkOllamaAvailability() {
         try {
-            const response = await axios.get('http://localhost:11434/api/tags', { 
-                timeout: 3000 
+            const response = await axios.get('http://localhost:11434/api/tags', {
+                timeout: 3000
             });
             return response.status === 200;
         } catch (error) {
@@ -108,7 +108,7 @@ export class VisionAnalysisService {
             const analysis = await this._callVisionAPI(base64Image, prompt);
 
             this.logger.system('vision-analysis', `[VISION] ✅ Analysis complete: ${analysis.verified ? 'VERIFIED' : 'NOT VERIFIED'}`);
-            
+
             return analysis;
 
         } catch (error) {
@@ -318,7 +318,7 @@ Return ONLY the JSON object.`;
             if (this.visionProvider === 'ollama' && this.ollamaAvailable) {
                 return await this._callOllamaVisionAPI(base64Image, prompt);
             }
-            
+
             // Fallback to OpenRouter
             return await this._callOpenRouterVisionAPI(base64Image, prompt);
 
@@ -342,7 +342,7 @@ Return ONLY the JSON object.`;
     async _callOllamaVisionAPI(base64Image, prompt) {
         try {
             this.logger.system('vision-analysis', '[OLLAMA] Calling local Ollama vision API...');
-            
+
             const response = await axios.post('http://localhost:11434/api/generate', {
                 model: this.visionModel,
                 prompt: prompt,
@@ -355,7 +355,7 @@ Return ONLY the JSON object.`;
 
             const content = response.data.response;
             this.logger.system('vision-analysis', '[OLLAMA] ✅ Response received');
-            
+
             return this._parseVisionResponse(content);
 
         } catch (error) {
@@ -380,7 +380,7 @@ Return ONLY the JSON object.`;
     async _callOpenRouterVisionAPI(base64Image, prompt) {
         try {
             this.logger.system('vision-analysis', '[OPENROUTER] Calling OpenRouter vision API...');
-            
+
             const apiEndpoint = 'http://localhost:4000/v1/chat/completions';
             const response = await axios.post(apiEndpoint, {
                 model: this.visionModel,
@@ -411,7 +411,7 @@ Return ONLY the JSON object.`;
 
             const content = response.data.choices[0].message.content;
             this.logger.system('vision-analysis', '[OPENROUTER] ✅ Response received');
-            
+
             return this._parseVisionResponse(content);
 
         } catch (error) {
@@ -463,7 +463,7 @@ Return ONLY the JSON object.`;
             });
 
             const responseContent = response.data.choices[0].message.content;
-            
+
             // Parse JSON response
             return this._parseVisionResponse(responseContent);
 
