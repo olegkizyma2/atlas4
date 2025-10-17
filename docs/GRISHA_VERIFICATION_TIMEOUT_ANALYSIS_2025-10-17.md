@@ -122,11 +122,11 @@ tail -f ~/.ollama/logs/
 
 ## 📈 Performance Comparison
 
-| Solution | Time | Cost | Accuracy | Implementation |
-|----------|------|------|----------|-----------------|
-| **Tier 1: 300s timeout** | 120-300s | $0 | 95% | 5 min ⚡ |
-| **Tier 2: Ollama → OpenRouter** | 2-5s | $0.0002 | 94% | 15 min 🚀 |
-| **Tier 3: Optimize Ollama** | 30-60s | $0 | 95% | 30+ min 🔧 |
+| Solution                        | Time     | Cost    | Accuracy | Implementation |
+| ------------------------------- | -------- | ------- | -------- | -------------- |
+| **Tier 1: 300s timeout**        | 120-300s | $0      | 95%      | 5 min ⚡        |
+| **Tier 2: Ollama → OpenRouter** | 2-5s     | $0.0002 | 94%      | 15 min 🚀       |
+| **Tier 3: Optimize Ollama**     | 30-60s   | $0      | 95%      | 30+ min 🔧      |
 
 ---
 
@@ -207,12 +207,12 @@ tail -f logs/orchestrator.log | grep -E "(OLLAMA|vision|timeout)"
 
 ## 📊 Metrics
 
-| Metric | Current | After Fix |
-|--------|---------|-----------|
-| Timeout | 120s | 300s |
-| Success Rate | ~33% (1/3 attempts) | ~90%+ (with fallback) |
-| Cost | $0 | $0 → $0.0002 (if Ollama fails) |
-| User Wait | 2+ min | 5 min max → 2s (with fallback) |
+| Metric       | Current             | After Fix                      |
+| ------------ | ------------------- | ------------------------------ |
+| Timeout      | 120s                | 300s                           |
+| Success Rate | ~33% (1/3 attempts) | ~90%+ (with fallback)          |
+| Cost         | $0                  | $0 → $0.0002 (if Ollama fails) |
+| User Wait    | 2+ min              | 5 min max → 2s (with fallback) |
 
 ---
 

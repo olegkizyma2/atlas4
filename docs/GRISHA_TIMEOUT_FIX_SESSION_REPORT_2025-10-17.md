@@ -159,19 +159,19 @@ If Ollama somehow still times out after 300s:
 ## 📈 Metrics & Impact
 
 ### Safety Margin Comparison
-| Metric | Before | After | Improvement |
-|--------|--------|-------|-------------|
-| Ollama Timeout | 120s | 300s | +150% |
-| Processing Time (typical) | 120-150s | 120-150s | 0% (model unchanged) |
-| Safety Margin | -0.5s (FAIL) | +150s (SAFE) | ✅ |
-| Fallback Available | No | Yes (OpenRouter) | ✅ |
+| Metric                    | Before       | After            | Improvement          |
+| ------------------------- | ------------ | ---------------- | -------------------- |
+| Ollama Timeout            | 120s         | 300s             | +150%                |
+| Processing Time (typical) | 120-150s     | 120-150s         | 0% (model unchanged) |
+| Safety Margin             | -0.5s (FAIL) | +150s (SAFE)     | ✅                    |
+| Fallback Available        | No           | Yes (OpenRouter) | ✅                    |
 
 ### Cost Analysis
-| Scenario | Before | After | Savings |
-|----------|--------|-------|---------|
-| All Ollama (local) | $0 | $0 | - |
-| 10% fallback rate | N/A (fails) | $0.90/month | - |
-| 100% fallback | N/A (fails) | $9/month | Cheap! |
+| Scenario           | Before      | After       | Savings |
+| ------------------ | ----------- | ----------- | ------- |
+| All Ollama (local) | $0          | $0          | -       |
+| 10% fallback rate  | N/A (fails) | $0.90/month | -       |
+| 100% fallback      | N/A (fails) | $9/month    | Cheap!  |
 
 **Conclusion:** Fix costs $0 if Ollama works (99%+ uptime), minimal cost if rare fallback needed.
 
