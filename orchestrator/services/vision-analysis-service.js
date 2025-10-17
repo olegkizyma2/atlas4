@@ -387,12 +387,22 @@ export class VisionAnalysisService {
      * @private
      */
   _constructAnalysisPrompt(successCriteria, context) {
+    // FIXED 17.10.2025 - Truncate executionResults to prevent context overflow
+    // Problem: JSON.stringify(executionResults) can be 200KB+ (screenshots, HTML, etc.)
+    // Solution: Only include summary (tool names + success status)
+    let executionSummary = '';
+    if (context.executionResults && Array.isArray(context.executionResults)) {
+      executionSummary = context.executionResults.map(r =>
+        `- ${r.tool || 'unknown'}: ${r.success ? '✅ success' : '❌ failed'}${r.error ? ` (${String(r.error).substring(0, 100)})` : ''}`
+      ).join('\n');
+    }
+
     return `You are a visual verification expert analyzing a screenshot to verify task completion.
 
 **Success Criteria:** ${successCriteria}
 
 ${context.action ? `**Task Action:** ${context.action}` : ''}
-${context.executionResults ? `**Execution Results:** ${JSON.stringify(context.executionResults)}` : ''}
+${executionSummary ? `**Execution Summary:**\n${executionSummary}` : ''}
 
 **Instructions:**
 1. Carefully examine the screenshot
