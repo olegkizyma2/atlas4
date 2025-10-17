@@ -537,7 +537,7 @@ Return ONLY the JSON object.`;
       this.logger.system('vision-analysis', '[PORT-4000] 🚀 Calling Port 4000 LLM API (FAST ~2-5 sec)...');
 
       const response = await axios.post('http://localhost:4000/v1/chat/completions', {
-        model: 'gpt-4o-mini',  // Fast model for speed
+        model: 'openai/gpt-4o',  // FIXED 17.10.2025 - gpt-4o (full) supports vision, mini doesn't
         messages: [
           {
             role: 'user',

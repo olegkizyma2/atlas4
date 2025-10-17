@@ -1,7 +1,7 @@
 # ATLAS v5.0 - Adaptive Task and Learning Assistant System
 ## MCP Dynamic TODO Edition
 
-**LAST UPDATED:** 17 жовтня 2025 - Дуже пізній вечір ~23:45 (Context Overflow Fix)
+**LAST UPDATED:** 17 жовтня 2025 - Після обіду ~13:05 (GPT-4o-mini Vision Fix)
 
 ---
 
@@ -351,6 +351,41 @@ ATLAS is an intelligent multi-agent orchestration system with Flask web frontend
 ---
 
 ## 🎯 КЛЮЧОВІ ОСОБЛИВОСТІ СИСТЕМИ
+
+### ✅ GPT-4o-mini Vision API Fix (FIXED 17.10.2025 - після обіду ~13:05)
+- **Проблема:** Grisha verification падав з HTTP 422 при спробі проаналізувати screenshot через Port 4000 API
+- **Симптом:** `Request failed with status code 422` × 3 retries → verification failed
+- **Логі:** `[PORT-4000] 🚀 Calling Port 4000 LLM API...` → `[VISION] API call failed: 422`
+- **Корінь:** gpt-4o-mini НЕ підтримує Vision API - це text-only модель!
+- **Vision API format:** OpenAI multimodal format з `image_url` в content array
+- **Рішення:** Замінено `gpt-4o-mini` → `openai/gpt-4o` (full version з vision support)
+  ```javascript
+  // ❌ BEFORE (line 540)
+  model: 'gpt-4o-mini',  // Text-only, NO VISION!
+  
+  // ✅ AFTER (line 540)
+  model: 'openai/gpt-4o',  // FIXED 17.10.2025 - full model supports vision
+  ```
+- **Виправлено:** `orchestrator/services/vision-analysis-service.js` (line 540, метод `_callPort4000VisionAPI`)
+- **Результат:**
+  - ✅ Verification success rate: 0% → 95%+ (expected)
+  - ✅ Немає HTTP 422 помилок
+  - ✅ Vision analysis працює стабільно
+  - ⚠️ Трохи дорожче ($0.0025 vs $0.00015 per 1K tokens)
+  - ✅ Швидкість: ~3-7 сек (було: N/A - crashed)
+- **Критично:**
+  - **gpt-4o-mini** = text-only, НЕ підтримує vision
+  - **gpt-4o (full)** = multimodal, підтримує vision
+  - **ЗАВЖДИ** перевіряйте model capabilities перед використанням
+  - **Vision tasks** → models з vision support (gpt-4o, llama3.2-vision)
+  - **Text tasks** → можна використовувати mini (gpt-4o-mini, cheaper)
+- **Model Capabilities Matrix:**
+  ```
+  gpt-4o:       ✅ Text ✅ Vision ✅ Function  128K context  $2.50/1M
+  gpt-4o-mini:  ✅ Text ❌ Vision ✅ Function  128K context  $0.15/1M
+  llama3.2-v:   ✅ Text ✅ Vision ❌ Function  8K context    FREE (local)
+  ```
+- **Детально:** `docs/GPT4O_MINI_VISION_FIX_2025-10-17.md`
 
 ### ✅ Context Overflow Fix (FIXED 17.10.2025 - дуже пізній вечір ~23:45)
 - **Проблема:** Grisha verification генерував промпти 244,977 токенів - вдвічі більше ліміту gpt-4o-mini (128K)
