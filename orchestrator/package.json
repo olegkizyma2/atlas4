@@ -16,6 +16,9 @@
     "winston": "^3.17.0",
     "ws": "^8.18.3"
   },
+  "optionalDependencies": {
+    "sharp": "^0.33.5"
+  },
   "engines": {
     "node": ">=16.0.0"
   },

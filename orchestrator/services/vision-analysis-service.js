@@ -94,8 +94,10 @@ export class VisionAnalysisService {
      * Optimize image for vision API to reduce payload size
      * - Limit base64 string length
      * - Use JPEG format in data URL for better compression
-     * 
+     *
      * OPTIMIZATION 2025-10-17: Prevent 413 Payload Too Large errors
+     * NOTE: This is a secondary check. Primary optimization happens in _optimizeImage()
+     *
      * @param {string} base64Image - Original base64 image (may include data URL prefix)
      * @returns {string} Optimized base64 image (without data URL prefix)
      * @private
@@ -104,24 +106,37 @@ export class VisionAnalysisService {
     try {
       // Remove data URL prefix if present
       const base64Data = base64Image.replace(/^data:image\/\w+;base64,/, '');
-      
-      // Check size and truncate if extremely large (>1MB base64 ≈ 750KB image)
-      const maxBase64Size = 1024 * 1024; // 1MB limit for base64 string
-      
+
+      // Calculate actual payload size
+      const sizeKB = Math.round(base64Data.length / 1024);
+      const sizeMB = (base64Data.length / 1024 / 1024).toFixed(2);
+
+      // Check size thresholds
+      const maxBase64Size = 1024 * 1024; // 1MB base64 limit
+      const warningSize = 750 * 1024;    // 750KB warning threshold
+
       if (base64Data.length > maxBase64Size) {
-        this.logger.warn(`[IMAGE-OPT] Image too large (${Math.round(base64Data.length / 1024)}KB), may cause 413 errors`, {
-          category: 'vision-analysis'
+        this.logger.error(`[IMAGE-OPT] ❌ Base64 too large (${sizeMB}MB) - WILL cause 413 errors!`, {
+          category: 'vision-analysis',
+          base64Size: sizeKB,
+          maxSize: Math.round(maxBase64Size / 1024),
+          recommendation: 'Image compression failed - check _optimizeImage() implementation'
         });
-        // Note: We'll still try to send it, but the API may reject with 413
-        // In that case, the error handler will trigger fallback
+      } else if (base64Data.length > warningSize) {
+        this.logger.warn(`[IMAGE-OPT] ⚠️  Base64 approaching limit (${sizeKB}KB) - may cause 413 errors`, {
+          category: 'vision-analysis',
+          base64Size: sizeKB,
+          threshold: Math.round(warningSize / 1024)
+        });
       } else {
-        this.logger.system('vision-analysis', `[IMAGE-OPT] Image size OK: ${Math.round(base64Data.length / 1024)}KB`);
+        this.logger.system('vision-analysis', `[IMAGE-OPT] ✅ Base64 size OK: ${sizeKB}KB`);
       }
-      
+
       return base64Data;
+
     } catch (error) {
       // If optimization fails, return original without prefix
-      this.logger.warn(`[IMAGE-OPT] Failed to check image: ${error.message}, using original`, {
+      this.logger.warn(`[IMAGE-OPT] Failed to check base64: ${error.message}, using original`, {
         category: 'vision-analysis'
       });
       return base64Image.replace(/^data:image\/\w+;base64,/, '');
@@ -172,7 +187,7 @@ export class VisionAnalysisService {
         timeout: 2000
       });
       return response.status === 200;
-    } catch (error) {
+    } catch {
       return false;
     }
   }
@@ -188,7 +203,7 @@ export class VisionAnalysisService {
         timeout: 3000
       });
       return response.status === 200;
-    } catch (error) {
+    } catch {
       return false;
     }
   }
@@ -267,17 +282,130 @@ export class VisionAnalysisService {
 
   /**
      * Optimize image size for faster processing
+     * FIXED 2025-10-17: Actually resize/compress images to prevent 413 errors
+     *
+     * Strategy:
+     * 1. Try sharp library (best quality/performance) if available
+     * 2. Fall back to manual resize via system tools (ImageMagick/sips)
+     * 3. Worst case: return original with warning
+     *
      * @param {Buffer} imageBuffer - Original image buffer
      * @returns {Promise<Buffer>} Optimized image buffer
      * @private
      */
   async _optimizeImage(imageBuffer) {
-    // For now, just return the original
-    // TODO: Add image resizing with sharp library if image > 1MB
-    if (imageBuffer.length > 1024 * 1024) {
-      this.logger.system('vision-analysis', `[VISION] Image size: ${(imageBuffer.length / 1024 / 1024).toFixed(2)}MB - consider optimization`);
+    const originalSize = imageBuffer.length;
+    const originalSizeMB = (originalSize / 1024 / 1024).toFixed(2);
+
+    // If image is already small, no need to optimize
+    if (originalSize < 512 * 1024) { // < 512KB
+      this.logger.system('vision-analysis', `[IMAGE-OPT] Image already small: ${Math.round(originalSize / 1024)}KB - no optimization needed`);
+      return imageBuffer;
     }
-    return imageBuffer;
+
+    this.logger.system('vision-analysis', `[IMAGE-OPT] Optimizing large image: ${originalSizeMB}MB`);
+
+    try {
+      // Try using sharp library (best option)
+      try {
+        const sharp = (await import('sharp')).default;
+
+        // Resize to max 1024x1024 and compress
+        const optimized = await sharp(imageBuffer)
+          .resize(1024, 1024, {
+            fit: 'inside',
+            withoutEnlargement: true
+          })
+          .jpeg({
+            quality: 80,
+            progressive: true,
+            mozjpeg: true
+          })
+          .toBuffer();
+
+        const newSize = optimized.length;
+        const reduction = Math.round((1 - newSize / originalSize) * 100);
+
+        this.logger.system('vision-analysis',
+          `[IMAGE-OPT] ✅ Sharp optimization: ${originalSizeMB}MB → ${(newSize / 1024 / 1024).toFixed(2)}MB (-${reduction}%)`
+        );
+
+        return optimized;
+
+      } catch {
+        // Sharp not available, try system tools
+        this.logger.system('vision-analysis', `[IMAGE-OPT] Sharp not available, trying system tools...`);
+
+        // Save temp file for system tool processing
+        const { exec } = await import('child_process');
+        const { promisify } = await import('util');
+        const execAsync = promisify(exec);
+        const fs = await import('fs/promises');
+        const path = await import('path');
+        const os = await import('os');
+
+        const tempDir = os.tmpdir();
+        const tempInput = path.join(tempDir, `atlas_img_${Date.now()}_input.png`);
+        const tempOutput = path.join(tempDir, `atlas_img_${Date.now()}_output.jpg`);
+
+        try {
+          // Write input file
+          await fs.writeFile(tempInput, imageBuffer);
+
+          // Try ImageMagick (convert) or sips (macOS)
+          let command;
+          if (process.platform === 'darwin') {
+            // macOS - use sips
+            command = `sips -s format jpeg -s formatOptions 80 --resampleWidth 1024 "${tempInput}" --out "${tempOutput}"`;
+          } else {
+            // Linux - try ImageMagick
+            command = `convert "${tempInput}" -resize 1024x1024> -quality 80 "${tempOutput}"`;
+          }
+
+          await execAsync(command);
+
+          // Read optimized file
+          const optimized = await fs.readFile(tempOutput);
+
+          // Cleanup
+          await fs.unlink(tempInput).catch(() => {});
+          await fs.unlink(tempOutput).catch(() => {});
+
+          const newSize = optimized.length;
+          const reduction = Math.round((1 - newSize / originalSize) * 100);
+
+          this.logger.system('vision-analysis',
+            `[IMAGE-OPT] ✅ System tool optimization: ${originalSizeMB}MB → ${(newSize / 1024 / 1024).toFixed(2)}MB (-${reduction}%)`
+          );
+
+          return optimized;
+
+        } catch (sysError) {
+          // Cleanup on error
+          await fs.unlink(tempInput).catch(() => {});
+          await fs.unlink(tempOutput).catch(() => {});
+          throw sysError;
+        }
+      }
+
+    } catch (error) {
+      // All optimization methods failed
+      this.logger.warn(`[IMAGE-OPT] ⚠️  Optimization failed: ${error.message}`, {
+        category: 'vision-analysis',
+        hint: 'Install sharp library: npm install sharp'
+      });
+
+      // Return original with strong warning if it's too large
+      if (originalSize > 1024 * 1024) {
+        this.logger.error(`[IMAGE-OPT] ❌ WARNING: Sending large unoptimized image (${originalSizeMB}MB) - may cause 413 errors!`, {
+          category: 'vision-analysis',
+          originalSize,
+          recommendation: 'Install sharp: npm install sharp --save'
+        });
+      }
+
+      return imageBuffer;
+    }
   }
 
   /**
@@ -617,7 +745,7 @@ Return ONLY the JSON object.`;
           model: 'gpt-4o',
           hint: 'Check if the model supports vision API format (multimodal)'
         });
-        
+
         // Try fallback
         if (this.ollamaAvailable) {
           this.logger.system('vision-analysis', '[FALLBACK] Trying Ollama after 422 error...');
@@ -625,13 +753,13 @@ Return ONLY the JSON object.`;
         }
         return await this._callOpenRouterVisionAPI(base64Image, prompt);
       }
-      
+
       if (error.response?.status === 413) {
         this.logger.error('[PORT-4000] ❌ 413 Payload Too Large - request exceeded size limit', {
           category: 'vision-analysis',
           hint: 'Image/prompt too large, trying fallback'
         });
-        
+
         // Try fallback with original image (fallback API may have higher limits)
         if (this.ollamaAvailable) {
           this.logger.system('vision-analysis', '[FALLBACK] Trying Ollama after 413 error...');
@@ -639,7 +767,7 @@ Return ONLY the JSON object.`;
         }
         return await this._callOpenRouterVisionAPI(base64Image, prompt);
       }
-      
+
       if (error.code === 'ECONNREFUSED') {
         this.logger.warn('[PORT-4000] Connection refused - port 4000 not available', {
           category: 'vision-analysis'
