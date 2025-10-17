@@ -15,7 +15,7 @@
 import axios from 'axios';
 import fs from 'fs/promises';
 import path from 'path';
-import { VISION_CONFIG } from '../config/global-config.js';
+import { VISION_CONFIG } from '../../config/global-config.js';
 
 /**
  * Vision Analysis Service
@@ -349,7 +349,7 @@ Return ONLY the JSON object.`;
                 images: [base64Image],
                 stream: false
             }, {
-                timeout: 120000,  // 2min timeout for local processing
+                timeout: 300000,  // 5min timeout for local Ollama processing (M1 MAX needs 120+ sec)
                 headers: { 'Content-Type': 'application/json' }
             });
 
@@ -366,6 +366,17 @@ Return ONLY the JSON object.`;
                 this.ollamaAvailable = false;
                 return await this._callOpenRouterVisionAPI(base64Image, prompt);
             }
+            
+            // Handle timeout error - fall back to OpenRouter
+            if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+                this.logger.warn('[OLLAMA] Timeout after 300s - falling back to OpenRouter', {
+                    category: 'vision-analysis',
+                    error: error.message
+                });
+                this.ollamaAvailable = false;
+                return await this._callOpenRouterVisionAPI(base64Image, prompt);
+            }
+            
             throw error;
         }
     }
@@ -405,7 +416,7 @@ Return ONLY the JSON object.`;
                 max_tokens: 1000,
                 temperature: 0.2
             }, {
-                timeout: 60000,
+                timeout: 120000,  // 2min timeout for OpenRouter cloud API
                 headers: { 'Content-Type': 'application/json' }
             });
 
@@ -417,6 +428,14 @@ Return ONLY the JSON object.`;
         } catch (error) {
             if (error.code === 'ECONNREFUSED') {
                 throw new Error('Vision API endpoint not available. Ensure OpenRouter API is running on localhost:4000.');
+            }
+            
+            // Handle timeout error
+            if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+                this.logger.error('[OPENROUTER] Timeout - both vision APIs failed', {
+                    category: 'vision-analysis',
+                    error: error.message
+                });
             }
             throw error;
         }
