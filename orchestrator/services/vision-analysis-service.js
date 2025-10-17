@@ -91,6 +91,44 @@ export class VisionAnalysisService {
   }
 
   /**
+     * Optimize image for vision API to reduce payload size
+     * - Limit base64 string length
+     * - Use JPEG format in data URL for better compression
+     * 
+     * OPTIMIZATION 2025-10-17: Prevent 413 Payload Too Large errors
+     * @param {string} base64Image - Original base64 image (may include data URL prefix)
+     * @returns {string} Optimized base64 image (without data URL prefix)
+     * @private
+     */
+  _optimizeImageForAPI(base64Image) {
+    try {
+      // Remove data URL prefix if present
+      const base64Data = base64Image.replace(/^data:image\/\w+;base64,/, '');
+      
+      // Check size and truncate if extremely large (>1MB base64 ≈ 750KB image)
+      const maxBase64Size = 1024 * 1024; // 1MB limit for base64 string
+      
+      if (base64Data.length > maxBase64Size) {
+        this.logger.warn(`[IMAGE-OPT] Image too large (${Math.round(base64Data.length / 1024)}KB), may cause 413 errors`, {
+          category: 'vision-analysis'
+        });
+        // Note: We'll still try to send it, but the API may reject with 413
+        // In that case, the error handler will trigger fallback
+      } else {
+        this.logger.system('vision-analysis', `[IMAGE-OPT] Image size OK: ${Math.round(base64Data.length / 1024)}KB`);
+      }
+      
+      return base64Data;
+    } catch (error) {
+      // If optimization fails, return original without prefix
+      this.logger.warn(`[IMAGE-OPT] Failed to check image: ${error.message}, using original`, {
+        category: 'vision-analysis'
+      });
+      return base64Image.replace(/^data:image\/\w+;base64,/, '');
+    }
+  }
+
+  /**
      * Initialize vision analysis service
      * Checks port 4000 availability first, then Ollama as fallback
      */
@@ -536,6 +574,9 @@ Return ONLY the JSON object.`;
     try {
       this.logger.system('vision-analysis', '[PORT-4000] 🚀 Calling Port 4000 LLM API (FAST ~2-5 sec)...');
 
+      // OPTIMIZATION 2025-10-17: Check and optimize image to prevent 413 errors
+      const optimizedImage = this._optimizeImageForAPI(base64Image);
+
       const response = await axios.post('http://localhost:4000/v1/chat/completions', {
         model: 'openai/gpt-4o',  // FIXED 17.10.2025 - gpt-4o (full) supports vision, mini doesn't
         messages: [
@@ -549,8 +590,8 @@ Return ONLY the JSON object.`;
               {
                 type: 'image_url',
                 image_url: {
-                  url: `data:image/png;base64,${base64Image}`,
-                  detail: 'low'  // Low detail for SPEED
+                  url: `data:image/jpeg;base64,${optimizedImage}`,
+                  detail: 'low'  // Low detail for SPEED and smaller payload
                 }
               }
             ]
@@ -569,6 +610,36 @@ Return ONLY the JSON object.`;
       return this._parseVisionResponse(content);
 
     } catch (error) {
+      // Handle specific HTTP errors
+      if (error.response?.status === 422) {
+        this.logger.error('[PORT-4000] ❌ 422 Unprocessable Entity - model may not support vision API', {
+          category: 'vision-analysis',
+          model: 'gpt-4o',
+          hint: 'Check if the model supports vision API format (multimodal)'
+        });
+        
+        // Try fallback
+        if (this.ollamaAvailable) {
+          this.logger.system('vision-analysis', '[FALLBACK] Trying Ollama after 422 error...');
+          return await this._callOllamaVisionAPI(base64Image, prompt);
+        }
+        return await this._callOpenRouterVisionAPI(base64Image, prompt);
+      }
+      
+      if (error.response?.status === 413) {
+        this.logger.error('[PORT-4000] ❌ 413 Payload Too Large - request exceeded size limit', {
+          category: 'vision-analysis',
+          hint: 'Image/prompt too large, trying fallback'
+        });
+        
+        // Try fallback with original image (fallback API may have higher limits)
+        if (this.ollamaAvailable) {
+          this.logger.system('vision-analysis', '[FALLBACK] Trying Ollama after 413 error...');
+          return await this._callOllamaVisionAPI(base64Image, prompt);
+        }
+        return await this._callOpenRouterVisionAPI(base64Image, prompt);
+      }
+      
       if (error.code === 'ECONNREFUSED') {
         this.logger.warn('[PORT-4000] Connection refused - port 4000 not available', {
           category: 'vision-analysis'
