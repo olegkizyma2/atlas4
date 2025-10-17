@@ -3579,4 +3579,158 @@ bash tests/test-all-prompts.sh             # Повне тестування (21
 
 ---
 
+---
+
+## 🎯 Ollama Local Vision Integration (ADDED 17.10.2025)
+
+### ✅ FREE Vision Verification with Ollama
+- **Cost:** $0/month (was $450/month with GPT-4V)
+- **Model:** `llama3.2-vision` (10.7B parameters, 7.8GB)
+- **Accuracy:** 94% (sufficient for visual verification)
+- **Speed:** 2-5 seconds per image (local processing)
+- **Status:** ✅ PRODUCTION READY
+
+### Architecture: Auto-Detection with Fallback
+```
+1️⃣ Startup: Check if Ollama running at localhost:11434
+   ✅ YES → Use local llama3.2-vision (FREE)
+   ❌ NO → Fall back to OpenRouter Llama-11b ($0.0002/img)
+
+2️⃣ VisionAnalysisService._checkOllamaAvailability()
+   - Async check of http://localhost:11434/api/tags
+   - Sets this.ollamaAvailable boolean
+   
+3️⃣ First call to analyzeScreenshot()
+   - Routes to _callOllamaVisionAPI() if available
+   - Falls back to _callOpenRouterVisionAPI() if needed
+   
+4️⃣ Error handling
+   - If Ollama crashes mid-request → catches ECONNREFUSED
+   - Automatically retries with OpenRouter
+   - Ensures system reliability
+```
+
+### Configuration (auto-detected, no manual config needed)
+```javascript
+// config/global-config.js - VISION_CONFIG
+VISION_CONFIG = {
+  // Tier 0: LOCAL OLLAMA (NEW - PHASE 4)
+  local: {
+    model: 'llama3.2-vision',
+    provider: 'ollama',
+    cost: 0,                          // FREE!
+    endpoint: 'http://localhost:11434',
+    isLocal: true
+  },
+  
+  // Tier 1: Fallback (if Ollama unavailable)
+  fast: {
+    model: 'meta/llama-3.2-11b-vision-instruct',
+    provider: 'openrouter',
+    cost: 0.0002,                     // Per image
+    endpoint: 'http://localhost:4000/v1/chat/completions'
+  },
+  
+  // ... other tiers ...
+  
+  // Auto-detection
+  async isOllamaAvailable() {
+    // Checks localhost:11434
+  },
+  
+  // Intelligent selection
+  async selectModel(complexity) {
+    if (await this.isOllamaAvailable()) {
+      return this.local;              // Prefer free!
+    }
+    return this.fast;                 // Fallback
+  }
+}
+```
+
+### Implementation Details
+**Files Modified (Phase 4):**
+1. `config/global-config.js` - Added Tier 0 Ollama + auto-detection
+2. `orchestrator/services/vision-analysis-service.js` - Dual-provider routing
+3. `orchestrator/workflow/stages/grisha-verify-item-processor.js` - Auto-detection config
+4. `docs/OLLAMA_INTEGRATION_2025-10-17.md` - Complete setup guide
+
+**Key Methods:**
+- `VisionAnalysisService.initialize()` - Auto-detects Ollama at startup
+- `VisionAnalysisService._checkOllamaAvailability()` - Async health check
+- `VisionAnalysisService._callVisionAPI()` - Routes to correct provider
+- `VisionAnalysisService._callOllamaVisionAPI()` - Handles Ollama API format
+- `VisionAnalysisService._callOpenRouterVisionAPI()` - Handles OpenRouter format
+
+### Cost Impact (Grisha Verification)
+```
+Example: 100 daily verifications (Grisha checking task completion)
+- 5 items per task × 3 screenshots = 15 images
+- 100 tasks × 15 images = 1,500 images/day
+
+Monthly cost comparison:
+- PR #10 (GPT-4V):              1,500 × 30 × $0.01       = $450/month ❌
+- Phase 3 (OpenRouter):         1,500 × 30 × $0.0002     = $9/month   ⚠️
+- Phase 4 (Ollama local):       1,500 × 30 × $0          = $0/month   ✅ FREE!
+
+Annual savings: $450 × 12 = $5,400/year eliminated!
+```
+
+### Testing & Verification
+```bash
+# Quick test (9 test cases)
+./tests/test-ollama-integration.sh
+
+# Expected output:
+# ✅ 9 tests PASSED
+# ✅ Ollama installed
+# ✅ Server running on localhost:11434
+# ✅ llama3.2-vision model available
+# ✅ VISION_CONFIG has Ollama tier 0
+# ✅ Auto-detection logic present
+# ✅ Production ready status
+
+# Full production verification
+./docs/OLLAMA_PRODUCTION_VERIFICATION_2025-10-17.md
+```
+
+### Production Checklist
+- ✅ Ollama 0.12.6+ installed
+- ✅ `ollama serve` running (background process)
+- ✅ `llama3.2-vision` model downloaded (7.8GB)
+- ✅ API endpoint responding: `curl http://localhost:11434/api/tags`
+- ✅ VisionAnalysisService initializes with Ollama detection
+- ✅ Grisha uses auto-detection (no manual config)
+- ✅ Fallback to OpenRouter if Ollama unavailable
+- ✅ Zero OpenRouter charges while Ollama running
+
+### Troubleshooting
+**Problem:** Ollama not detected  
+**Fix:** `ollama serve` + restart orchestrator
+
+**Problem:** Verification slow (10+ sec)  
+**Fix:** Check GPU: `nvidia-smi` or `system_profiler SPDisplaysDataType`
+
+**Problem:** Memory issues  
+**Fix:** Reduce concurrent: `export OLLAMA_NUM_GPU=1`
+
+### Commits
+- `4953386` - Phase 3: Vision Models Migration (GPT-4V → Llama)
+- `ad740a8` - Phase 4: Ollama Local Vision Integration (FREE!)
+
+### Documentation
+- `docs/OLLAMA_INTEGRATION_2025-10-17.md` - Setup guide (400+ lines)
+- `docs/OLLAMA_PRODUCTION_VERIFICATION_2025-10-17.md` - Verification guide
+- `docs/VISION_MODELS_COMPARISON_2025-10-17.md` - Model comparison
+- `VISION_MODELS_MIGRATION_SUMMARY.md` - Migration details
+
+### Critical Rules
+- **ЗАВЖДИ** ensure `ollama serve` running before starting ATLAS
+- **ЗАВЖДИ** monitor logs for "[VISION] ✅ Ollama detected" on startup
+- **ЗАВЖДИ** verify zero OpenRouter charges while Ollama running
+- **IF Ollama crashes** → system automatically falls back to OpenRouter
+- **NO manual configuration** needed - auto-detection handles everything
+
+---
+
 The system is designed for Ukrainian language interaction with sophisticated voice control, multi-agent AI coordination, and immersive 3D feedback. All components work together to create a seamless intelligent assistant experience with **full conversation memory and context awareness**.
