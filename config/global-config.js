@@ -48,6 +48,67 @@ export const USER_CONFIG = {
   }
 };
 
+// === VISION MODELS CONFIGURATION (NEW 17.10.2025) ===
+// Vision AI моделі для Grishy verification system
+// Available на port 4000 (OpenRouter API)
+// Cost comparison: Llama-11b ($0.0002/img) vs GPT-4 ($0.01/img) = 50x cheaper!
+export const VISION_CONFIG = {
+  // Tier 1: Fast & cheap (для простих перевірок)
+  fast: {
+    model: 'meta/llama-3.2-11b-vision-instruct',
+    cost: 0.0002,           // Per image
+    speed: '0.8-1.2s',
+    rateLimitPerMin: 6,
+    use_cases: ['browser_open', 'file_exists', 'app_active', 'window_visible']
+  },
+
+  // Tier 2: Standard (для середніх UI завдань)
+  standard: {
+    model: 'meta/llama-3.2-90b-vision-instruct',
+    cost: 0.0003,           // Per image
+    speed: '1.5-2.5s',
+    rateLimitPerMin: 3,
+    use_cases: ['text_match', 'ui_validation', 'form_filled', 'button_state']
+  },
+
+  // Tier 3: Fastest & cheapest
+  cheapest: {
+    model: 'microsoft/phi-3.5-vision-instruct',
+    cost: 0.0001,           // Per image
+    speed: '1-1.5s',
+    rateLimitPerMin: 12,
+    use_cases: ['simple_check', 'presence_check', 'quick_verify']
+  },
+
+  // Default configuration
+  get default() {
+    return this.fast;  // Recommended: Llama-11b
+  },
+
+  // API configuration
+  api: {
+    endpoint: 'http://localhost:4000/v1/chat/completions',
+    timeout: 60000,         // 60s timeout for vision analysis
+    temperature: 0.2,       // Low for accuracy
+    maxTokens: 1000
+  },
+
+  // Adaptive selection based on task complexity
+  selectModel(complexity) {
+    // complexity: 1-10 scale
+    if (complexity <= 3) return this.cheapest;    // Simplest & fastest
+    if (complexity <= 6) return this.fast;        // Recommended default
+    return this.standard;                         // More powerful for complex UI
+  },
+
+  // Cost estimation
+  estimateCost(model, screenshotCount = 1) {
+    const modelConfig = Object.values(this).find(cfg => cfg.model === model);
+    if (!modelConfig) return 0;
+    return modelConfig.cost * screenshotCount;
+  }
+};
+
 // === AI MODELS CONFIGURATION ===
 // Конфігурація моделей для різних стадій (система використовує LLM API)
 // v5.0: Підтримка fallback endpoint для remote access

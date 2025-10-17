@@ -28,14 +28,13 @@ export class VisionAnalysisService {
      */
     constructor({ logger, config = {} }) {
         this.logger = logger;
-        this.config = {
-            visionModel: config.visionModel || 'gpt-4-vision-preview',
-            apiEndpoint: config.apiEndpoint || 'http://localhost:4000/v1/chat/completions',
-            maxTokens: config.maxTokens || 1000,
-            temperature: config.temperature || 0.2,
-            imageDetailLevel: config.imageDetailLevel || 'high', // 'low', 'high', 'auto'
-            timeout: config.timeout || 60000
-        };
+        this.config = config || {};
+        this.apiEndpoint = config.apiEndpoint || 'http://localhost:4000/v1/chat/completions';
+        // ✅ Vision models available on port 4000 (OpenRouter):
+        // - meta/llama-3.2-11b-vision-instruct (recommended: cheap & fast)
+        // - meta/llama-3.2-90b-vision-instruct (powerful: better accuracy)
+        // - microsoft/phi-3.5-vision-instruct (fastest & cheapest)
+        this.visionModel = config.visionModel || 'meta/llama-3.2-11b-vision-instruct';
 
         this.initialized = false;
     }

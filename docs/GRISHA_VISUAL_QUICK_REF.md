@@ -112,7 +112,10 @@ if (stuck.stuck) {
 ### Vision Analysis Config
 ```javascript
 {
-    visionModel: 'gpt-4-vision-preview',
+    visionModel: 'meta/llama-3.2-11b-vision-instruct', // Recommended: fast & cheap
+    // Alternative options on port 4000:
+    // - 'meta/llama-3.2-90b-vision-instruct' (more powerful, slower)
+    // - 'microsoft/phi-3.5-vision-instruct' (fastest, cheapest)
     apiEndpoint: 'http://localhost:4000/v1/chat/completions',
     temperature: 0.2,
     imageDetailLevel: 'high',           // 'low' | 'high' | 'auto'

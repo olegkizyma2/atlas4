@@ -292,7 +292,7 @@ const detection = await visionAnalysis.detectStuckState(
 ```javascript
 POST http://localhost:4000/v1/chat/completions
 {
-    model: "gpt-4-vision-preview",
+    model: "meta/llama-3.2-11b-vision-instruct", // Or: llama-90b, phi-3.5-vision
     messages: [{
         role: "user",
         content: [
@@ -330,7 +330,11 @@ const result = JSON.parse(cleaned);
 
 ```javascript
 const config = {
-    visionModel: 'gpt-4-vision-preview',
+    // Vision models available on port 4000 (OpenRouter):
+    visionModel: 'meta/llama-3.2-11b-vision-instruct', // Recommended
+    // Alternatives:
+    // - 'meta/llama-3.2-90b-vision-instruct' (more powerful)
+    // - 'microsoft/phi-3.5-vision-instruct' (fastest & cheapest)
     apiEndpoint: 'http://localhost:4000/v1/chat/completions',
     maxTokens: 1000,
     temperature: 0.2,           // Низька для точності
@@ -404,7 +408,7 @@ const status = grishaProcessor.getStatus();
     },
     visionAnalysis: {
         initialized: true,
-        visionModel: "gpt-4-vision-preview",
+        visionModel: "meta/llama-3.2-11b-vision-instruct",
         apiEndpoint: "http://localhost:4000/v1/chat/completions"
     }
 }

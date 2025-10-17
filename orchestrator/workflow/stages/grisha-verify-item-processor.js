@@ -51,7 +51,7 @@ export class GrishaVerifyItemProcessor {
         this.visionAnalysis = new VisionAnalysisService({
             logger: this.logger,
             config: {
-                visionModel: config.visionModel || 'gpt-4-vision-preview',
+                visionModel: config.visionModel || 'meta/llama-3.2-11b-vision-instruct', // Available: llama-11b (recommended), llama-90b, phi-3.5-vision
                 apiEndpoint: config.visionApiEndpoint || 'http://localhost:4000/v1/chat/completions',
                 temperature: config.visionTemperature || 0.2
             }
