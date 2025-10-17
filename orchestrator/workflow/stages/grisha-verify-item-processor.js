@@ -1,38 +1,86 @@
 /**
- * @fileoverview Grisha Verify Item Processor (Stage 2.3-MCP)
- * Evidence-based verification of TODO item execution
+ * @fileoverview Grisha Verify Item Processor (Stage 2.3-MCP) - VISUAL VERIFICATION
+ * Visual evidence-based verification using screenshots and AI vision
  * 
- * @version 4.0.0
- * @date 2025-10-13
+ * REFACTORED 17.10.2025: Switched from MCP tools to visual verification
+ * - Uses continuous screenshot monitoring
+ * - AI vision analysis (GPT-4 Vision)
+ * - Stuck state detection
+ * - Dynamic feedback for corrections
+ * 
+ * @version 5.0.0
+ * @date 2025-10-17
  */
 
 import logger from '../../utils/logger.js';
 import { MCP_PROMPTS } from '../../../prompts/mcp/index.js';
+import { VisualCaptureService } from '../../services/visual-capture-service.js';
+import { VisionAnalysisService } from '../../services/vision-analysis-service.js';
 
 /**
  * Grisha Verify Item Processor
  * 
- * Performs strict evidence-based verification:
- * - NEVER accepts without proof
- * - Uses MCP tools to verify results
- * - Checks against success criteria
- * - Returns verified=true ONLY if all criteria met
+ * Performs strict visual evidence-based verification:
+ * - ALWAYS captures screenshots for verification
+ * - Uses AI vision (GPT-4 Vision) to analyze screenshots
+ * - Detects stuck states through visual monitoring
+ * - Returns verified=true ONLY if visual evidence confirms success
+ * - NO MCP tool selection - pure visual verification
  */
 export class GrishaVerifyItemProcessor {
     /**
      * @param {Object} dependencies
-     * @param {Object} dependencies.mcpTodoManager - MCPTodoManager instance
-     * @param {Object} dependencies.mcpManager - MCPManager instance for verification tools
+     * @param {Object} dependencies.mcpTodoManager - MCPTodoManager instance (for messaging)
      * @param {Object} dependencies.logger - Logger instance
+     * @param {Object} dependencies.config - Visual verification config
      */
-    constructor({ mcpTodoManager, mcpManager, logger: loggerInstance }) {
+    constructor({ mcpTodoManager, logger: loggerInstance, config = {} }) {
         this.mcpTodoManager = mcpTodoManager;
-        this.mcpManager = mcpManager;
         this.logger = loggerInstance || logger;
+        
+        // Initialize visual services
+        this.visualCapture = new VisualCaptureService({
+            logger: this.logger,
+            config: {
+                captureInterval: config.captureInterval || 2000,
+                screenshotDir: config.screenshotDir || '/tmp/atlas_visual',
+                maxStoredScreenshots: config.maxStoredScreenshots || 10
+            }
+        });
+        
+        this.visionAnalysis = new VisionAnalysisService({
+            logger: this.logger,
+            config: {
+                visionModel: config.visionModel || 'gpt-4-vision-preview',
+                apiEndpoint: config.visionApiEndpoint || 'http://localhost:4000/v1/chat/completions',
+                temperature: config.visionTemperature || 0.2
+            }
+        });
+        
+        this.initialized = false;
+    }
+    
+    /**
+     * Initialize visual verification services
+     */
+    async initialize() {
+        if (this.initialized) {
+            return;
+        }
+        
+        this.logger.system('grisha-verify-item', '[VISUAL-GRISHA] Initializing visual verification services...');
+        
+        await Promise.all([
+            this.visualCapture.initialize(),
+            this.visionAnalysis.initialize()
+        ]);
+        
+        this.initialized = true;
+        this.logger.system('grisha-verify-item', '[VISUAL-GRISHA] ✅ Visual verification services ready');
     }
 
     /**
-     * Execute verification for TODO item
+     * Execute visual verification for TODO item
      * 
      * @param {Object} context - Stage context
      * @param {Object} context.currentItem - Current TODO item
@@ -41,7 +89,10 @@ export class GrishaVerifyItemProcessor {
      * @returns {Promise<Object>} Verification result
      */
     async execute(context) {
-        this.logger.system('grisha-verify-item', '[STAGE-2.3-MCP] 🔍 Verifying execution...');
+        // Ensure services are initialized
+        await this.initialize();
+        
+        this.logger.system('grisha-verify-item', '[VISUAL-GRISHA] 🔍 Starting visual verification...');
 
         const { currentItem, execution, todo } = context;
 
@@ -54,32 +105,44 @@ export class GrishaVerifyItemProcessor {
         }
 
         try {
-            this.logger.system('grisha-verify-item', `[STAGE-2.3-MCP] Item: ${currentItem.id}. ${currentItem.action}`);
-            this.logger.system('grisha-verify-item', `[STAGE-2.3-MCP] Success criteria: ${currentItem.success_criteria}`);
+            this.logger.system('grisha-verify-item', `[VISUAL-GRISHA] Item: ${currentItem.id}. ${currentItem.action}`);
+            this.logger.system('grisha-verify-item', `[VISUAL-GRISHA] Success criteria: ${currentItem.success_criteria}`);
 
-            // OPTIMIZATION 15.10.2025 - Get compact tools summary for verification
-            const toolsSummary = this.mcpManager.getToolsSummary();
-            this.logger.system('grisha-verify-item', `[STAGE-2.3-MCP] Tools summary: ${toolsSummary.length} chars`);
+            // Step 1: Capture screenshot of current state
+            const screenshot = await this.visualCapture.captureScreenshot(`item_${currentItem.id}_verify`);
+            this.logger.system('grisha-verify-item', `[VISUAL-GRISHA] 📸 Screenshot captured: ${screenshot.filename}`);
 
-            // Verify using MCPTodoManager with tools summary
-            const verification = await this.mcpTodoManager.verifyItem(currentItem, execution, { toolsSummary });
+            // Step 2: Analyze screenshot with AI vision
+            const analysisContext = {
+                action: currentItem.action,
+                executionResults: execution.results || []
+            };
+            
+            const visionAnalysis = await this.visionAnalysis.analyzeScreenshot(
+                screenshot.filepath,
+                currentItem.success_criteria,
+                analysisContext
+            );
 
-            if (!verification) {
-                throw new Error('MCPTodoManager.verifyItem() returned null/undefined');
-            }
+            this.logger.system('grisha-verify-item', `[VISUAL-GRISHA] 🤖 Vision analysis complete (confidence: ${visionAnalysis.confidence}%)`);
+
+            // Step 3: Build verification result
+            const verification = {
+                verified: visionAnalysis.verified && visionAnalysis.confidence >= 70, // Require 70% confidence
+                confidence: visionAnalysis.confidence,
+                reason: visionAnalysis.reason,
+                visual_evidence: visionAnalysis.visual_evidence,
+                screenshot_path: screenshot.filepath,
+                screenshot_hash: screenshot.hash,
+                vision_model: this.visionAnalysis.config.visionModel,
+                from_visual_analysis: true
+            };
 
             // Log verification result
             const status = verification.verified ? '✅ VERIFIED' : '❌ NOT VERIFIED';
-            this.logger.system('grisha-verify-item', `[STAGE-2.3-MCP] ${status}`);
-            this.logger.system('grisha-verify-item', `[STAGE-2.3-MCP]   Reason: ${verification.reason}`);
-
-            if (verification.evidence) {
-                this.logger.system('grisha-verify-item', `[STAGE-2.3-MCP]   Evidence: ${verification.evidence}`);
-            }
-
-            if (verification.used_tools && verification.used_tools.length > 0) {
-                this.logger.system('grisha-verify-item', `[STAGE-2.3-MCP]   Verification tools: ${verification.used_tools.join(', ')}`);
-            }
+            this.logger.system('grisha-verify-item', `[VISUAL-GRISHA] ${status}`);
+            this.logger.system('grisha-verify-item', `[VISUAL-GRISHA]   Reason: ${verification.reason}`);
+            this.logger.system('grisha-verify-item', `[VISUAL-GRISHA]   Visual Evidence: ${verification.visual_evidence.observed}`);
 
             // Generate summary
             const summary = this._generateVerificationSummary(currentItem, verification);
@@ -96,15 +159,19 @@ export class GrishaVerifyItemProcessor {
                 metadata: {
                     itemId: currentItem.id,
                     verified: verification.verified,
-                    evidenceProvided: !!verification.evidence,
-                    toolsUsed: verification.used_tools || [],
-                    prompt: MCP_PROMPTS.GRISHA_VERIFY_ITEM.name
+                    confidence: verification.confidence,
+                    screenshotPath: screenshot.filepath,
+                    visualEvidence: true,
+                    verificationMethod: 'visual_ai'
                 }
             };
 
         } catch (error) {
-            this.logger.error(`[STAGE-2.3-MCP] ❌ Verification failed: ${error.message}`, { category: 'grisha-verify-item', component: 'grisha-verify-item' });
-            this.logger.error(`Stack trace: ${error.stack}`, { category: 'grisha-verify-item', component: 'grisha-verify-item' });
+            this.logger.error(`[VISUAL-GRISHA] ❌ Verification failed: ${error.message}`, {
+                category: 'grisha-verify-item',
+                component: 'grisha-verify-item',
+                stack: error.stack
+            });
 
             return {
                 success: false,
@@ -112,15 +179,15 @@ export class GrishaVerifyItemProcessor {
                 error: error.message,
                 verification: {
                     verified: false,
-                    reason: `Помилка під час перевірки: ${error.message}`,
-                    evidence: null
+                    reason: `Помилка під час візуальної перевірки: ${error.message}`,
+                    visual_evidence: null
                 },
                 summary: `⚠️ Не вдалося перевірити "${currentItem.action}": ${error.message}`,
                 nextAction: 'adjust',
                 metadata: {
                     itemId: currentItem.id,
                     errorType: error.name,
-                    stage: 'verification'
+                    stage: 'visual_verification'
                 }
             };
         }
@@ -138,17 +205,21 @@ export class GrishaVerifyItemProcessor {
         const lines = [];
 
         if (verification.verified) {
-            lines.push(`✅ Перевірено: "${item.action}"`);
+            lines.push(`✅ Візуально підтверджено: "${item.action}"`);
 
-            if (verification.evidence) {
-                lines.push(`   Підтвердження: ${verification.evidence}`);
+            if (verification.visual_evidence && verification.visual_evidence.observed) {
+                lines.push(`   Візуальні докази: ${verification.visual_evidence.observed}`);
+            }
+            
+            if (verification.confidence) {
+                lines.push(`   Впевненість: ${verification.confidence}%`);
             }
         } else {
-            lines.push(`❌ Не підтверджено: "${item.action}"`);
+            lines.push(`❌ Візуально не підтверджено: "${item.action}"`);
             lines.push(`   Причина: ${verification.reason}`);
 
-            if (verification.missing_criteria) {
-                lines.push(`   Не виконано: ${verification.missing_criteria}`);
+            if (verification.visual_evidence && verification.visual_evidence.details) {
+                lines.push(`   Деталі: ${verification.visual_evidence.details}`);
             }
         }
 
@@ -175,7 +246,7 @@ export class GrishaVerifyItemProcessor {
 
         if (currentAttempt >= maxAttempts) {
             // Max attempts reached - need adjustment
-            this.logger.system('grisha-verify-item', `[STAGE-2.3-MCP] Max attempts (${maxAttempts}) reached, adjustment needed`);
+            this.logger.system('grisha-verify-item', `[VISUAL-GRISHA] Max attempts (${maxAttempts}) reached, adjustment needed`);
             return 'adjust';
         }
 
@@ -188,12 +259,13 @@ export class GrishaVerifyItemProcessor {
             'тимчасов',
             'мережа',
             'network',
-            'connection'
+            'connection',
+            'loading'
         ];
 
         for (const keyword of temporaryFailureKeywords) {
             if (reasonLower.includes(keyword)) {
-                this.logger.system('grisha-verify-item', '[STAGE-2.3-MCP] Temporary failure detected, retry recommended');
+                this.logger.system('grisha-verify-item', '[VISUAL-GRISHA] Temporary failure detected, retry recommended');
                 return 'retry';
             }
         }
@@ -205,14 +277,22 @@ export class GrishaVerifyItemProcessor {
             'невірний',
             'invalid',
             'неправильн',
-            'wrong'
+            'wrong',
+            'відсутній',
+            'missing'
         ];
 
         for (const keyword of structuralFailureKeywords) {
             if (reasonLower.includes(keyword)) {
-                this.logger.system('grisha-verify-item', '[STAGE-2.3-MCP] Structural failure detected, adjustment needed');
+                this.logger.system('grisha-verify-item', '[VISUAL-GRISHA] Structural failure detected, adjustment needed');
                 return 'adjust';
             }
+        }
+
+        // Check confidence level - low confidence suggests uncertainty, try adjustment
+        if (verification.confidence && verification.confidence < 50) {
+            this.logger.system('grisha-verify-item', `[VISUAL-GRISHA] Low confidence (${verification.confidence}%), adjustment needed`);
+            return 'adjust';
         }
 
         // Default - adjust for safety
@@ -220,74 +300,89 @@ export class GrishaVerifyItemProcessor {
     }
 
     /**
-     * Analyze verification evidence quality
+     * Detect if execution is stuck by analyzing multiple screenshots
      * 
-     * @param {Object} verification - Verification result
-     * @returns {Object} Evidence quality analysis
-     * @private
+     * @param {Object} item - TODO item being executed
+     * @param {number} durationMs - How long execution has been running
+     * @returns {Promise<Object>} Stuck detection result
      */
-    _analyzeEvidenceQuality(verification) {
-        const analysis = {
-            hasEvidence: !!verification.evidence,
-            usedTools: verification.used_tools && verification.used_tools.length > 0,
-            evidenceType: 'none',
-            quality: 'low'
-        };
+    async detectStuckState(item, durationMs = 10000) {
+        try {
+            // Start monitoring if not already
+            if (!this.visualCapture.isMonitoring) {
+                await this.visualCapture.startMonitoring();
+                
+                // Wait for a few screenshots to accumulate
+                await new Promise(resolve => setTimeout(resolve, this.visualCapture.config.captureInterval * 3));
+            }
 
-        if (!verification.evidence) {
-            return analysis;
+            // Get recent screenshots
+            const since = Date.now() - durationMs;
+            const recentScreenshots = this.visualCapture.getScreenshotsSince(since);
+
+            if (recentScreenshots.length < 2) {
+                // Not enough screenshots to determine stuck state
+                return {
+                    stuck: false,
+                    reason: 'Insufficient screenshots for stuck detection',
+                    confidence: 0
+                };
+            }
+
+            // Use vision analysis to detect stuck state
+            const screenshotPaths = recentScreenshots.map(s => s.filepath);
+            const stuckAnalysis = await this.visionAnalysis.detectStuckState(
+                screenshotPaths,
+                item.action
+            );
+
+            this.logger.system('grisha-verify-item', `[VISUAL-GRISHA] Stuck detection: ${stuckAnalysis.stuck ? 'STUCK' : 'PROGRESSING'} (confidence: ${stuckAnalysis.confidence}%)`);
+
+            return stuckAnalysis;
+
+        } catch (error) {
+            this.logger.error(`[VISUAL-GRISHA] Stuck detection failed: ${error.message}`, {
+                category: 'grisha-verify-item',
+                component: 'grisha-verify-item'
+            });
+            
+            // Return not stuck on error (fail-safe)
+            return {
+                stuck: false,
+                reason: `Stuck detection error: ${error.message}`,
+                confidence: 0,
+                error: true
+            };
         }
-
-        const evidence = verification.evidence.toLowerCase();
-
-        // Check evidence type
-        if (evidence.includes('файл') || evidence.includes('file')) {
-            analysis.evidenceType = 'file';
-        } else if (evidence.includes('скріншот') || evidence.includes('screenshot')) {
-            analysis.evidenceType = 'screenshot';
-        } else if (evidence.includes('дані') || evidence.includes('data')) {
-            analysis.evidenceType = 'data';
-        } else if (evidence.includes('браузер') || evidence.includes('browser')) {
-            analysis.evidenceType = 'browser';
-        }
-
-        // Check quality
-        if (analysis.usedTools) {
-            analysis.quality = 'high'; // Tools used - concrete evidence
-        } else if (evidence.length > 50) {
-            analysis.quality = 'medium'; // Detailed description
-        }
-
-        return analysis;
     }
 
     /**
-     * Get verification confidence score
+     * Get current verification status
      * 
-     * @param {Object} verification - Verification result
-     * @returns {number} Confidence score (0-100)
-     * @private
+     * @returns {Object} Status info
      */
-    _getVerificationConfidence(verification) {
-        let confidence = 50; // Base confidence
+    getStatus() {
+        return {
+            initialized: this.initialized,
+            visualCapture: this.visualCapture?.getStatus(),
+            visionAnalysis: this.visionAnalysis?.getStatus()
+        };
+    }
 
-        // Increase confidence if tools were used
-        if (verification.used_tools && verification.used_tools.length > 0) {
-            confidence += 30;
+    /**
+     * Cleanup and shutdown
+     */
+    async destroy() {
+        if (this.visualCapture) {
+            await this.visualCapture.destroy();
         }
-
-        // Increase confidence if evidence is detailed
-        if (verification.evidence && verification.evidence.length > 100) {
-            confidence += 10;
+        
+        if (this.visionAnalysis) {
+            await this.visionAnalysis.destroy();
         }
-
-        // Decrease confidence if verification failed without tools
-        if (!verification.verified && (!verification.used_tools || verification.used_tools.length === 0)) {
-            confidence -= 20;
-        }
-
-        // Cap at 0-100
-        return Math.max(0, Math.min(100, confidence));
+        
+        this.initialized = false;
+        this.logger.system('grisha-verify-item', '[VISUAL-GRISHA] Processor destroyed');
     }
 }
 
