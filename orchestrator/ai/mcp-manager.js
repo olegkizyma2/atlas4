@@ -1,7 +1,7 @@
 /**
  * @fileoverview MCP Manager - управління прямими MCP серверами
  * Запускає та керує lifecycle MCP серверів через stdio protocol
- * 
+ *
  * @version 4.0.0
  * @date 2025-10-13
  */
@@ -246,7 +246,7 @@ class MCPServer {
 
   /**
    * Викликати tool через MCP protocol
-   * 
+   *
    * @param {string} toolName - Назва tool
    * @param {Object} parameters - Параметри для tool
    * @returns {Promise<Object>} Результат виконання
@@ -343,12 +343,12 @@ export class MCPManager {
   constructor(serversConfig) {
     this.config = serversConfig;
     this.servers = new Map();
-    
+
     // OPTIMIZED: Cache available tools to avoid repeated lookups
     this.toolsCache = null;
     this.toolsCacheTimestamp = 0;
     this.toolsCacheTTL = 60000; // 1 minute cache
-    
+
     // OPTIMIZED: Track tool usage statistics
     this.toolStats = new Map(); // toolName -> { calls, errors, avgTime }
   }
@@ -372,10 +372,10 @@ export class MCPManager {
         allTools.push(...server.tools);
       }
     }
-    
+
     this.toolsCache = allTools;
     this.toolsCacheTimestamp = now;
-    
+
     return allTools;
   }
 
@@ -427,7 +427,7 @@ export class MCPManager {
 
   /**
    * Запустити один MCP server
-   * 
+   *
    * @param {string} name - Назва server (filesystem, playwright, etc)
    * @param {Object} config - Конфігурація { command, args, env }
    */
@@ -461,7 +461,7 @@ export class MCPManager {
    * Викликати tool на відповідному server
    * FIXED 14.10.2025 - Changed signature to accept (serverName, toolName, parameters)
    * OPTIMIZED 2025-10-17 - Added stats tracking and parameter validation
-   * 
+   *
    * @param {string} serverName - Назва server (напр. "filesystem")
    * @param {string} toolName - Назва tool (напр. "createFile")
    * @param {Object} parameters - Параметри для tool
@@ -470,12 +470,12 @@ export class MCPManager {
   async executeTool(serverName, toolName, parameters) {
     const startTime = Date.now();
     const toolKey = `${serverName}:${toolName}`;
-    
+
     // Initialize stats if not exists
     if (!this.toolStats.has(toolKey)) {
       this.toolStats.set(toolKey, { calls: 0, errors: 0, avgTime: 0 });
     }
-    
+
     try {
       // Знайти server за назвою
       const server = this.servers.get(serverName);
@@ -518,14 +518,14 @@ export class MCPManager {
       logger.debug('mcp-manager', `[MCP Manager] ✅ ${toolName} completed in ${duration}ms`);
 
       return result;
-      
+
     } catch (error) {
       // Update error stats
       const stats = this.toolStats.get(toolKey);
       if (stats) {
         stats.errors++;
       }
-      
+
       logger.error('mcp-manager', `[MCP Manager] ❌ ${toolName} failed: ${error.message}`);
       throw error;
     }
@@ -610,7 +610,7 @@ export class MCPManager {
   /**
    * Отримати компактний опис доступних MCP серверів і tools
    * Використовується для підстановки в промпти ({{AVAILABLE_TOOLS}})
-   * 
+   *
    * @param {Array<string>} [filterServers] - Опціонально фільтрувати тільки ці сервери (NEW 15.10.2025)
    * @returns {string} Компактний текстовий опис всіх серверів і кількості tools
    */
@@ -642,7 +642,7 @@ export class MCPManager {
   /**
    * Отримати ДЕТАЛЬНИЙ опис tools для конкретних серверів
    * Повертає ВСІ tools (не тільки перші 5) для обраних серверів
-   * 
+   *
    * @param {Array<string>} serverNames - Назви серверів
    * @returns {string} Детальний опис всіх tools
    * @version 4.2.0
@@ -671,7 +671,7 @@ export class MCPManager {
 
   /**
    * Отримати tools тільки з конкретних серверів
-   * 
+   *
    * @param {Array<string>} serverNames - Назви серверів
    * @returns {Array<Object>} Tools з цих серверів
    * @version 4.2.0
@@ -700,7 +700,7 @@ export class MCPManager {
 
   /**
    * Валідувати tool_calls план проти доступних tools
-   * 
+   *
    * @param {Array} toolCalls - Масив tool_calls з LLM response
    * @returns {Object} {valid: boolean, errors: Array, suggestions: Array}
    */

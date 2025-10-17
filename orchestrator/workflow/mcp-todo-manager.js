@@ -2,7 +2,7 @@
  * @fileoverview MCP Dynamic TODO Workflow Manager
  * Manages item-by-item execution of TODO lists with adaptive planning,
  * MCP tool integration, verification, and automatic retry/adjustment.
- * 
+ *
  * @version 4.0.0
  * @date 2025-10-13
  * UPDATED 14.10.2025 - Added MCP_MODEL_CONFIG support for per-stage models
@@ -11,7 +11,7 @@
 import logger from '../utils/logger.js';
 import axios from 'axios';
 import vm from 'node:vm';
-import GlobalConfig, { MCP_MODEL_CONFIG } from '../../config/global-config.js';
+import { MCP_MODEL_CONFIG } from '../../config/global-config.js';
 
 /**
  * @typedef {Object} TodoItem
@@ -52,7 +52,7 @@ import GlobalConfig, { MCP_MODEL_CONFIG } from '../../config/global-config.js';
 
 /**
  * MCP Dynamic TODO Workflow Manager
- * 
+ *
  * Orchestrates item-by-item execution with:
  * - Tetyana planning and executing tools
  * - Grisha verifying each item
@@ -61,7 +61,7 @@ import GlobalConfig, { MCP_MODEL_CONFIG } from '../../config/global-config.js';
  * - Synchronized TTS feedback
  */
 export class MCPTodoManager {
-    /**
+  /**
      * @param {Object} dependencies
      * @param {Object} dependencies.mcpManager - MCP Manager instance
      * @param {Object} dependencies.llmClient - LLM Client for reasoning
@@ -69,662 +69,735 @@ export class MCPTodoManager {
      * @param {Object} dependencies.wsManager - WebSocket Manager for chat updates
      * @param {Object} dependencies.logger - Logger instance
      */
-    constructor({ mcpManager, llmClient, ttsSyncManager, wsManager, logger: loggerInstance }) {
-        this.mcpManager = mcpManager;
-        this.llmClient = llmClient;
-        this.tts = ttsSyncManager;
-        this.wsManager = wsManager;  // ADDED 14.10.2025 - For chat updates
-        this.logger = loggerInstance || logger;
+  constructor({ mcpManager, llmClient, ttsSyncManager, wsManager, logger: loggerInstance }) {
+    this.mcpManager = mcpManager;
+    this.llmClient = llmClient;
+    this.tts = ttsSyncManager;
+    this.wsManager = wsManager;  // ADDED 14.10.2025 - For chat updates
+    this.logger = loggerInstance || logger;
 
-        this.activeTodos = new Map(); // todoId -> TodoList
-        this.completedTodos = new Map(); // todoId -> results
-        this.currentSessionId = null;  // ADDED 14.10.2025 - Track current session
+    this.activeTodos = new Map(); // todoId -> TodoList
+    this.completedTodos = new Map(); // todoId -> results
+    this.currentSessionId = null;  // ADDED 14.10.2025 - Track current session
 
-        // Rate limiting state (ADDED 14.10.2025)
-        this.lastApiCall = 0;
-        this.minApiDelay = 2000; // INCREASED 14.10.2025 - 2000ms between API calls to avoid rate limits
-    }
+    // Rate limiting state (ADDED 14.10.2025)
+    this.lastApiCall = 0;
+    this.minApiDelay = 2000; // INCREASED 14.10.2025 - 2000ms between API calls to avoid rate limits
+  }
 
-    /**
-     * Wait before making API call to avoid rate limits
-     * ADDED 14.10.2025 - Prevent parallel API calls
-     * 
+  /**
+     * Auto-correct common parameter mistakes made by LLMs
+     * ADDED 2025-10-17 - Generalized correction system
+     *
+     * @param {string} server - Server name
+     * @param {string} tool - Tool name
+     * @param {Object} params - Original parameters
+     * @returns {Object} Corrected parameters
      * @private
      */
-    async _waitForRateLimit() {
-        const now = Date.now();
-        const timeSinceLastCall = now - this.lastApiCall;
+  _autoCorrectParameters(server, tool, params) {
+    const correctionRules = {
+      playwright: {
+        playwright_fill: [
+          { from: 'text', to: 'value' },
+          { from: 'input', to: 'value' },
+          { from: 'content', to: 'value' }
+        ],
+        playwright_click: [
+          { from: 'element', to: 'selector' },
+          { from: 'target', to: 'selector' }
+        ],
+        playwright_navigate: [
+          { from: 'link', to: 'url' },
+          { from: 'address', to: 'url' },
+          { from: 'uri', to: 'url' }
+        ],
+        playwright_get_visible_text: [
+          { from: 'element', to: 'selector' }
+        ],
+        playwright_screenshot: [
+          { from: 'file', to: 'path' },
+          { from: 'filename', to: 'path' }
+        ]
+      },
+      applescript: {
+        applescript_execute: [
+          { from: 'script', to: 'code_snippet' },
+          { from: 'code', to: 'code_snippet' }
+        ]
+      },
+      filesystem: {
+        filesystem_write: [
+          { from: 'content', to: 'data' },
+          { from: 'text', to: 'data' }
+        ],
+        filesystem_read: [
+          { from: 'file', to: 'path' },
+          { from: 'filename', to: 'path' }
+        ]
+      }
+    };
 
-        if (timeSinceLastCall < this.minApiDelay) {
-            const delay = this.minApiDelay - timeSinceLastCall;
-            this.logger.system('mcp-todo', `[RATE-LIMIT] Waiting ${delay}ms before API call`);
-            await new Promise(resolve => setTimeout(resolve, delay));
+    // Apply corrections if rules exist
+    const serverRules = correctionRules[server];
+    if (serverRules && serverRules[tool]) {
+      const rules = serverRules[tool];
+      const corrected = { ...params };
+
+      for (const rule of rules) {
+        if (!corrected[rule.to] && corrected[rule.from]) {
+          corrected[rule.to] = corrected[rule.from];
+          delete corrected[rule.from];
+          this.logger.warn('mcp-todo', `[TODO] ⚠️ Auto-corrected ${server}.${tool}: '${rule.from}' → '${rule.to}' (${rule.to}="${corrected[rule.to]}")`);
         }
+      }
 
-        this.lastApiCall = Date.now();
+      return corrected;
     }
 
-    /**
+    return params;
+  }
+
+  /**
+     * Wait before making API call to avoid rate limits
+     * ADDED 14.10.2025 - Prevent parallel API calls
+     *
+     * @private
+     */
+  async _waitForRateLimit() {
+    const now = Date.now();
+    const timeSinceLastCall = now - this.lastApiCall;
+
+    if (timeSinceLastCall < this.minApiDelay) {
+      const delay = this.minApiDelay - timeSinceLastCall;
+      this.logger.system('mcp-todo', `[RATE-LIMIT] Waiting ${delay}ms before API call`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+
+    this.lastApiCall = Date.now();
+  }
+
+  /**
      * Send message to chat via WebSocket
      * ADDED 14.10.2025 - Enable chat updates during workflow
      * FIXED 16.10.2025 - Use agent_message for Tetyana/Grisha/Atlas, chat_message for system
-     * 
+     *
      * @param {string} message - Message to send
      * @param {string} type - Message type or agent name (tetyana, grisha, atlas, agent, info, success, error, progress)
      * @private
      */
-    _sendChatMessage(message, type = 'info') {
-        // DEBUG 14.10.2025 - Log every call
-        this.logger.system('mcp-todo', `[TODO] _sendChatMessage called: "${message}" (type: ${type}, wsManager: ${!!this.wsManager})`);
+  _sendChatMessage(message, type = 'info') {
+    // DEBUG 14.10.2025 - Log every call
+    this.logger.system('mcp-todo', `[TODO] _sendChatMessage called: "${message}" (type: ${type}, wsManager: ${!!this.wsManager})`);
 
-        if (!this.wsManager) {
-            this.logger.warn(`[MCP-TODO] WebSocket Manager not available, skipping chat message`, {
-                category: 'mcp-todo',
-                component: 'mcp-todo'
-            });
-            return; // Gracefully skip if WebSocket not available
-        }
-
-        try {
-            // FIXED 16.10.2025 - Determine if this is an agent message or system message
-            const agentNames = ['tetyana', 'grisha', 'atlas', 'agent'];
-            const isAgentMessage = agentNames.includes(type.toLowerCase());
-
-            if (isAgentMessage) {
-                // Send as agent_message (will show as [TETYANA], [GRISHA], etc in chat)
-                let agentName = type.toLowerCase();
-
-                // Extract agent name from message if type is 'agent'
-                if (agentName === 'agent') {
-                    const match = message.match(/^\[([A-Z]+)\]/);
-                    if (match) {
-                        agentName = match[1].toLowerCase();
-                    } else {
-                        agentName = 'system'; // Fallback
-                    }
-                }
-
-                this.logger.system('mcp-todo', `[TODO] Broadcasting agent message: chat/agent_message (agent: ${agentName})`);
-                this.wsManager.broadcastToSubscribers('chat', 'agent_message', {
-                    content: message,
-                    agent: agentName,
-                    sessionId: this.currentSessionId,
-                    timestamp: new Date().toISOString()
-                });
-            } else {
-                // Send as chat_message (will show as [SYSTEM])
-                this.logger.system('mcp-todo', `[TODO] Broadcasting system message: chat/chat_message`);
-                this.wsManager.broadcastToSubscribers('chat', 'chat_message', {
-                    message,
-                    messageType: type,
-                    sessionId: this.currentSessionId,
-                    timestamp: new Date().toISOString()
-                });
-            }
-
-            this.logger.system('mcp-todo', `[TODO] ✅ Chat message sent successfully`);
-        } catch (error) {
-            this.logger.warn(`[MCP-TODO] Failed to send chat message: ${error.message}`, {
-                category: 'mcp-todo',
-                component: 'mcp-todo',
-                stack: error.stack
-            });
-        }
+    if (!this.wsManager) {
+      this.logger.warn(`[MCP-TODO] WebSocket Manager not available, skipping chat message`, {
+        category: 'mcp-todo',
+        component: 'mcp-todo'
+      });
+      return; // Gracefully skip if WebSocket not available
     }
 
-    /**
+    try {
+      // FIXED 16.10.2025 - Determine if this is an agent message or system message
+      const agentNames = ['tetyana', 'grisha', 'atlas', 'agent'];
+      const isAgentMessage = agentNames.includes(type.toLowerCase());
+
+      if (isAgentMessage) {
+        // Send as agent_message (will show as [TETYANA], [GRISHA], etc in chat)
+        let agentName = type.toLowerCase();
+
+        // Extract agent name from message if type is 'agent'
+        if (agentName === 'agent') {
+          const match = message.match(/^\[([A-Z]+)\]/);
+          if (match) {
+            agentName = match[1].toLowerCase();
+          } else {
+            agentName = 'system'; // Fallback
+          }
+        }
+
+        this.logger.system('mcp-todo', `[TODO] Broadcasting agent message: chat/agent_message (agent: ${agentName})`);
+        this.wsManager.broadcastToSubscribers('chat', 'agent_message', {
+          content: message,
+          agent: agentName,
+          sessionId: this.currentSessionId,
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        // Send as chat_message (will show as [SYSTEM])
+        this.logger.system('mcp-todo', `[TODO] Broadcasting system message: chat/chat_message`);
+        this.wsManager.broadcastToSubscribers('chat', 'chat_message', {
+          message,
+          messageType: type,
+          sessionId: this.currentSessionId,
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      this.logger.system('mcp-todo', `[TODO] ✅ Chat message sent successfully`);
+    } catch (error) {
+      this.logger.warn(`[MCP-TODO] Failed to send chat message: ${error.message}`, {
+        category: 'mcp-todo',
+        component: 'mcp-todo',
+        stack: error.stack
+      });
+    }
+  }
+
+  /**
      * Create TODO list from user request
-     * 
+     *
      * @param {string} request - User request text
      * @param {Object} context - Additional context
      * @returns {Promise<TodoList>} Created TODO list
      */
-    async createTodo(request, context = {}) {
-        this.logger.system('mcp-todo', `[TODO] Creating TODO for request: "${request}"`);
+  async createTodo(request, context = {}) {
+    this.logger.system('mcp-todo', `[TODO] Creating TODO for request: "${request}"`);
 
-        // ADDED 14.10.2025 - Store sessionId for WebSocket updates
-        if (context.sessionId) {
-            this.currentSessionId = context.sessionId;
-        }
-
-        try {
-            // Import full prompt from MCP prompts
-            const { MCP_PROMPTS } = await import('../../prompts/mcp/index.js');
-            const todoPrompt = MCP_PROMPTS.ATLAS_TODO_PLANNING;
-
-            // Build user message with context
-            const userMessage = todoPrompt.userPrompt
-                .replace('{{request}}', request)
-                .replace('{{context}}', JSON.stringify(context, null, 2));
-
-            // Wait for rate limit (ADDED 14.10.2025)
-            await this._waitForRateLimit();
-
-            // FIXED 14.10.2025 - Use MCP_MODEL_CONFIG for per-stage models
-            const modelConfig = MCP_MODEL_CONFIG.getStageConfig('todo_planning');
-
-            // LOG MODEL SELECTION (ADDED 14.10.2025 - Debugging)
-            this.logger.system('mcp-todo', `[TODO] Using model: ${modelConfig.model} (temp: ${modelConfig.temperature}, max_tokens: ${modelConfig.max_tokens})`);
-
-            // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
-            // IMPROVED 16.10.2025 - Support fallback API endpoint with automatic retry
-            const apiEndpointConfig = MCP_MODEL_CONFIG.apiEndpoint;
-            let apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
-
-            this.logger.system('mcp-todo', `[TODO] Using primary API endpoint: ${apiUrl}`);
-
-            let apiResponse;
-            let usedFallback = false;
-
-            try {
-                const apiResponse_attempt = await axios.post(apiUrl, {
-                    model: modelConfig.model,
-                    messages: [
-                        { role: 'system', content: todoPrompt.systemPrompt },
-                        { role: 'user', content: userMessage }
-                    ],
-                    temperature: modelConfig.temperature,
-                    max_tokens: modelConfig.max_tokens
-                }, {
-                    headers: { 'Content-Type': 'application/json' },
-                    timeout: 120000  // FIXED 14.10.2025 - 120s для mistral-small-2503 (повільна але якісна модель)
-                });
-                apiResponse = apiResponse_attempt;
-
-            } catch (primaryError) {
-                // Try fallback if primary fails
-                if (apiEndpointConfig.fallback && !usedFallback) {
-                    this.logger.warn('mcp-todo', `[TODO] Primary API failed, attempting fallback endpoint...`, {
-                        category: 'mcp-todo',
-                        primaryError: primaryError.message,
-                        code: primaryError.code
-                    });
-
-                    apiUrl = apiEndpointConfig.fallback;
-                    usedFallback = true;
-                    this.logger.system('mcp-todo', `[TODO] Using fallback API endpoint: ${apiUrl}`);
-
-                    try {
-                        const apiResponse_fallback = await axios.post(apiUrl, {
-                            model: modelConfig.model,
-                            messages: [
-                                { role: 'system', content: todoPrompt.systemPrompt },
-                                { role: 'user', content: userMessage }
-                            ],
-                            temperature: modelConfig.temperature,
-                            max_tokens: modelConfig.max_tokens
-                        }, {
-                            headers: { 'Content-Type': 'application/json' },
-                            timeout: 120000
-                        });
-                        apiResponse = apiResponse_fallback;
-                        this.logger.system('mcp-todo', `[TODO] ✅ Fallback API succeeded`);
-
-                    } catch (fallbackError) {
-                        this.logger.error('mcp-todo', `[TODO] Fallback API also failed: ${fallbackError.message}`, {
-                            category: 'mcp-todo',
-                            code: fallbackError.code
-                        });
-                        throw fallbackError;
-                    }
-                } else {
-                    throw primaryError;
-                }
-            }
-
-            // FIXED 16.10.2025 - Validate API response structure before accessing
-            // LOG RAW RESPONSE FIRST FOR DEBUGGING
-            this.logger.system('mcp-todo', `[TODO] Raw API response status: ${apiResponse.status}`);
-            this.logger.system('mcp-todo', `[TODO] Raw API response data keys: ${Object.keys(apiResponse.data).join(', ')}`);
-            this.logger.system('mcp-todo', `[TODO] Raw API response: ${JSON.stringify(apiResponse.data).substring(0, 500)}...`);
-
-            if (!apiResponse.data) {
-                throw new Error('API response missing data field');
-            }
-            if (!apiResponse.data.choices || !Array.isArray(apiResponse.data.choices) || apiResponse.data.choices.length === 0) {
-                this.logger.error('mcp-todo', `Invalid choices array: ${JSON.stringify(apiResponse.data)}`, {
-                    category: 'mcp-todo',
-                    component: 'mcp-todo',
-                    responseKeys: Object.keys(apiResponse.data)
-                });
-                throw new Error('API response missing choices array');
-            }
-            if (!apiResponse.data.choices[0].message) {
-                this.logger.error('mcp-todo', `Missing message in choices[0]: ${JSON.stringify(apiResponse.data.choices[0])}`, {
-                    category: 'mcp-todo',
-                    component: 'mcp-todo',
-                    choiceKeys: Object.keys(apiResponse.data.choices[0])
-                });
-                throw new Error('API response missing message in choices[0]');
-            }
-            if (!apiResponse.data.choices[0].message.content) {
-                throw new Error('API response missing content in message');
-            }
-
-            const response = apiResponse.data.choices[0].message.content;
-
-            // LOG RAW RESPONSE (ADDED 14.10.2025 - Debugging truncated responses)
-            this.logger.system('mcp-todo', `[TODO] Raw LLM response length: ${response.length} chars`);
-            this.logger.system('mcp-todo', `[TODO] Response preview: ${response.substring(0, 300)}...`);
-            this.logger.system('mcp-todo', `[TODO] Response suffix: ...${response.substring(Math.max(0, response.length - 300))}`);
-
-            const todo = this._parseTodoResponse(response, request);
-
-            // Validate TODO structure
-            this._validateTodo(todo);
-
-            // Store active TODO
-            this.activeTodos.set(todo.id, todo);
-
-            this.logger.system('mcp-todo', `[TODO] Created ${todo.mode} TODO with ${todo.items.length} items (complexity: ${todo.complexity}/10)`);
-
-            // Send chat message (ADDED 14.10.2025, FIXED 16.10.2025 - from Atlas)
-            const itemsList = todo.items.map((item, idx) => `  ${idx + 1}. ${item.action}`).join('\n');
-            const todoMessage = `📋 📋 ${todo.mode === 'extended' ? 'Розширений' : 'Стандартний'} план виконання (${todo.items.length} ${this._getPluralForm(todo.items.length, 'пункт', 'пункти', 'пунктів')}):\n\n${itemsList}\n\n⏱️ Орієнтовний час виконання: ${Math.ceil(todo.items.length * 8)} секунд`;
-            this._sendChatMessage(todoMessage, 'atlas');
-
-            // TTS feedback (optional - skip if TTS not available)
-            if (this.tts && typeof this.tts.speak === 'function') {
-                try {
-                    // ENHANCED 14.10.2025 NIGHT - Atlas speaks about the plan with more personality
-                    const itemCount = todo.items.length;
-                    const taskDescription = this._extractTaskDescription(request);
-
-                    let atlasPhrase;
-                    if (itemCount === 1) {
-                        atlasPhrase = `Розумію, ${taskDescription}. Один крок, виконую`;
-                    } else if (itemCount <= 3) {
-                        atlasPhrase = `Добре, ${taskDescription}. План з ${itemCount} кроків, починаю`;
-                    } else {
-                        atlasPhrase = `Зрозумів, ${taskDescription}. Складне завдання, ${itemCount} кроків. Приступаю`;
-                    }
-
-                    // FIXED 14.10.2025 NIGHT - Atlas voice for TODO announcement
-                    await this._safeTTSSpeak(atlasPhrase, { mode: 'detailed', duration: 3000, agent: 'atlas' });
-                } catch (ttsError) {
-                    this.logger.warn(`[MCP-TODO] TTS feedback failed: ${ttsError.message}`, { category: 'mcp-todo', component: 'mcp-todo' });
-                }
-            }
-
-            return todo;
-
-        } catch (error) {
-            // FIXED 16.10.2025 - Log API errors with full context
-            if (error.response) {
-                // API responded with error status
-                this.logger.error(`[MCP-TODO] LLM API error: ${error.response.status} ${error.response.statusText}`, {
-                    category: 'mcp-todo',
-                    component: 'mcp-todo',
-                    status: error.response.status,
-                    data: typeof error.response.data === 'object' ? JSON.stringify(error.response.data).substring(0, 500) : String(error.response.data).substring(0, 500),
-                    url: error.config?.url,
-                    method: error.config?.method
-                });
-            } else if (error.code === 'ECONNREFUSED') {
-                // Connection refused - API likely not running
-                this.logger.error(`[MCP-TODO] LLM API not available: Connection refused`, {
-                    category: 'mcp-todo',
-                    component: 'mcp-todo',
-                    code: error.code,
-                    address: error.address,
-                    port: error.port,
-                    message: 'Make sure LLM API is running on port 4000 (e.g., openrouter.ai proxy or localhost service)'
-                });
-            } else if (error.code === 'ENOTFOUND') {
-                // DNS resolution failed
-                this.logger.error(`[MCP-TODO] LLM API DNS error: ${error.message}`, {
-                    category: 'mcp-todo',
-                    component: 'mcp-todo',
-                    code: error.code,
-                    hostname: error.hostname
-                });
-            } else {
-                // Other error (timeout, network, etc)
-                this.logger.error(`[MCP-TODO] LLM API request failed: ${error.message}`, {
-                    category: 'mcp-todo',
-                    component: 'mcp-todo',
-                    code: error.code,
-                    stack: error.stack?.substring(0, 500)
-                });
-            }
-
-            throw new Error(`TODO creation failed: ${error.message}`);
-        }
+    // ADDED 14.10.2025 - Store sessionId for WebSocket updates
+    if (context.sessionId) {
+      this.currentSessionId = context.sessionId;
     }
 
-    /**
+    try {
+      // Import full prompt from MCP prompts
+      const { MCP_PROMPTS } = await import('../../prompts/mcp/index.js');
+      const todoPrompt = MCP_PROMPTS.ATLAS_TODO_PLANNING;
+
+      // Build user message with context
+      const userMessage = todoPrompt.userPrompt
+        .replace('{{request}}', request)
+        .replace('{{context}}', JSON.stringify(context, null, 2));
+
+      // Wait for rate limit (ADDED 14.10.2025)
+      await this._waitForRateLimit();
+
+      // FIXED 14.10.2025 - Use MCP_MODEL_CONFIG for per-stage models
+      const modelConfig = MCP_MODEL_CONFIG.getStageConfig('todo_planning');
+
+      // LOG MODEL SELECTION (ADDED 14.10.2025 - Debugging)
+      this.logger.system('mcp-todo', `[TODO] Using model: ${modelConfig.model} (temp: ${modelConfig.temperature}, max_tokens: ${modelConfig.max_tokens})`);
+
+      // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
+      // IMPROVED 16.10.2025 - Support fallback API endpoint with automatic retry
+      const apiEndpointConfig = MCP_MODEL_CONFIG.apiEndpoint;
+      let apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
+
+      this.logger.system('mcp-todo', `[TODO] Using primary API endpoint: ${apiUrl}`);
+
+      let apiResponse;
+      let usedFallback = false;
+
+      try {
+        const apiResponse_attempt = await axios.post(apiUrl, {
+          model: modelConfig.model,
+          messages: [
+            { role: 'system', content: todoPrompt.systemPrompt },
+            { role: 'user', content: userMessage }
+          ],
+          temperature: modelConfig.temperature,
+          max_tokens: modelConfig.max_tokens
+        }, {
+          headers: { 'Content-Type': 'application/json' },
+          timeout: 120000  // FIXED 14.10.2025 - 120s для mistral-small-2503 (повільна але якісна модель)
+        });
+        apiResponse = apiResponse_attempt;
+
+      } catch (primaryError) {
+        // Try fallback if primary fails
+        if (apiEndpointConfig.fallback && !usedFallback) {
+          this.logger.warn('mcp-todo', `[TODO] Primary API failed, attempting fallback endpoint...`, {
+            category: 'mcp-todo',
+            primaryError: primaryError.message,
+            code: primaryError.code
+          });
+
+          apiUrl = apiEndpointConfig.fallback;
+          usedFallback = true;
+          this.logger.system('mcp-todo', `[TODO] Using fallback API endpoint: ${apiUrl}`);
+
+          try {
+            const apiResponse_fallback = await axios.post(apiUrl, {
+              model: modelConfig.model,
+              messages: [
+                { role: 'system', content: todoPrompt.systemPrompt },
+                { role: 'user', content: userMessage }
+              ],
+              temperature: modelConfig.temperature,
+              max_tokens: modelConfig.max_tokens
+            }, {
+              headers: { 'Content-Type': 'application/json' },
+              timeout: 120000
+            });
+            apiResponse = apiResponse_fallback;
+            this.logger.system('mcp-todo', `[TODO] ✅ Fallback API succeeded`);
+
+          } catch (fallbackError) {
+            this.logger.error('mcp-todo', `[TODO] Fallback API also failed: ${fallbackError.message}`, {
+              category: 'mcp-todo',
+              code: fallbackError.code
+            });
+            throw fallbackError;
+          }
+        } else {
+          throw primaryError;
+        }
+      }
+
+      // FIXED 16.10.2025 - Validate API response structure before accessing
+      // LOG RAW RESPONSE FIRST FOR DEBUGGING
+      this.logger.system('mcp-todo', `[TODO] Raw API response status: ${apiResponse.status}`);
+      this.logger.system('mcp-todo', `[TODO] Raw API response data keys: ${Object.keys(apiResponse.data).join(', ')}`);
+      this.logger.system('mcp-todo', `[TODO] Raw API response: ${JSON.stringify(apiResponse.data).substring(0, 500)}...`);
+
+      if (!apiResponse.data) {
+        throw new Error('API response missing data field');
+      }
+      if (!apiResponse.data.choices || !Array.isArray(apiResponse.data.choices) || apiResponse.data.choices.length === 0) {
+        this.logger.error('mcp-todo', `Invalid choices array: ${JSON.stringify(apiResponse.data)}`, {
+          category: 'mcp-todo',
+          component: 'mcp-todo',
+          responseKeys: Object.keys(apiResponse.data)
+        });
+        throw new Error('API response missing choices array');
+      }
+      if (!apiResponse.data.choices[0].message) {
+        this.logger.error('mcp-todo', `Missing message in choices[0]: ${JSON.stringify(apiResponse.data.choices[0])}`, {
+          category: 'mcp-todo',
+          component: 'mcp-todo',
+          choiceKeys: Object.keys(apiResponse.data.choices[0])
+        });
+        throw new Error('API response missing message in choices[0]');
+      }
+      if (!apiResponse.data.choices[0].message.content) {
+        throw new Error('API response missing content in message');
+      }
+
+      const response = apiResponse.data.choices[0].message.content;
+
+      // LOG RAW RESPONSE (ADDED 14.10.2025 - Debugging truncated responses)
+      this.logger.system('mcp-todo', `[TODO] Raw LLM response length: ${response.length} chars`);
+      this.logger.system('mcp-todo', `[TODO] Response preview: ${response.substring(0, 300)}...`);
+      this.logger.system('mcp-todo', `[TODO] Response suffix: ...${response.substring(Math.max(0, response.length - 300))}`);
+
+      const todo = this._parseTodoResponse(response, request);
+
+      // Validate TODO structure
+      this._validateTodo(todo);
+
+      // Store active TODO
+      this.activeTodos.set(todo.id, todo);
+
+      this.logger.system('mcp-todo', `[TODO] Created ${todo.mode} TODO with ${todo.items.length} items (complexity: ${todo.complexity}/10)`);
+
+      // Send chat message (ADDED 14.10.2025, FIXED 16.10.2025 - from Atlas)
+      const itemsList = todo.items.map((item, idx) => `  ${idx + 1}. ${item.action}`).join('\n');
+      const todoMessage = `📋 📋 ${todo.mode === 'extended' ? 'Розширений' : 'Стандартний'} план виконання (${todo.items.length} ${this._getPluralForm(todo.items.length, 'пункт', 'пункти', 'пунктів')}):\n\n${itemsList}\n\n⏱️ Орієнтовний час виконання: ${Math.ceil(todo.items.length * 8)} секунд`;
+      this._sendChatMessage(todoMessage, 'atlas');
+
+      // TTS feedback (optional - skip if TTS not available)
+      if (this.tts && typeof this.tts.speak === 'function') {
+        try {
+          // ENHANCED 14.10.2025 NIGHT - Atlas speaks about the plan with more personality
+          const itemCount = todo.items.length;
+          const taskDescription = this._extractTaskDescription(request);
+
+          let atlasPhrase;
+          if (itemCount === 1) {
+            atlasPhrase = `Розумію, ${taskDescription}. Один крок, виконую`;
+          } else if (itemCount <= 3) {
+            atlasPhrase = `Добре, ${taskDescription}. План з ${itemCount} кроків, починаю`;
+          } else {
+            atlasPhrase = `Зрозумів, ${taskDescription}. Складне завдання, ${itemCount} кроків. Приступаю`;
+          }
+
+          // FIXED 14.10.2025 NIGHT - Atlas voice for TODO announcement
+          await this._safeTTSSpeak(atlasPhrase, { mode: 'detailed', duration: 3000, agent: 'atlas' });
+        } catch (ttsError) {
+          this.logger.warn(`[MCP-TODO] TTS feedback failed: ${ttsError.message}`, { category: 'mcp-todo', component: 'mcp-todo' });
+        }
+      }
+
+      return todo;
+
+    } catch (error) {
+      // FIXED 16.10.2025 - Log API errors with full context
+      if (error.response) {
+        // API responded with error status
+        this.logger.error(`[MCP-TODO] LLM API error: ${error.response.status} ${error.response.statusText}`, {
+          category: 'mcp-todo',
+          component: 'mcp-todo',
+          status: error.response.status,
+          data: typeof error.response.data === 'object' ? JSON.stringify(error.response.data).substring(0, 500) : String(error.response.data).substring(0, 500),
+          url: error.config?.url,
+          method: error.config?.method
+        });
+      } else if (error.code === 'ECONNREFUSED') {
+        // Connection refused - API likely not running
+        this.logger.error(`[MCP-TODO] LLM API not available: Connection refused`, {
+          category: 'mcp-todo',
+          component: 'mcp-todo',
+          code: error.code,
+          address: error.address,
+          port: error.port,
+          message: 'Make sure LLM API is running on port 4000 (e.g., openrouter.ai proxy or localhost service)'
+        });
+      } else if (error.code === 'ENOTFOUND') {
+        // DNS resolution failed
+        this.logger.error(`[MCP-TODO] LLM API DNS error: ${error.message}`, {
+          category: 'mcp-todo',
+          component: 'mcp-todo',
+          code: error.code,
+          hostname: error.hostname
+        });
+      } else {
+        // Other error (timeout, network, etc)
+        this.logger.error(`[MCP-TODO] LLM API request failed: ${error.message}`, {
+          category: 'mcp-todo',
+          component: 'mcp-todo',
+          code: error.code,
+          stack: error.stack?.substring(0, 500)
+        });
+      }
+
+      throw new Error(`TODO creation failed: ${error.message}`);
+    }
+  }
+
+  /**
      * Execute TODO list item by item
-     * 
+     *
      * @param {TodoList} todo - TODO list to execute
      * @returns {Promise<Object>} Execution results
      */
-    async executeTodo(todo) {
-        this.logger.system('mcp-todo', `[TODO] Starting execution of TODO ${todo.id} (${todo.items.length} items)`);
+  async executeTodo(todo) {
+    this.logger.system('mcp-todo', `[TODO] Starting execution of TODO ${todo.id} (${todo.items.length} items)`);
 
-        const startTime = Date.now();
-        todo.execution = {
-            current_item_index: 0,
-            completed_items: 0,
-            failed_items: 0,
-            total_attempts: 0
-        };
+    const startTime = Date.now();
+    todo.execution = {
+      current_item_index: 0,
+      completed_items: 0,
+      failed_items: 0,
+      total_attempts: 0
+    };
 
-        try {
-            // Execute items sequentially
-            for (let i = 0; i < todo.items.length; i++) {
-                const item = todo.items[i];
-                todo.execution.current_item_index = i;
+    try {
+      // Execute items sequentially
+      for (let i = 0; i < todo.items.length; i++) {
+        const item = todo.items[i];
+        todo.execution.current_item_index = i;
 
-                this.logger.system('mcp-todo', `[TODO] Processing item ${item.id}: "${item.action}"`);
+        this.logger.system('mcp-todo', `[TODO] Processing item ${item.id}: "${item.action}"`);
 
-                // Check dependencies
-                if (!this._checkDependencies(item, todo)) {
-                    this.logger.warn(`[MCP-TODO] Item ${item.id} skipped - dependencies not met`, { category: 'mcp-todo', component: 'mcp-todo' });
-                    item.status = 'skipped';
-                    continue;
-                }
-
-                // Execute with retry
-                const itemResult = await this.executeItemWithRetry(item, todo);
-
-                // Update counters
-                if (itemResult.status === 'completed') {
-                    todo.execution.completed_items++;
-                } else if (itemResult.status === 'failed') {
-                    todo.execution.failed_items++;
-                }
-                todo.execution.total_attempts += itemResult.attempts;
-            }
-
-            // Generate final summary
-            const summary = await this.generateSummary(todo);
-            todo.results = summary;
-
-            // Move to completed
-            this.activeTodos.delete(todo.id);
-            this.completedTodos.set(todo.id, todo);
-
-            const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-            this.logger.system('mcp-todo', `[TODO] Execution completed in ${duration}s - Success: ${summary.success_rate}%`);
-
-            // Send final summary to chat (ADDED 14.10.2025 NIGHT)
-            const summaryEmoji = summary.success_rate === 100 ? '✅' : summary.success_rate >= 80 ? '⚠️' : '❌';
-            this._sendChatMessage(
-                `🎉 Завершено: ${summary.completed}/${summary.total} пунктів (${summary.success_rate}% успіху)`,
-                'atlas'
-            );
-
-            // ENHANCED 14.10.2025 NIGHT - Atlas speaks about results with personality
-            let atlasSummaryPhrase;
-            if (summary.success_rate === 100) {
-                atlasSummaryPhrase = `Все готово. Завдання виконано повністю за ${Math.round(duration)} секунд`;
-            } else if (summary.success_rate >= 80) {
-                atlasSummaryPhrase = `Майже готово. Виконано ${summary.success_rate} відсотків завдання`;
-            } else if (summary.success_rate >= 50) {
-                atlasSummaryPhrase = `Частково виконано. ${summary.success_rate} відсотків готово, є проблеми`;
-            } else {
-                atlasSummaryPhrase = `Виникли проблеми. Виконано тільки ${summary.success_rate} відсотків`;
-            }
-
-            // FIXED 14.10.2025 NIGHT - Atlas voice for final summary
-            await this._safeTTSSpeak(atlasSummaryPhrase, { mode: 'detailed', duration: 3000, agent: 'atlas' });
-
-            return summary;
-
-        } catch (error) {
-            this.logger.error(`[MCP-TODO] Execution failed: ${error.message}`, { category: 'mcp-todo', component: 'mcp-todo' });
-            throw error;
+        // Check dependencies
+        if (!this._checkDependencies(item, todo)) {
+          this.logger.warn(`[MCP-TODO] Item ${item.id} skipped - dependencies not met`, { category: 'mcp-todo', component: 'mcp-todo' });
+          item.status = 'skipped';
+          continue;
         }
-    }
 
-    /**
+        // Execute with retry
+        const itemResult = await this.executeItemWithRetry(item, todo);
+
+        // Update counters
+        if (itemResult.status === 'completed') {
+          todo.execution.completed_items++;
+        } else if (itemResult.status === 'failed') {
+          todo.execution.failed_items++;
+        }
+        todo.execution.total_attempts += itemResult.attempts;
+      }
+
+      // Generate final summary
+      const summary = await this.generateSummary(todo);
+      todo.results = summary;
+
+      // Move to completed
+      this.activeTodos.delete(todo.id);
+      this.completedTodos.set(todo.id, todo);
+
+      const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+      this.logger.system('mcp-todo', `[TODO] Execution completed in ${duration}s - Success: ${summary.success_rate}%`);
+
+      // Send final summary to chat (ADDED 14.10.2025 NIGHT)
+      const summaryEmoji = summary.success_rate === 100 ? '✅' : summary.success_rate >= 80 ? '⚠️' : '❌';
+      this._sendChatMessage(
+        `🎉 Завершено: ${summary.completed}/${summary.total} пунктів (${summary.success_rate}% успіху)`,
+        'atlas'
+      );
+
+      // ENHANCED 14.10.2025 NIGHT - Atlas speaks about results with personality
+      let atlasSummaryPhrase;
+      if (summary.success_rate === 100) {
+        atlasSummaryPhrase = `Все готово. Завдання виконано повністю за ${Math.round(duration)} секунд`;
+      } else if (summary.success_rate >= 80) {
+        atlasSummaryPhrase = `Майже готово. Виконано ${summary.success_rate} відсотків завдання`;
+      } else if (summary.success_rate >= 50) {
+        atlasSummaryPhrase = `Частково виконано. ${summary.success_rate} відсотків готово, є проблеми`;
+      } else {
+        atlasSummaryPhrase = `Виникли проблеми. Виконано тільки ${summary.success_rate} відсотків`;
+      }
+
+      // FIXED 14.10.2025 NIGHT - Atlas voice for final summary
+      await this._safeTTSSpeak(atlasSummaryPhrase, { mode: 'detailed', duration: 3000, agent: 'atlas' });
+
+      return summary;
+
+    } catch (error) {
+      this.logger.error(`[MCP-TODO] Execution failed: ${error.message}`, { category: 'mcp-todo', component: 'mcp-todo' });
+      throw error;
+    }
+  }
+
+  /**
      * Execute single TODO item with retry logic
-     * 
+     *
      * @param {TodoItem} item - Item to execute
      * @param {TodoList} todo - Parent TODO list
      * @returns {Promise<Object>} Execution result
      */
-    async executeItemWithRetry(item, todo) {
-        this.logger.system('mcp-todo', `[TODO] Executing item ${item.id} with max ${item.max_attempts} attempts`);
-        // Skip progress message - too verbose
+  async executeItemWithRetry(item, todo) {
+    this.logger.system('mcp-todo', `[TODO] Executing item ${item.id} with max ${item.max_attempts} attempts`);
+    // Skip progress message - too verbose
 
-        item.status = 'in_progress';
-        let lastError = null;
+    item.status = 'in_progress';
+    let lastError = null;
 
-        for (let attempt = 1; attempt <= item.max_attempts; attempt++) {
-            item.attempt = attempt;
+    for (let attempt = 1; attempt <= item.max_attempts; attempt++) {
+      item.attempt = attempt;
 
-            try {
-                this.logger.system('mcp-todo', `[TODO] Item ${item.id} - Attempt ${attempt}/${item.max_attempts}`);
-                // Skip retry message - handled by verification
+      try {
+        this.logger.system('mcp-todo', `[TODO] Item ${item.id} - Attempt ${attempt}/${item.max_attempts}`);
+        // Skip retry message - handled by verification
 
-                // Stage 2.0: Server Selection (SYSTEM - pre-filter MCP servers)
-                // ADDED 16.10.2025 - Select optimal MCP servers BEFORE tool planning
-                let selectedServers = null;
-                let toolsSummary = null;
+        // Stage 2.0: Server Selection (SYSTEM - pre-filter MCP servers)
+        // ADDED 16.10.2025 - Select optimal MCP servers BEFORE tool planning
+        let selectedServers = null;
+        let toolsSummary = null;
 
-                try {
-                    const serverSelection = await this._selectMCPServers(item, todo);
-                    selectedServers = serverSelection.selected_servers;
+        try {
+          const serverSelection = await this._selectMCPServers(item, todo);
+          selectedServers = serverSelection.selected_servers;
 
-                    // Generate tools summary ONLY for selected servers
-                    if (selectedServers && selectedServers.length > 0) {
-                        toolsSummary = this.mcpManager.getDetailedToolsSummary(selectedServers);
-                        this.logger.system('mcp-todo', `[TODO] 🎯 Pre-selected ${selectedServers.length} MCP servers: ${selectedServers.join(', ')}`);
-                    }
-                } catch (selectionError) {
-                    this.logger.warn(`[MCP-TODO] Server selection failed: ${selectionError.message}. Falling back to all servers.`, {
-                        category: 'mcp-todo',
-                        component: 'mcp-todo'
-                    });
-                    // Fallback: use all servers
-                    selectedServers = null;
-                    toolsSummary = null;
-                }
-
-                // Stage 2.1: Plan Tools (Tetyana) - with pre-selected servers
-                const plan = await this.planTools(item, todo, {
-                    selectedServers,
-                    toolsSummary
-                });
-                await this._safeTTSSpeak(plan.tts_phrase, { mode: 'quick', duration: 150, agent: 'tetyana' });
-
-                // Stage 2.1.5: Screenshot and Adjust (NEW 16.10.2025 - Tetyana)
-                // Take screenshot and optionally adjust plan based on current state
-                const screenshotResult = await this.screenshotAndAdjust(plan, item);
-                const finalPlan = screenshotResult.plan;
-
-                // TTS feedback about screenshot/adjustment
-                await this._safeTTSSpeak(finalPlan.tts_phrase || 'Скрін готовий', {
-                    mode: 'quick',
-                    duration: screenshotResult.adjusted ? 200 : 100,
-                    agent: 'tetyana'
-                });
-
-                if (screenshotResult.adjusted) {
-                    this.logger.system('mcp-todo', `[TODO] 🔧 Plan adjusted: ${screenshotResult.reason}`);
-                }
-
-                // Stage 2.2: Execute Tools (Tetyana) - using potentially adjusted plan
-                const execution = await this.executeTools(finalPlan, item);
-                this._sendChatMessage(`✅ ✅ Виконано: "${item.action}"`, 'tetyana');
-                await this._safeTTSSpeak(execution.tts_phrase, { mode: 'normal', duration: 800, agent: 'tetyana' });
-
-                // Stage 2.3: Verify Item (Grisha) - with same pre-selected servers
-                const verification = await this.verifyItem(item, execution, {
-                    selectedServers,  // ADDED 16.10.2025 - Pass same servers to Grisha
-                    toolsSummary
-                });
-                // FIXED 14.10.2025 NIGHT - Grisha's voice for verification
-                await this._safeTTSSpeak(verification.tts_phrase, { mode: 'normal', duration: 800, agent: 'grisha' });
-
-                // Check verification result
-                if (verification.verified) {
-                    item.status = 'completed';
-                    item.execution_results = execution.results;
-                    item.verification = verification;
-
-                    this.logger.system('mcp-todo', `[TODO] ✅ Item ${item.id} completed on attempt ${attempt}`);
-                    // Chat message already sent by verifyItem()
-
-                    // FIXED 14.10.2025 NIGHT - Grisha confirms success
-                    await this._safeTTSSpeak(verification.tts_phrase || '✅ Виконано', { mode: 'quick', duration: 100, agent: 'grisha' });
-
-                    return { status: 'completed', attempts: attempt, item };
-                }
-
-                // Verification failed
-                this.logger.warn(`[MCP-TODO] Item ${item.id} verification failed: ${verification.reason}`, { category: 'mcp-todo', component: 'mcp-todo' });
-                // Chat message already sent by verifyItem()
-                lastError = verification.reason;
-
-                // Stage 3: Adjust TODO (if attempts remain)
-                if (attempt < item.max_attempts) {
-                    const adjustment = await this.adjustTodoItem(item, verification, attempt);
-
-                    // Apply adjustments
-                    Object.assign(item, adjustment.updated_todo_item);
-
-                    // ENHANCED 14.10.2025 NIGHT - Atlas speaks about adjustment strategy
-                    let atlasAdjustmentPhrase;
-                    if (adjustment.strategy === 'retry') {
-                        atlasAdjustmentPhrase = 'Пробую інший підхід';
-                    } else if (adjustment.strategy === 'alternative_approach') {
-                        atlasAdjustmentPhrase = 'Змінюю стратегію';
-                    } else if (adjustment.strategy === 'skip') {
-                        atlasAdjustmentPhrase = 'Пропускаю цей крок';
-                    } else {
-                        atlasAdjustmentPhrase = 'Коригую та повторюю';
-                    }
-
-                    await this._safeTTSSpeak(atlasAdjustmentPhrase, { mode: 'normal', duration: 1000 });
-                } else {
-                    // Final attempt failed
-                    await this._safeTTSSpeak('Не вдалось виконати', { mode: 'normal', duration: 800 });
-                }
-
-            } catch (error) {
-                this.logger.error(`[MCP-TODO] Item ${item.id} attempt ${attempt} error: ${error.message}`, { category: 'mcp-todo', component: 'mcp-todo' });
-                lastError = error.message;
-
-                if (attempt >= item.max_attempts) {
-                    break;
-                }
-
-                // Wait before retry
-                await new Promise(resolve => setTimeout(resolve, 1000));
-            }
+          // Generate tools summary ONLY for selected servers
+          if (selectedServers && selectedServers.length > 0) {
+            toolsSummary = this.mcpManager.getDetailedToolsSummary(selectedServers);
+            this.logger.system('mcp-todo', `[TODO] 🎯 Pre-selected ${selectedServers.length} MCP servers: ${selectedServers.join(', ')}`);
+          }
+        } catch (selectionError) {
+          this.logger.warn(`[MCP-TODO] Server selection failed: ${selectionError.message}. Falling back to all servers.`, {
+            category: 'mcp-todo',
+            component: 'mcp-todo'
+          });
+          // Fallback: use all servers
+          selectedServers = null;
+          toolsSummary = null;
         }
 
-        // All attempts failed
-        item.status = 'failed';
-        item.execution_results = { error: lastError };
+        // Stage 2.1: Plan Tools (Tetyana) - with pre-selected servers
+        const plan = await this.planTools(item, todo, {
+          selectedServers,
+          toolsSummary
+        });
+        await this._safeTTSSpeak(plan.tts_phrase, { mode: 'quick', duration: 150, agent: 'tetyana' });
 
-        this.logger.error(`[MCP-TODO] ❌ Item ${item.id} failed after ${item.max_attempts} attempts`, { category: 'mcp-todo', component: 'mcp-todo' });
-        this._sendChatMessage(`❌ ❌ Не вдалося: ${item.action}`, 'error');
+        // Stage 2.1.5: Screenshot and Adjust (NEW 16.10.2025 - Tetyana)
+        // Take screenshot and optionally adjust plan based on current state
+        const screenshotResult = await this.screenshotAndAdjust(plan, item);
+        const finalPlan = screenshotResult.plan;
 
-        return { status: 'failed', attempts: item.max_attempts, item, error: lastError };
+        // TTS feedback about screenshot/adjustment
+        await this._safeTTSSpeak(finalPlan.tts_phrase || 'Скрін готовий', {
+          mode: 'quick',
+          duration: screenshotResult.adjusted ? 200 : 100,
+          agent: 'tetyana'
+        });
+
+        if (screenshotResult.adjusted) {
+          this.logger.system('mcp-todo', `[TODO] 🔧 Plan adjusted: ${screenshotResult.reason}`);
+        }
+
+        // Stage 2.2: Execute Tools (Tetyana) - using potentially adjusted plan
+        const execution = await this.executeTools(finalPlan, item);
+        this._sendChatMessage(`✅ ✅ Виконано: "${item.action}"`, 'tetyana');
+        await this._safeTTSSpeak(execution.tts_phrase, { mode: 'normal', duration: 800, agent: 'tetyana' });
+
+        // Stage 2.3: Verify Item (Grisha) - with same pre-selected servers
+        const verification = await this.verifyItem(item, execution, {
+          selectedServers,  // ADDED 16.10.2025 - Pass same servers to Grisha
+          toolsSummary
+        });
+        // FIXED 14.10.2025 NIGHT - Grisha's voice for verification
+        await this._safeTTSSpeak(verification.tts_phrase, { mode: 'normal', duration: 800, agent: 'grisha' });
+
+        // Check verification result
+        if (verification.verified) {
+          item.status = 'completed';
+          item.execution_results = execution.results;
+          item.verification = verification;
+
+          this.logger.system('mcp-todo', `[TODO] ✅ Item ${item.id} completed on attempt ${attempt}`);
+          // Chat message already sent by verifyItem()
+
+          // FIXED 14.10.2025 NIGHT - Grisha confirms success
+          await this._safeTTSSpeak(verification.tts_phrase || '✅ Виконано', { mode: 'quick', duration: 100, agent: 'grisha' });
+
+          return { status: 'completed', attempts: attempt, item };
+        }
+
+        // Verification failed
+        this.logger.warn(`[MCP-TODO] Item ${item.id} verification failed: ${verification.reason}`, { category: 'mcp-todo', component: 'mcp-todo' });
+        // Chat message already sent by verifyItem()
+        lastError = verification.reason;
+
+        // Stage 3: Adjust TODO (if attempts remain)
+        if (attempt < item.max_attempts) {
+          const adjustment = await this.adjustTodoItem(item, verification, attempt);
+
+          // Apply adjustments
+          Object.assign(item, adjustment.updated_todo_item);
+
+          // ENHANCED 14.10.2025 NIGHT - Atlas speaks about adjustment strategy
+          let atlasAdjustmentPhrase;
+          if (adjustment.strategy === 'retry') {
+            atlasAdjustmentPhrase = 'Пробую інший підхід';
+          } else if (adjustment.strategy === 'alternative_approach') {
+            atlasAdjustmentPhrase = 'Змінюю стратегію';
+          } else if (adjustment.strategy === 'skip') {
+            atlasAdjustmentPhrase = 'Пропускаю цей крок';
+          } else {
+            atlasAdjustmentPhrase = 'Коригую та повторюю';
+          }
+
+          await this._safeTTSSpeak(atlasAdjustmentPhrase, { mode: 'normal', duration: 1000 });
+        } else {
+          // Final attempt failed
+          await this._safeTTSSpeak('Не вдалось виконати', { mode: 'normal', duration: 800 });
+        }
+
+      } catch (error) {
+        this.logger.error(`[MCP-TODO] Item ${item.id} attempt ${attempt} error: ${error.message}`, { category: 'mcp-todo', component: 'mcp-todo' });
+        lastError = error.message;
+
+        if (attempt >= item.max_attempts) {
+          break;
+        }
+
+        // Wait before retry
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
     }
 
-    /**
+    // All attempts failed
+    item.status = 'failed';
+    item.execution_results = { error: lastError };
+
+    this.logger.error(`[MCP-TODO] ❌ Item ${item.id} failed after ${item.max_attempts} attempts`, { category: 'mcp-todo', component: 'mcp-todo' });
+    this._sendChatMessage(`❌ ❌ Не вдалося: ${item.action}`, 'error');
+
+    return { status: 'failed', attempts: item.max_attempts, item, error: lastError };
+  }
+
+  /**
      * Plan which MCP tools to use for item (Stage 2.1 - Tetyana)
-     * 
+     *
      * @param {TodoItem} item - Item to plan
      * @param {TodoList} todo - Parent TODO list
      * @returns {Promise<Object>} Tool plan
      */
-    async planTools(item, todo, options = {}) {
-        this.logger.system('mcp-todo', `[TODO] Planning tools for item ${item.id}`);
+  async planTools(item, todo, options = {}) {
+    this.logger.system('mcp-todo', `[TODO] Planning tools for item ${item.id}`);
 
-        try {
-            // DIAGNOSTIC: Check mcpManager before using
-            if (!this.mcpManager) {
-                this.logger.error(`[MCP-TODO] MCP Manager is null in planTools!`, {
-                    category: 'mcp-todo',
-                    component: 'mcp-todo'
-                });
-                throw new Error('MCP Manager is not initialized (null) in planTools. Check DI registration and service instantiation.');
+    try {
+      // DIAGNOSTIC: Check mcpManager before using
+      if (!this.mcpManager) {
+        this.logger.error(`[MCP-TODO] MCP Manager is null in planTools!`, {
+          category: 'mcp-todo',
+          component: 'mcp-todo'
+        });
+        throw new Error('MCP Manager is not initialized (null) in planTools. Check DI registration and service instantiation.');
+      }
+
+      // OPTIMIZATION 15.10.2025 - Use compact tools summary instead of full schemas
+      // ENHANCEMENT 16.10.2025 - Use pre-selected servers if available
+      // Reduces prompt size from 8000+ to ~500 tokens (all servers) or ~150 tokens (2 servers)
+      let toolsSummary;
+      let availableTools;
+
+      // PRIORITY 1: Use pre-filtered tools from options (Stage 2.0 selection)
+      if (options.selectedServers && Array.isArray(options.selectedServers) && options.selectedServers.length > 0) {
+        this.logger.system('mcp-todo', `[TODO] 🎯 Using ${options.selectedServers.length} pre-selected servers: ${options.selectedServers.join(', ')}`);
+
+        // Get tools ONLY from selected servers
+        availableTools = this.mcpManager.getToolsFromServers(options.selectedServers);
+        toolsSummary = options.toolsSummary || this.mcpManager.getDetailedToolsSummary(options.selectedServers);
+
+        const totalTools = availableTools.length;
+        this.logger.system('mcp-todo', `[TODO] 🎯 Filtered to ${totalTools} tools (was 92+) - ${Math.round((1 - totalTools / 92) * 100)}% reduction`);
+      }
+      // PRIORITY 2: Use pre-generated summary (legacy compatibility)
+      else if (options.toolsSummary) {
+        toolsSummary = options.toolsSummary;
+        this.logger.system('mcp-todo', `[TODO] Using provided tools summary (${toolsSummary.length} chars)`);
+      }
+      // FALLBACK: Generate summary for ALL servers (not recommended - 92+ tools)
+      else {
+        if (typeof this.mcpManager.getToolsSummary !== 'function') {
+          this.logger.error(`[MCP-TODO] MCP Manager missing getToolsSummary method!`, {
+            category: 'mcp-todo',
+            component: 'mcp-todo'
+          });
+          throw new Error('MCP Manager does not have getToolsSummary() method. Update to latest version.');
+        }
+        toolsSummary = this.mcpManager.getToolsSummary();
+        this.logger.warn(`[TODO] ⚠️ No server pre-selection - using ALL 92+ tools (performance warning)`, {
+          category: 'mcp-todo',
+          component: 'mcp-todo'
+        });
+      }
+
+      // Import Tetyana Plan Tools prompt
+      const { MCP_PROMPTS } = await import('../../prompts/mcp/index.js');
+      const planPrompt = MCP_PROMPTS.TETYANA_PLAN_TOOLS;
+
+      // FIXED 15.10.2025 - Truncate execution_results to prevent 413 errors
+      const previousItemsSummary = todo.items.slice(0, item.id - 1).map(i => {
+        const summary = {
+          id: i.id,
+          action: i.action,
+          status: i.status
+        };
+
+        // Include truncated execution_results if available
+        if (i.execution_results && i.execution_results.results) {
+          summary.results_summary = i.execution_results.results.map(r => {
+            const truncated = { tool: r.tool, success: r.success };
+            // Truncate content/text to 200 chars max
+            if (r.content && typeof r.content === 'string') {
+              truncated.content = r.content.substring(0, 200) + (r.content.length > 200 ? '...[truncated]' : '');
             }
-
-            // OPTIMIZATION 15.10.2025 - Use compact tools summary instead of full schemas
-            // ENHANCEMENT 16.10.2025 - Use pre-selected servers if available
-            // Reduces prompt size from 8000+ to ~500 tokens (all servers) or ~150 tokens (2 servers)
-            let toolsSummary;
-            let availableTools;
-
-            // PRIORITY 1: Use pre-filtered tools from options (Stage 2.0 selection)
-            if (options.selectedServers && Array.isArray(options.selectedServers) && options.selectedServers.length > 0) {
-                this.logger.system('mcp-todo', `[TODO] 🎯 Using ${options.selectedServers.length} pre-selected servers: ${options.selectedServers.join(', ')}`);
-
-                // Get tools ONLY from selected servers
-                availableTools = this.mcpManager.getToolsFromServers(options.selectedServers);
-                toolsSummary = options.toolsSummary || this.mcpManager.getDetailedToolsSummary(options.selectedServers);
-
-                const totalTools = availableTools.length;
-                this.logger.system('mcp-todo', `[TODO] 🎯 Filtered to ${totalTools} tools (was 92+) - ${Math.round((1 - totalTools / 92) * 100)}% reduction`);
+            if (r.text && typeof r.text === 'string') {
+              truncated.text = r.text.substring(0, 200) + (r.text.length > 200 ? '...[truncated]' : '');
             }
-            // PRIORITY 2: Use pre-generated summary (legacy compatibility)
-            else if (options.toolsSummary) {
-                toolsSummary = options.toolsSummary;
-                this.logger.system('mcp-todo', `[TODO] Using provided tools summary (${toolsSummary.length} chars)`);
+            if (r.error) {
+              truncated.error = typeof r.error === 'string' ? r.error.substring(0, 100) : 'error';
             }
-            // FALLBACK: Generate summary for ALL servers (not recommended - 92+ tools)
-            else {
-                if (typeof this.mcpManager.getToolsSummary !== 'function') {
-                    this.logger.error(`[MCP-TODO] MCP Manager missing getToolsSummary method!`, {
-                        category: 'mcp-todo',
-                        component: 'mcp-todo'
-                    });
-                    throw new Error('MCP Manager does not have getToolsSummary() method. Update to latest version.');
-                }
-                toolsSummary = this.mcpManager.getToolsSummary();
-                this.logger.warn(`[TODO] ⚠️ No server pre-selection - using ALL 92+ tools (performance warning)`, {
-                    category: 'mcp-todo',
-                    component: 'mcp-todo'
-                });
-            }
+            return truncated;
+          });
+        }
 
-            // Import Tetyana Plan Tools prompt
-            const { MCP_PROMPTS } = await import('../../prompts/mcp/index.js');
-            const planPrompt = MCP_PROMPTS.TETYANA_PLAN_TOOLS;
+        return summary;
+      });
 
-            // FIXED 15.10.2025 - Truncate execution_results to prevent 413 errors
-            const previousItemsSummary = todo.items.slice(0, item.id - 1).map(i => {
-                const summary = {
-                    id: i.id,
-                    action: i.action,
-                    status: i.status
-                };
+      // OPTIMIZATION 15.10.2025 - Substitute {{AVAILABLE_TOOLS}} placeholder with compact summary
+      let systemPrompt = planPrompt.systemPrompt || planPrompt.SYSTEM_PROMPT;
+      if (systemPrompt.includes('{{AVAILABLE_TOOLS}}')) {
+        systemPrompt = systemPrompt.replace('{{AVAILABLE_TOOLS}}', toolsSummary);
+        this.logger.system('mcp-todo', `[TODO] Substituted {{AVAILABLE_TOOLS}} in prompt`);
+      }
 
-                // Include truncated execution_results if available
-                if (i.execution_results && i.execution_results.results) {
-                    summary.results_summary = i.execution_results.results.map(r => {
-                        const truncated = { tool: r.tool, success: r.success };
-                        // Truncate content/text to 200 chars max
-                        if (r.content && typeof r.content === 'string') {
-                            truncated.content = r.content.substring(0, 200) + (r.content.length > 200 ? '...[truncated]' : '');
-                        }
-                        if (r.text && typeof r.text === 'string') {
-                            truncated.text = r.text.substring(0, 200) + (r.text.length > 200 ? '...[truncated]' : '');
-                        }
-                        if (r.error) {
-                            truncated.error = typeof r.error === 'string' ? r.error.substring(0, 100) : 'error';
-                        }
-                        return truncated;
-                    });
-                }
-
-                return summary;
-            });
-
-            // OPTIMIZATION 15.10.2025 - Substitute {{AVAILABLE_TOOLS}} placeholder with compact summary
-            let systemPrompt = planPrompt.systemPrompt || planPrompt.SYSTEM_PROMPT;
-            if (systemPrompt.includes('{{AVAILABLE_TOOLS}}')) {
-                systemPrompt = systemPrompt.replace('{{AVAILABLE_TOOLS}}', toolsSummary);
-                this.logger.system('mcp-todo', `[TODO] Substituted {{AVAILABLE_TOOLS}} in prompt`);
-            }
-
-            const userMessage = `
+      const userMessage = `
 TODO Item: ${item.action}
 Success Criteria: ${item.success_criteria}
 Suggested Tools: ${item.tools_needed ? item.tools_needed.join(', ') : 'not specified'}
@@ -733,492 +806,436 @@ Previous items: ${JSON.stringify(previousItemsSummary, null, 2)}
 Create precise MCP tool execution plan.
 `;
 
-            // FIXED 13.10.2025 - Use correct API call format
-            // FIXED 14.10.2025 - Use MCP_MODEL_CONFIG for per-stage models
-            let apiResponse;
-            try {
-                const modelConfig = MCP_MODEL_CONFIG.getStageConfig('plan_tools');
+      // FIXED 13.10.2025 - Use correct API call format
+      // FIXED 14.10.2025 - Use MCP_MODEL_CONFIG for per-stage models
+      let apiResponse;
+      try {
+        const modelConfig = MCP_MODEL_CONFIG.getStageConfig('plan_tools');
 
-                // LOG MODEL SELECTION (ADDED 14.10.2025 - Debugging)
-                this.logger.system('mcp-todo', `[TODO] Planning tools with model: ${modelConfig.model} (temp: ${modelConfig.temperature}, max_tokens: ${modelConfig.max_tokens})`);
+        // LOG MODEL SELECTION (ADDED 14.10.2025 - Debugging)
+        this.logger.system('mcp-todo', `[TODO] Planning tools with model: ${modelConfig.model} (temp: ${modelConfig.temperature}, max_tokens: ${modelConfig.max_tokens})`);
 
-                // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
-                const apiEndpointConfig = MCP_MODEL_CONFIG.apiEndpoint;
-                const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
-                this.logger.system('mcp-todo', `[TODO] Calling LLM API at ${apiUrl}...`);
+        // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
+        const apiEndpointConfig = MCP_MODEL_CONFIG.apiEndpoint;
+        const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
+        this.logger.system('mcp-todo', `[TODO] Calling LLM API at ${apiUrl}...`);
 
-                // Wait for rate limit (ADDED 14.10.2025)
-                await this._waitForRateLimit();
+        // Wait for rate limit (ADDED 14.10.2025)
+        await this._waitForRateLimit();
 
-                // FIXED 14.10.2025 - Increase timeout for reasoning models
-                // FIXED 15.10.2025 - Increase to 180s for ALL models (web scraping може бути повільним)
-                const isReasoningModel = modelConfig.model.includes('reasoning') || modelConfig.model.includes('phi-4');
-                const timeoutMs = isReasoningModel ? 180000 : 120000;  // 180s for reasoning, 120s for others
+        // FIXED 14.10.2025 - Increase timeout for reasoning models
+        // FIXED 15.10.2025 - Increase to 180s for ALL models (web scraping може бути повільним)
+        const isReasoningModel = modelConfig.model.includes('reasoning') || modelConfig.model.includes('phi-4');
+        const timeoutMs = isReasoningModel ? 180000 : 120000;  // 180s for reasoning, 120s for others
 
-                apiResponse = await axios.post(apiUrl, {
-                    model: modelConfig.model,
-                    messages: [
-                        {
-                            role: 'system',
-                            content: systemPrompt  // FIXED: Use substituted systemPrompt, not original planPrompt.systemPrompt
-                        },
-                        {
-                            role: 'user',
-                            content: userMessage
-                        }
-                    ],
-                    temperature: modelConfig.temperature,
-                    max_tokens: modelConfig.max_tokens
-                }, {
-                    headers: { 'Content-Type': 'application/json' },
-                    timeout: timeoutMs,
-                    maxContentLength: 50 * 1024 * 1024,  // 50MB
-                    maxBodyLength: 50 * 1024 * 1024  // 50MB
-                });
-
-                this.logger.system('mcp-todo', `[TODO] LLM API responded successfully`);
-
-            } catch (apiError) {
-                // FIXED 14.10.2025 - Use correct logger signature for error() method
-                this.logger.error(`[MCP-TODO] LLM API call failed: ${apiError.message}`, {
-                    category: 'mcp-todo',
-                    component: 'mcp-todo',
-                    errorName: apiError.name,
-                    code: apiError.code,
-                    stack: apiError.stack
-                });
-                if (apiError.code === 'ECONNREFUSED') {
-                    throw new Error('LLM API not available at localhost:4000. Start it with: ./start-llm-api-4000.sh');
-                }
-                throw new Error(`LLM API error: ${apiError.message}`);
+        apiResponse = await axios.post(apiUrl, {
+          model: modelConfig.model,
+          messages: [
+            {
+              role: 'system',
+              content: systemPrompt  // FIXED: Use substituted systemPrompt, not original planPrompt.systemPrompt
+            },
+            {
+              role: 'user',
+              content: userMessage
             }
+          ],
+          temperature: modelConfig.temperature,
+          max_tokens: modelConfig.max_tokens
+        }, {
+          headers: { 'Content-Type': 'application/json' },
+          timeout: timeoutMs,
+          maxContentLength: 50 * 1024 * 1024,  // 50MB
+          maxBodyLength: 50 * 1024 * 1024  // 50MB
+        });
 
-            // FIXED 16.10.2025 - Add validation for API response structure
-            if (!apiResponse.data?.choices?.[0]?.message?.content) {
-                throw new Error('Invalid API response structure: missing content');
-            }
+        this.logger.system('mcp-todo', `[TODO] LLM API responded successfully`);
 
-            const response = apiResponse.data.choices[0].message.content;
-
-            // DIAGNOSTIC: Log raw response
-            this.logger.system('mcp-todo', `[TODO] Raw LLM response (first 200 chars): ${response.substring(0, 200)}`);
-            this.logger.system('mcp-todo', `[TODO] Full LLM response: ${response}`);
-
-            const plan = this._parseToolPlan(response);
-            this.logger.system('mcp-todo', `[TODO] Parsed plan: ${JSON.stringify(plan, null, 2)}`);
-
-            plan.tts_phrase = this._generatePlanTTS(plan, item);
-
-            this.logger.system('mcp-todo', `[TODO] Planned ${plan.tool_calls.length} tool calls for item ${item.id}`);
-
-            // DIAGNOSTIC: Check if tool_calls is empty
-            if (!plan.tool_calls || plan.tool_calls.length === 0) {
-                // FIXED 14.10.2025 - Use correct logger signature for warn() method
-                this.logger.warn(`[MCP-TODO] Warning: No tool calls in plan! Plan: ${JSON.stringify(plan)}`, {
-                    category: 'mcp-todo',
-                    component: 'mcp-todo',
-                    plan
-                });
-                throw new Error('No tool calls generated - plan is empty');
-            }
-
-            return plan;
-
-        } catch (error) {
-            // FIXED 14.10.2025 - Use correct logger signature for error() method
-            this.logger.error(`[MCP-TODO] Failed to plan tools for item ${item.id}: ${error.message}`, {
-                category: 'mcp-todo',
-                component: 'mcp-todo',
-                itemId: item.id,
-                errorName: error.name,
-                stack: error.stack
-            });
-            throw new Error(`Tool planning failed: ${error.message}`);
+      } catch (apiError) {
+        // FIXED 14.10.2025 - Use correct logger signature for error() method
+        this.logger.error(`[MCP-TODO] LLM API call failed: ${apiError.message}`, {
+          category: 'mcp-todo',
+          component: 'mcp-todo',
+          errorName: apiError.name,
+          code: apiError.code,
+          stack: apiError.stack
+        });
+        if (apiError.code === 'ECONNREFUSED') {
+          throw new Error('LLM API not available at localhost:4000. Start it with: ./start-llm-api-4000.sh');
         }
-    }
+        throw new Error(`LLM API error: ${apiError.message}`);
+      }
 
-    /**
+      // FIXED 16.10.2025 - Add validation for API response structure
+      if (!apiResponse.data?.choices?.[0]?.message?.content) {
+        throw new Error('Invalid API response structure: missing content');
+      }
+
+      const response = apiResponse.data.choices[0].message.content;
+
+      // DIAGNOSTIC: Log raw response
+      this.logger.system('mcp-todo', `[TODO] Raw LLM response (first 200 chars): ${response.substring(0, 200)}`);
+      this.logger.system('mcp-todo', `[TODO] Full LLM response: ${response}`);
+
+      const plan = this._parseToolPlan(response);
+      this.logger.system('mcp-todo', `[TODO] Parsed plan: ${JSON.stringify(plan, null, 2)}`);
+
+      plan.tts_phrase = this._generatePlanTTS(plan, item);
+
+      this.logger.system('mcp-todo', `[TODO] Planned ${plan.tool_calls.length} tool calls for item ${item.id}`);
+
+      // DIAGNOSTIC: Check if tool_calls is empty
+      if (!plan.tool_calls || plan.tool_calls.length === 0) {
+        // FIXED 14.10.2025 - Use correct logger signature for warn() method
+        this.logger.warn(`[MCP-TODO] Warning: No tool calls in plan! Plan: ${JSON.stringify(plan)}`, {
+          category: 'mcp-todo',
+          component: 'mcp-todo',
+          plan
+        });
+        throw new Error('No tool calls generated - plan is empty');
+      }
+
+      return plan;
+
+    } catch (error) {
+      // FIXED 14.10.2025 - Use correct logger signature for error() method
+      this.logger.error(`[MCP-TODO] Failed to plan tools for item ${item.id}: ${error.message}`, {
+        category: 'mcp-todo',
+        component: 'mcp-todo',
+        itemId: item.id,
+        errorName: error.name,
+        stack: error.stack
+      });
+      throw new Error(`Tool planning failed: ${error.message}`);
+    }
+  }
+
+  /**
      * Screenshot and Adjust (Stage 2.1.5 - Tetyana)
      * Takes screenshot of current state and optionally adjusts the plan
-     * 
+     *
      * @param {Object} plan - Original tool execution plan
      * @param {TodoItem} item - Item being executed
      * @returns {Promise<Object>} Potentially adjusted plan with screenshot info
      */
-    async screenshotAndAdjust(plan, item) {
-        this.logger.system('mcp-todo', `[TODO] 📸 Taking screenshot and analyzing plan for item ${item.id}`);
+  async screenshotAndAdjust(plan, item) {
+    this.logger.system('mcp-todo', `[TODO] 📸 Taking screenshot and analyzing plan for item ${item.id}`);
 
+    try {
+      // Step 1: Take screenshot (always)
+      let screenshotPath = null;
+      let screenshotTool = null;
+
+      // Determine best screenshot method
+      const hasPlaywright = this.mcpManager.getServer('playwright');
+      const hasShell = this.mcpManager.getServer('shell');
+
+      if (hasPlaywright) {
+        // Prefer playwright screenshot (captures active window)
         try {
-            // Step 1: Take screenshot (always)
-            let screenshotPath = null;
-            let screenshotTool = null;
-
-            // Determine best screenshot method
-            const hasPlaywright = this.mcpManager.getServer('playwright');
-            const hasShell = this.mcpManager.getServer('shell');
-
-            if (hasPlaywright) {
-                // Prefer playwright screenshot (captures active window)
-                try {
-                    screenshotPath = `/tmp/atlas_task_${item.id}_before.png`;
-                    await this.mcpManager.executeTool('playwright', 'playwright_screenshot', {
-                        path: screenshotPath,
-                        full_page: false
-                    });
-                    screenshotTool = 'playwright';
-                    this.logger.system('mcp-todo', `[TODO] 📸 Screenshot saved via playwright: ${screenshotPath}`);
-                } catch (playwrightError) {
-                    this.logger.warn(`[MCP-TODO] Playwright screenshot failed: ${playwrightError.message}`, {
-                        category: 'mcp-todo',
-                        component: 'mcp-todo'
-                    });
-                    // Fall back to shell
-                    hasShell && await this._takeShellScreenshot(item.id);
-                }
-            } else if (hasShell) {
-                screenshotPath = await this._takeShellScreenshot(item.id);
-                screenshotTool = 'shell';
-            } else {
-                this.logger.warn('[MCP-TODO] No screenshot tools available (playwright/shell)', {
-                    category: 'mcp-todo',
-                    component: 'mcp-todo'
-                });
-            }
-
-            // Step 2: Call LLM to analyze screenshot and decide on adjustment
-            const { MCP_PROMPTS } = await import('../../prompts/mcp/index.js');
-            const adjustPrompt = MCP_PROMPTS.TETYANA_SCREENSHOT_AND_ADJUST;
-
-            const userMessage = adjustPrompt.userPrompt
-                .replace('{{ACTION}}', item.action)
-                .replace('{{SUCCESS_CRITERIA}}', item.success_criteria)
-                .replace('{{CURRENT_PLAN}}', JSON.stringify(plan, null, 2));
-
-            const modelConfig = MCP_MODEL_CONFIG.getStageConfig('plan_tools'); // Reuse same model as planning
-
-            this.logger.system('mcp-todo', `[TODO] Analyzing screenshot with model: ${modelConfig.model}`);
-
-            await this._waitForRateLimit();
-
-            // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
-            const apiEndpointConfig = MCP_MODEL_CONFIG.apiEndpoint;
-            const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
-
-            const apiResponse = await axios.post(apiUrl, {
-                model: modelConfig.model,
-                messages: [
-                    { role: 'system', content: adjustPrompt.systemPrompt },
-                    { role: 'user', content: userMessage }
-                ],
-                temperature: 0.2, // Lower temperature for precise analysis
-                max_tokens: 2000
-            }, {
-                headers: { 'Content-Type': 'application/json' },
-                timeout: 120000
-            });
-
-            const response = apiResponse.data.choices[0].message.content;
-            this.logger.system('mcp-todo', `[TODO] Screenshot analysis response: ${response.substring(0, 200)}...`);
-
-            // Parse adjustment decision
-            const adjustment = this._parseScreenshotAdjustment(response);
-
-            // Log decision
-            if (adjustment.needs_adjustment) {
-                this.logger.system('mcp-todo', `[TODO] 🔧 Plan adjustment needed: ${adjustment.adjustment_reason}`);
-                this._sendChatMessage(`🔧 Коригую план: ${adjustment.adjustment_reason}`, 'tetyana');
-            } else {
-                this.logger.system('mcp-todo', `[TODO] ✅ Plan approved, proceeding with execution`);
-            }
-
-            // Return adjusted or original plan
-            const finalPlan = adjustment.needs_adjustment && adjustment.adjusted_plan
-                ? { ...adjustment.adjusted_plan, tts_phrase: adjustment.tts_phrase }
-                : { ...plan, tts_phrase: adjustment.tts_phrase || 'Скрін готовий' };
-
-            return {
-                plan: finalPlan,
-                screenshot: {
-                    path: screenshotPath,
-                    tool: screenshotTool,
-                    analysis: adjustment.screenshot_analysis
-                },
-                adjusted: adjustment.needs_adjustment,
-                reason: adjustment.adjustment_reason
-            };
-
-        } catch (error) {
-            this.logger.error(`[MCP-TODO] Screenshot and adjust failed: ${error.message}`, {
-                category: 'mcp-todo',
-                component: 'mcp-todo',
-                itemId: item.id,
-                stack: error.stack
-            });
-            // Don't fail the whole task - return original plan
-            this.logger.warn('[MCP-TODO] Continuing with original plan despite screenshot failure', {
-                category: 'mcp-todo',
-                component: 'mcp-todo'
-            });
-            return {
-                plan,
-                screenshot: null,
-                adjusted: false,
-                reason: 'Screenshot failed, using original plan'
-            };
+          screenshotPath = `/tmp/atlas_task_${item.id}_before.png`;
+          await this.mcpManager.executeTool('playwright', 'playwright_screenshot', {
+            path: screenshotPath,
+            full_page: false
+          });
+          screenshotTool = 'playwright';
+          this.logger.system('mcp-todo', `[TODO] 📸 Screenshot saved via playwright: ${screenshotPath}`);
+        } catch (playwrightError) {
+          this.logger.warn(`[MCP-TODO] Playwright screenshot failed: ${playwrightError.message}`, {
+            category: 'mcp-todo',
+            component: 'mcp-todo'
+          });
+          // Fall back to shell
+          hasShell && await this._takeShellScreenshot(item.id);
         }
-    }
+      } else if (hasShell) {
+        screenshotPath = await this._takeShellScreenshot(item.id);
+        screenshotTool = 'shell';
+      } else {
+        this.logger.warn('[MCP-TODO] No screenshot tools available (playwright/shell)', {
+          category: 'mcp-todo',
+          component: 'mcp-todo'
+        });
+      }
 
-    /**
+      // Step 2: Call LLM to analyze screenshot and decide on adjustment
+      const { MCP_PROMPTS } = await import('../../prompts/mcp/index.js');
+      const adjustPrompt = MCP_PROMPTS.TETYANA_SCREENSHOT_AND_ADJUST;
+
+      const userMessage = adjustPrompt.userPrompt
+        .replace('{{ACTION}}', item.action)
+        .replace('{{SUCCESS_CRITERIA}}', item.success_criteria)
+        .replace('{{CURRENT_PLAN}}', JSON.stringify(plan, null, 2));
+
+      const modelConfig = MCP_MODEL_CONFIG.getStageConfig('plan_tools'); // Reuse same model as planning
+
+      this.logger.system('mcp-todo', `[TODO] Analyzing screenshot with model: ${modelConfig.model}`);
+
+      await this._waitForRateLimit();
+
+      // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
+      const apiEndpointConfig = MCP_MODEL_CONFIG.apiEndpoint;
+      const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
+
+      const apiResponse = await axios.post(apiUrl, {
+        model: modelConfig.model,
+        messages: [
+          { role: 'system', content: adjustPrompt.systemPrompt },
+          { role: 'user', content: userMessage }
+        ],
+        temperature: 0.2, // Lower temperature for precise analysis
+        max_tokens: 2000
+      }, {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 120000
+      });
+
+      const response = apiResponse.data.choices[0].message.content;
+      this.logger.system('mcp-todo', `[TODO] Screenshot analysis response: ${response.substring(0, 200)}...`);
+
+      // Parse adjustment decision
+      const adjustment = this._parseScreenshotAdjustment(response);
+
+      // Log decision
+      if (adjustment.needs_adjustment) {
+        this.logger.system('mcp-todo', `[TODO] 🔧 Plan adjustment needed: ${adjustment.adjustment_reason}`);
+        this._sendChatMessage(`🔧 Коригую план: ${adjustment.adjustment_reason}`, 'tetyana');
+      } else {
+        this.logger.system('mcp-todo', `[TODO] ✅ Plan approved, proceeding with execution`);
+      }
+
+      // Return adjusted or original plan
+      const finalPlan = adjustment.needs_adjustment && adjustment.adjusted_plan
+        ? { ...adjustment.adjusted_plan, tts_phrase: adjustment.tts_phrase }
+        : { ...plan, tts_phrase: adjustment.tts_phrase || 'Скрін готовий' };
+
+      return {
+        plan: finalPlan,
+        screenshot: {
+          path: screenshotPath,
+          tool: screenshotTool,
+          analysis: adjustment.screenshot_analysis
+        },
+        adjusted: adjustment.needs_adjustment,
+        reason: adjustment.adjustment_reason
+      };
+
+    } catch (error) {
+      this.logger.error(`[MCP-TODO] Screenshot and adjust failed: ${error.message}`, {
+        category: 'mcp-todo',
+        component: 'mcp-todo',
+        itemId: item.id,
+        stack: error.stack
+      });
+      // Don't fail the whole task - return original plan
+      this.logger.warn('[MCP-TODO] Continuing with original plan despite screenshot failure', {
+        category: 'mcp-todo',
+        component: 'mcp-todo'
+      });
+      return {
+        plan,
+        screenshot: null,
+        adjusted: false,
+        reason: 'Screenshot failed, using original plan'
+      };
+    }
+  }
+
+  /**
      * Helper: Take screenshot using shell command
      * @private
      */
-    async _takeShellScreenshot(itemId) {
-        const screenshotPath = `/tmp/atlas_task_${itemId}_before.png`;
-        await this.mcpManager.executeTool('shell', 'execute_command', {
-            command: `screencapture -x ${screenshotPath}`
-        });
-        this.logger.system('mcp-todo', `[TODO] 📸 Screenshot saved via shell: ${screenshotPath}`);
-        return screenshotPath;
-    }
+  async _takeShellScreenshot(itemId) {
+    const screenshotPath = `/tmp/atlas_task_${itemId}_before.png`;
+    await this.mcpManager.executeTool('shell', 'execute_command', {
+      command: `screencapture -x ${screenshotPath}`
+    });
+    this.logger.system('mcp-todo', `[TODO] 📸 Screenshot saved via shell: ${screenshotPath}`);
+    return screenshotPath;
+  }
 
-    /**
+  /**
      * Execute planned MCP tools (Stage 2.2 - Tetyana)
-     * 
+     *
      * @param {Object} plan - Tool execution plan
      * @param {TodoItem} item - Item being executed
      * @returns {Promise<Object>} Execution results
      */
-    async executeTools(plan, item) {
-        this.logger.system('mcp-todo', `[TODO] Executing ${plan.tool_calls.length} tool calls for item ${item.id}`);
+  async executeTools(plan, item) {
+    this.logger.system('mcp-todo', `[TODO] Executing ${plan.tool_calls.length} tool calls for item ${item.id}`);
 
-        const results = [];
-        let allSuccessful = true;
+    const results = [];
+    let allSuccessful = true;
 
-        for (const toolCall of plan.tool_calls) {
-            let parameters = { ...(toolCall.parameters || {}) };
+    for (const toolCall of plan.tool_calls) {
+      let parameters = { ...(toolCall.parameters || {}) };
 
-            try {
-                this.logger.system('mcp-todo', `[TODO] Calling ${toolCall.tool} on ${toolCall.server}`);
+      try {
+        this.logger.system('mcp-todo', `[TODO] Calling ${toolCall.tool} on ${toolCall.server}`);
 
-                // Auto-correct AppleScript parameters if LLM used legacy field names
-                if (toolCall.server === 'applescript' && toolCall.tool === 'applescript_execute') {
-                    if (!parameters.code_snippet && typeof parameters.script === 'string') {
-                        parameters.code_snippet = parameters.script;
-                        this.logger.system('mcp-todo', '[TODO] Auto-filled code_snippet from script for applescript_execute');
-                    }
-                    if (!parameters.code_snippet && typeof parameters.code === 'string') {
-                        parameters.code_snippet = parameters.code;
-                        this.logger.system('mcp-todo', '[TODO] Auto-filled code_snippet from code for applescript_execute');
-                    }
-                    if (!parameters.language) {
-                        parameters.language = 'applescript';
-                        this.logger.system('mcp-todo', '[TODO] Defaulted AppleScript language parameter to "applescript"');
-                    }
-                }
-
-                // Auto-correct Playwright parameters if LLM used wrong field names (FIXED 2025-10-17)
-                if (toolCall.server === 'playwright') {
-                    // playwright_fill: correct 'text' → 'value'
-                    if (toolCall.tool === 'playwright_fill') {
-                        if (!parameters.value && parameters.text) {
-                            parameters.value = parameters.text;
-                            delete parameters.text;
-                            this.logger.warn('mcp-todo', `[TODO] ⚠️ Auto-corrected playwright_fill: 'text' → 'value' (value="${parameters.value}")`);
-                        }
-                        if (!parameters.value && parameters.input) {
-                            parameters.value = parameters.input;
-                            delete parameters.input;
-                            this.logger.warn('mcp-todo', `[TODO] ⚠️ Auto-corrected playwright_fill: 'input' → 'value' (value="${parameters.value}")`);
-                        }
-                        if (!parameters.value && parameters.content) {
-                            parameters.value = parameters.content;
-                            delete parameters.content;
-                            this.logger.warn('mcp-todo', `[TODO] ⚠️ Auto-corrected playwright_fill: 'content' → 'value' (value="${parameters.value}")`);
-                        }
-                    }
-
-                    // playwright_click: correct 'element'/'target' → 'selector'
-                    if (toolCall.tool === 'playwright_click') {
-                        if (!parameters.selector && parameters.element) {
-                            parameters.selector = parameters.element;
-                            delete parameters.element;
-                            this.logger.warn('mcp-todo', `[TODO] ⚠️ Auto-corrected playwright_click: 'element' → 'selector' (selector="${parameters.selector}")`);
-                        }
-                        if (!parameters.selector && parameters.target) {
-                            parameters.selector = parameters.target;
-                            delete parameters.target;
-                            this.logger.warn('mcp-todo', `[TODO] ⚠️ Auto-corrected playwright_click: 'target' → 'selector' (selector="${parameters.selector}")`);
-                        }
-                    }
-
-                    // playwright_navigate: correct 'link'/'address' → 'url'
-                    if (toolCall.tool === 'playwright_navigate') {
-                        if (!parameters.url && parameters.link) {
-                            parameters.url = parameters.link;
-                            delete parameters.link;
-                            this.logger.warn('mcp-todo', `[TODO] ⚠️ Auto-corrected playwright_navigate: 'link' → 'url' (url="${parameters.url}")`);
-                        }
-                        if (!parameters.url && parameters.address) {
-                            parameters.url = parameters.address;
-                            delete parameters.address;
-                            this.logger.warn('mcp-todo', `[TODO] ⚠️ Auto-corrected playwright_navigate: 'address' → 'url' (url="${parameters.url}")`);
-                        }
-                    }
-
-                    // playwright_get_visible_text: correct 'element' → 'selector'
-                    if (toolCall.tool === 'playwright_get_visible_text') {
-                        if (!parameters.selector && parameters.element) {
-                            parameters.selector = parameters.element;
-                            delete parameters.element;
-                            this.logger.warn('mcp-todo', `[TODO] ⚠️ Auto-corrected playwright_get_visible_text: 'element' → 'selector' (selector="${parameters.selector}")`);
-                        }
-                    }
-                }
-
-                // Log final parameters BEFORE execution (diagnostic - ADDED 2025-10-17)
-                this.logger.debug('mcp-todo', `[TOOL-PARAMS] ${toolCall.server}.${toolCall.tool} parameters:`, {
-                    original: toolCall.parameters,
-                    final: parameters,
-                    corrected: JSON.stringify(parameters) !== JSON.stringify(toolCall.parameters)
-                });
-
-                const result = await this.mcpManager.executeTool(
-                    toolCall.server,
-                    toolCall.tool,
-                    parameters
-                );
-
-                // Log result structure for validation layer development (diagnostic - ADDED 2025-10-17)
-                this.logger.debug('mcp-todo', `[TOOL-RESULT] ${toolCall.server}.${toolCall.tool} returned:`, {
-                    resultType: typeof result,
-                    resultKeys: result && typeof result === 'object' ? Object.keys(result) : [],
-                    isError: result?.isError || false,
-                    hasContent: !!result?.content,
-                    contentType: typeof result?.content,
-                    contentLength: typeof result?.content === 'string' ? result.content.length :
-                        Array.isArray(result?.content) ? result.content.length : 0
-                });
-
-                results.push({
-                    tool: toolCall.tool,
-                    server: toolCall.server,
-                    success: true,
-                    result
-                });
-
-            } catch (error) {
-                // Enhanced diagnostics: include stack and toolCall metadata
-                // FIXED 14.10.2025 - Use correct logger signature for error() method
-                this.logger.error(`[MCP-TODO] Tool ${toolCall.tool} on ${toolCall.server} failed: ${error.message}`, {
-                    category: 'mcp-todo',
-                    component: 'mcp-todo',
-                    toolCall,
-                    server: toolCall.server,
-                    itemId: item.id,
-                    errorName: error.name,
-                    stack: error.stack
-                });
-
-                results.push({
-                    tool: toolCall.tool,
-                    server: toolCall.server,
-                    success: false,
-                    error: error.message,
-                    stack: error.stack || null,
-                    metadata: { ...toolCall, parameters }
-                });
-
-                allSuccessful = false;
-            }
+        // Auto-correct AppleScript parameters if LLM used legacy field names
+        if (toolCall.server === 'applescript' && toolCall.tool === 'applescript_execute') {
+          if (!parameters.code_snippet && typeof parameters.script === 'string') {
+            parameters.code_snippet = parameters.script;
+            this.logger.system('mcp-todo', '[TODO] Auto-filled code_snippet from script for applescript_execute');
+          }
+          if (!parameters.code_snippet && typeof parameters.code === 'string') {
+            parameters.code_snippet = parameters.code;
+            this.logger.system('mcp-todo', '[TODO] Auto-filled code_snippet from code for applescript_execute');
+          }
+          if (!parameters.language) {
+            parameters.language = 'applescript';
+            this.logger.system('mcp-todo', '[TODO] Defaulted AppleScript language parameter to "applescript"');
+          }
         }
 
-        // Count successful and failed calls
-        const successful_calls = results.filter(r => r.success).length;
-        const failed_calls = results.filter(r => !r.success).length;
+        // OPTIMIZED 2025-10-17: Generalized auto-correction system
+        parameters = this._autoCorrectParameters(toolCall.server, toolCall.tool, parameters);
 
-        const execution = {
-            results,
-            all_successful: allSuccessful,
-            successful_calls,
-            failed_calls,
-            tts_phrase: this._generateExecutionTTS(results, item, allSuccessful)
-        };
+        // Log final parameters BEFORE execution (diagnostic - ADDED 2025-10-17)
+        this.logger.debug('mcp-todo', `[TOOL-PARAMS] ${toolCall.server}.${toolCall.tool} parameters:`, {
+          original: toolCall.parameters,
+          final: parameters,
+          corrected: JSON.stringify(parameters) !== JSON.stringify(toolCall.parameters)
+        });
 
-        this.logger.system('mcp-todo', `[TODO] Tool execution ${allSuccessful ? 'successful' : 'partial'} for item ${item.id} (${successful_calls} succeeded, ${failed_calls} failed)`);
+        const result = await this.mcpManager.executeTool(
+          toolCall.server,
+          toolCall.tool,
+          parameters
+        );
 
-        return execution;
+        // Log result structure for validation layer development (diagnostic - ADDED 2025-10-17)
+        this.logger.debug('mcp-todo', `[TOOL-RESULT] ${toolCall.server}.${toolCall.tool} returned:`, {
+          resultType: typeof result,
+          resultKeys: result && typeof result === 'object' ? Object.keys(result) : [],
+          isError: result?.isError || false,
+          hasContent: !!result?.content,
+          contentType: typeof result?.content,
+          contentLength: typeof result?.content === 'string' ? result.content.length :
+            Array.isArray(result?.content) ? result.content.length : 0
+        });
+
+        results.push({
+          tool: toolCall.tool,
+          server: toolCall.server,
+          success: true,
+          result
+        });
+
+      } catch (error) {
+        // Enhanced diagnostics: include stack and toolCall metadata
+        // FIXED 14.10.2025 - Use correct logger signature for error() method
+        this.logger.error(`[MCP-TODO] Tool ${toolCall.tool} on ${toolCall.server} failed: ${error.message}`, {
+          category: 'mcp-todo',
+          component: 'mcp-todo',
+          toolCall,
+          server: toolCall.server,
+          itemId: item.id,
+          errorName: error.name,
+          stack: error.stack
+        });
+
+        results.push({
+          tool: toolCall.tool,
+          server: toolCall.server,
+          success: false,
+          error: error.message,
+          stack: error.stack || null,
+          metadata: { ...toolCall, parameters }
+        });
+
+        allSuccessful = false;
+      }
     }
 
-    /**
+    // Count successful and failed calls
+    const successful_calls = results.filter(r => r.success).length;
+    const failed_calls = results.filter(r => !r.success).length;
+
+    const execution = {
+      results,
+      all_successful: allSuccessful,
+      successful_calls,
+      failed_calls,
+      tts_phrase: this._generateExecutionTTS(results, item, allSuccessful)
+    };
+
+    this.logger.system('mcp-todo', `[TODO] Tool execution ${allSuccessful ? 'successful' : 'partial'} for item ${item.id} (${successful_calls} succeeded, ${failed_calls} failed)`);
+
+    return execution;
+  }
+
+  /**
      * Verify item execution (Stage 2.3 - Grisha)
      * REDESIGNED 16.10.2025 - Grisha now EXECUTES MCP tools for verification (screenshot, file checks, etc)
-     * 
+     *
      * @param {TodoItem} item - Item to verify
      * @param {Object} execution - Execution results from Tetyana
      * @returns {Promise<Object>} Verification result
      */
-    async verifyItem(item, execution, options = {}) {
-        this.logger.system('mcp-todo', `[TODO] 🔍 Grisha verifying item ${item.id}`);
-        // Skip verification start message - too verbose
+  async verifyItem(item, execution, options = {}) {
+    this.logger.system('mcp-todo', `[TODO] 🔍 Grisha verifying item ${item.id}`);
+    // Skip verification start message - too verbose
 
-        try {
-            // STEP 1: Grisha plans which verification tools to use (screenshot is mandatory)
-            this.logger.system('mcp-todo', `[TODO] 📋 Grisha planning verification tools...`);
-            const verificationPlan = await this._planVerificationTools(item, execution, options);
+    try {
+      // STEP 1: Grisha plans which verification tools to use (screenshot is mandatory)
+      this.logger.system('mcp-todo', `[TODO] 📋 Grisha planning verification tools...`);
+      const verificationPlan = await this._planVerificationTools(item, execution, options);
 
-            this.logger.system('mcp-todo', `[TODO] 📋 Grisha planned ${verificationPlan.tool_calls.length} verification tools`);
+      this.logger.system('mcp-todo', `[TODO] 📋 Grisha planned ${verificationPlan.tool_calls.length} verification tools`);
 
-            // STEP 2: Grisha executes verification tools
-            this.logger.system('mcp-todo', `[TODO] 🔧 Grisha executing verification tools...`);
-            const verificationResults = await this._executeVerificationTools(verificationPlan, item);
+      // STEP 2: Grisha executes verification tools
+      this.logger.system('mcp-todo', `[TODO] 🔧 Grisha executing verification tools...`);
+      const verificationResults = await this._executeVerificationTools(verificationPlan, item);
 
-            this.logger.system('mcp-todo', `[TODO] 🔧 Verification tools executed: ${verificationResults.all_successful ? 'SUCCESS' : 'PARTIAL'}`);
+      this.logger.system('mcp-todo', `[TODO] 🔧 Verification tools executed: ${verificationResults.all_successful ? 'SUCCESS' : 'PARTIAL'}`);
 
-            // STEP 3: Grisha analyzes results and makes final decision
-            this.logger.system('mcp-todo', `[TODO] 🧠 Grisha analyzing verification results...`);
-            const verification = await this._analyzeVerificationResults(item, execution, verificationResults, options);
+      // STEP 3: Grisha analyzes results and makes final decision
+      this.logger.system('mcp-todo', `[TODO] 🧠 Grisha analyzing verification results...`);
+      const verification = await this._analyzeVerificationResults(item, execution, verificationResults, options);
 
-            // Send chat message from Grisha
-            if (verification.verified) {
-                this._sendChatMessage(`✅ ✅ Перевірено: "${item.action}"\nПідтвердження: ${verification.evidence || verification.reason}`, 'grisha');
-            } else {
-                this._sendChatMessage(`⚠️ ❌ Не підтверджено: "${item.action}"\nПричина: ${verification.reason}`, 'grisha');
-            }
+      // Send chat message from Grisha
+      if (verification.verified) {
+        this._sendChatMessage(`✅ ✅ Перевірено: "${item.action}"\nПідтвердження: ${verification.evidence || verification.reason}`, 'grisha');
+      } else {
+        this._sendChatMessage(`⚠️ ❌ Не підтверджено: "${item.action}"\nПричина: ${verification.reason}`, 'grisha');
+      }
 
-            this.logger.system('mcp-todo', `[TODO] 🔍 Grisha verification result for item ${item.id}: ${verification.verified ? '✅ PASS' : '❌ FAIL'}`);
+      this.logger.system('mcp-todo', `[TODO] 🔍 Grisha verification result for item ${item.id}: ${verification.verified ? '✅ PASS' : '❌ FAIL'}`);
 
-            return verification;
+      return verification;
 
-        } catch (error) {
-            // FIXED 14.10.2025 - Use correct logger signature for error() method
-            this.logger.error(`[MCP-TODO] Failed to verify item ${item.id}: ${error.message}`, {
-                category: 'mcp-todo',
-                component: 'mcp-todo',
-                itemId: item.id,
-                errorName: error.name,
-                stack: error.stack
-            });
-            throw new Error(`Verification failed: ${error.message}`);
-        }
+    } catch (error) {
+      // FIXED 14.10.2025 - Use correct logger signature for error() method
+      this.logger.error(`[MCP-TODO] Failed to verify item ${item.id}: ${error.message}`, {
+        category: 'mcp-todo',
+        component: 'mcp-todo',
+        itemId: item.id,
+        errorName: error.name,
+        stack: error.stack
+      });
+      throw new Error(`Verification failed: ${error.message}`);
     }
+  }
 
-    /**
+  /**
      * Adjust TODO item on failure (Stage 3 - Atlas)
-     * 
+     *
      * @param {TodoItem} item - Failed item
      * @param {Object} verification - Verification result
      * @param {number} attempt - Current attempt number
      * @returns {Promise<Object>} Adjustment plan
      */
-    async adjustTodoItem(item, verification, attempt) {
-        this.logger.system('mcp-todo', `[TODO] Adjusting item ${item.id} after attempt ${attempt}`);
+  async adjustTodoItem(item, verification, attempt) {
+    this.logger.system('mcp-todo', `[TODO] Adjusting item ${item.id} after attempt ${attempt}`);
 
-        try {
-            // Import Atlas Adjust TODO prompt
-            const { MCP_PROMPTS } = await import('../../prompts/mcp/index.js');
-            const adjustPrompt = MCP_PROMPTS.ATLAS_ADJUST_TODO;
+    try {
+      // Import Atlas Adjust TODO prompt
+      const { MCP_PROMPTS } = await import('../../prompts/mcp/index.js');
+      const adjustPrompt = MCP_PROMPTS.ATLAS_ADJUST_TODO;
 
-            const userMessage = `
+      const userMessage = `
 Failed TODO Item: ${JSON.stringify(item, null, 2)}
 Verification: ${JSON.stringify(verification, null, 2)}
 Attempt: ${attempt}/${item.max_attempts}
@@ -1227,92 +1244,92 @@ Attempt: ${attempt}/${item.max_attempts}
 Стратегії: retry (повтор), modify (зміна параметрів), split (розділити), skip (пропустити).
 `;
 
-            // FIXED 13.10.2025 - Use correct API call format
-            // FIXED 14.10.2025 - Use MCP_MODEL_CONFIG for per-stage models
-            const modelConfig = MCP_MODEL_CONFIG.getStageConfig('adjust_todo');
+      // FIXED 13.10.2025 - Use correct API call format
+      // FIXED 14.10.2025 - Use MCP_MODEL_CONFIG for per-stage models
+      const modelConfig = MCP_MODEL_CONFIG.getStageConfig('adjust_todo');
 
-            // Wait for rate limit (ADDED 14.10.2025)
-            await this._waitForRateLimit();
+      // Wait for rate limit (ADDED 14.10.2025)
+      await this._waitForRateLimit();
 
-            // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
-            const apiEndpointConfig = MCP_MODEL_CONFIG.apiEndpoint;
-            const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
+      // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
+      const apiEndpointConfig = MCP_MODEL_CONFIG.apiEndpoint;
+      const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
 
-            const apiResponse = await axios.post(apiUrl, {
-                model: modelConfig.model,
-                messages: [
-                    {
-                        role: 'system',
-                        content: adjustPrompt.systemPrompt || adjustPrompt.SYSTEM_PROMPT
-                    },
-                    {
-                        role: 'user',
-                        content: userMessage
-                    }
-                ],
-                temperature: modelConfig.temperature,
-                max_tokens: modelConfig.max_tokens
-            }, {
-                headers: { 'Content-Type': 'application/json' },
-                timeout: 30000  // FIXED 14.10.2025 - Збільшено з 15s до 30s для adjustment
-            });
+      const apiResponse = await axios.post(apiUrl, {
+        model: modelConfig.model,
+        messages: [
+          {
+            role: 'system',
+            content: adjustPrompt.systemPrompt || adjustPrompt.SYSTEM_PROMPT
+          },
+          {
+            role: 'user',
+            content: userMessage
+          }
+        ],
+        temperature: modelConfig.temperature,
+        max_tokens: modelConfig.max_tokens
+      }, {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 30000  // FIXED 14.10.2025 - Збільшено з 15s до 30s для adjustment
+      });
 
-            const response = apiResponse.data.choices[0].message.content;
-            const adjustment = this._parseAdjustment(response);
+      const response = apiResponse.data.choices[0].message.content;
+      const adjustment = this._parseAdjustment(response);
 
-            this.logger.system('mcp-todo', `[TODO] Adjustment strategy for item ${item.id}: ${adjustment.strategy}`);
+      this.logger.system('mcp-todo', `[TODO] Adjustment strategy for item ${item.id}: ${adjustment.strategy}`);
 
-            return adjustment;
+      return adjustment;
 
-        } catch (error) {
-            this.logger.error(`[MCP-TODO] Failed to adjust item ${item.id}: ${error.message}`, { category: 'mcp-todo', component: 'mcp-todo' });
-            throw new Error(`Adjustment failed: ${error.message}`);
-        }
+    } catch (error) {
+      this.logger.error(`[MCP-TODO] Failed to adjust item ${item.id}: ${error.message}`, { category: 'mcp-todo', component: 'mcp-todo' });
+      throw new Error(`Adjustment failed: ${error.message}`);
     }
+  }
 
-    /**
+  /**
      * Check if item dependencies are satisfied
-     * 
+     *
      * @param {TodoItem} item - Item to check
      * @param {TodoList} todo - Parent TODO list
      * @returns {boolean} True if dependencies met
      */
-    _checkDependencies(item, todo) {
-        if (!item.dependencies || item.dependencies.length === 0) {
-            return true;
-        }
-
-        for (const depId of item.dependencies) {
-            const depItem = todo.items.find(i => i.id === depId);
-
-            if (!depItem || depItem.status !== 'completed') {
-                this.logger.warn(`[MCP-TODO] Dependency ${depId} not completed for item ${item.id}`, { category: 'mcp-todo', component: 'mcp-todo' });
-                return false;
-            }
-        }
-
-        return true;
+  _checkDependencies(item, todo) {
+    if (!item.dependencies || item.dependencies.length === 0) {
+      return true;
     }
 
-    /**
+    for (const depId of item.dependencies) {
+      const depItem = todo.items.find(i => i.id === depId);
+
+      if (!depItem || depItem.status !== 'completed') {
+        this.logger.warn(`[MCP-TODO] Dependency ${depId} not completed for item ${item.id}`, { category: 'mcp-todo', component: 'mcp-todo' });
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /**
      * Generate final summary (Stage 8-MCP)
-     * 
+     *
      * @param {TodoList} todo - Completed TODO list
      * @returns {Promise<Object>} Summary results
      */
-    async generateSummary(todo) {
-        this.logger.system('mcp-todo', `[TODO] Generating summary for TODO ${todo.id}`);
+  async generateSummary(todo) {
+    this.logger.system('mcp-todo', `[TODO] Generating summary for TODO ${todo.id}`);
 
-        const completedItems = todo.items.filter(i => i.status === 'completed');
-        const failedItems = todo.items.filter(i => i.status === 'failed');
-        const skippedItems = todo.items.filter(i => i.status === 'skipped');
+    const completedItems = todo.items.filter(i => i.status === 'completed');
+    const failedItems = todo.items.filter(i => i.status === 'failed');
+    const skippedItems = todo.items.filter(i => i.status === 'skipped');
 
-        const successRate = Math.round((completedItems.length / todo.items.length) * 100);
+    const successRate = Math.round((completedItems.length / todo.items.length) * 100);
 
-        // FIXED 14.10.2025 - Safe access to execution.total_attempts with fallback
-        const totalAttempts = todo.execution?.total_attempts || 0;
+    // FIXED 14.10.2025 - Safe access to execution.total_attempts with fallback
+    const totalAttempts = todo.execution?.total_attempts || 0;
 
-        const prompt = `
+    const prompt = `
 Original Request: ${todo.request}
 TODO Items: ${todo.items.length}
 Completed: ${completedItems.length}
@@ -1321,72 +1338,72 @@ Skipped: ${skippedItems.length}
 Total Attempts: ${totalAttempts}
 
 Results: ${JSON.stringify(todo.items.map(i => ({
-            id: i.id,
-            action: i.action,
-            status: i.status,
-            verification: i.verification
-        })), null, 2)}
+    id: i.id,
+    action: i.action,
+    status: i.status,
+    verification: i.verification
+  })), null, 2)}
 
 Створи підсумковий звіт виконання.
 `;
 
-        // Use axios POST to local LLM endpoint for consistent response structure
-        // FIXED 14.10.2025 - Use MCP_MODEL_CONFIG for per-stage models
-        let llmText = '';
-        try {
-            const modelConfig = MCP_MODEL_CONFIG.getStageConfig('final_summary');
+    // Use axios POST to local LLM endpoint for consistent response structure
+    // FIXED 14.10.2025 - Use MCP_MODEL_CONFIG for per-stage models
+    let llmText = '';
+    try {
+      const modelConfig = MCP_MODEL_CONFIG.getStageConfig('final_summary');
 
-            // Wait for rate limit (ADDED 14.10.2025)
-            await this._waitForRateLimit();
+      // Wait for rate limit (ADDED 14.10.2025)
+      await this._waitForRateLimit();
 
-            // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
-            const apiEndpointConfig = MCP_MODEL_CONFIG.apiEndpoint;
-            const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
+      // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
+      const apiEndpointConfig = MCP_MODEL_CONFIG.apiEndpoint;
+      const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
 
-            const apiResponse = await axios.post(apiUrl, {
-                model: modelConfig.model,
-                messages: [
-                    { role: 'system', content: 'MCP_FINAL_SUMMARY' },
-                    { role: 'user', content: prompt }
-                ],
-                temperature: modelConfig.temperature,
-                max_tokens: modelConfig.max_tokens
-            }, {
-                headers: { 'Content-Type': 'application/json' },
-                timeout: 20000
-            });
+      const apiResponse = await axios.post(apiUrl, {
+        model: modelConfig.model,
+        messages: [
+          { role: 'system', content: 'MCP_FINAL_SUMMARY' },
+          { role: 'user', content: prompt }
+        ],
+        temperature: modelConfig.temperature,
+        max_tokens: modelConfig.max_tokens
+      }, {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 20000
+      });
 
-            llmText = apiResponse.data?.choices?.[0]?.message?.content || '';
-        } catch (err) {
-            this.logger.warn(`[MCP-TODO] LLM summary generation failed: ${err.message}`, { category: 'mcp-todo', component: 'mcp-todo', stack: err.stack });
-            // Fallback: create a minimal summary based on counts
-            llmText = `Summary generation failed: ${err.message}. Completed ${completedItems.length}/${todo.items.length} items.`;
-        }
-
-        const summary = {
-            success_rate: successRate,
-            completed_items: completedItems.length,
-            failed_items: failedItems.length,
-            skipped_items: skippedItems.length,
-            total_attempts: totalAttempts,  // FIXED 14.10.2025 - Use safe variable
-            summary: llmText,
-            key_results: completedItems.map(i => ({
-                action: i.action,
-                results: i.execution_results
-            })),
-            issues: failedItems.map(i => ({
-                action: i.action,
-                error: i.execution_results?.error
-            }))
-        };
-
-        return summary;
+      llmText = apiResponse.data?.choices?.[0]?.message?.content || '';
+    } catch (err) {
+      this.logger.warn(`[MCP-TODO] LLM summary generation failed: ${err.message}`, { category: 'mcp-todo', component: 'mcp-todo', stack: err.stack });
+      // Fallback: create a minimal summary based on counts
+      llmText = `Summary generation failed: ${err.message}. Completed ${completedItems.length}/${todo.items.length} items.`;
     }
 
-    // ==================== PRIVATE HELPER METHODS ====================
+    const summary = {
+      success_rate: successRate,
+      completed_items: completedItems.length,
+      failed_items: failedItems.length,
+      skipped_items: skippedItems.length,
+      total_attempts: totalAttempts,  // FIXED 14.10.2025 - Use safe variable
+      summary: llmText,
+      key_results: completedItems.map(i => ({
+        action: i.action,
+        results: i.execution_results
+      })),
+      issues: failedItems.map(i => ({
+        action: i.action,
+        error: i.execution_results?.error
+      }))
+    };
 
-    _buildTodoCreationPrompt(request, context) {
-        return `
+    return summary;
+  }
+
+  // ==================== PRIVATE HELPER METHODS ====================
+
+  _buildTodoCreationPrompt(request, context) {
+    return `
 User Request: ${request}
 Context: ${JSON.stringify(context, null, 2)}
 
@@ -1397,704 +1414,704 @@ Context: ${JSON.stringify(context, null, 2)}
 ❌ DO NOT wrap response in \`\`\`json ... \`\`\` 
 ✅ Return ONLY: {"mode": "...", "items": [...], ...}
 `;
+  }
+
+  _parseTodoResponse(response, request) {
+    // Parse LLM response into TodoList structure
+    // Expected JSON format from LLM
+    try {
+      // FIXED 13.10.2025 - Strip markdown code blocks (```json ... ```)
+      // FIXED 14.10.2025 - Extract JSON from text if LLM added explanation
+      // FIXED 14.10.2025 - Handle ellipsis patterns (...) in JSON
+      let cleanResponse = response;
+      if (typeof cleanResponse === 'string') {
+        // Remove markdown wrappers
+        cleanResponse = cleanResponse
+          .replace(/^```json\s*/i, '')
+          .replace(/^```\s*/i, '')
+          .replace(/\s*```$/i, '')
+          .trim();
+        // Remove JS-style comments (fix for LLM output)
+        cleanResponse = cleanResponse.replace(/\/\*[\s\S]*?\*\//g, '');
+      }
+      const parsed = JSON.parse(cleanResponse);
+
+      return {
+        id: `todo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        request,
+        mode: parsed.mode || 'standard',
+        complexity: parsed.complexity || 5,
+        items: parsed.items.map((item, idx) => ({
+          id: idx + 1,
+          action: item.action,
+          tools_needed: item.tools_needed || [],
+          mcp_servers: item.mcp_servers || [],
+          parameters: item.parameters || {},
+          success_criteria: item.success_criteria || 'Action completed without errors',
+          fallback_options: item.fallback_options || [],
+          dependencies: item.dependencies || [],
+          attempt: 0,
+          max_attempts: 3,
+          status: 'pending',
+          tts: {
+            start: item.tts?.start || `Виконую: ${item.action}`,
+            success: item.tts?.success || '✅ Виконано',
+            failure: item.tts?.failure || '❌ Помилка',
+            verify: item.tts?.verify || 'Перевіряю...'
+          }
+        })),
+        // FIXED 14.10.2025 - Initialize execution object to prevent undefined errors
+        execution: {
+          start_time: Date.now(),
+          end_time: null,
+          total_attempts: 0,
+          status: 'pending'
+        }
+      };
+    } catch (error) {
+      // FIXED 14.10.2025 - Better error logging with response preview
+      this.logger.error(`[MCP-TODO] Failed to parse TODO response: ${error.message}`, {
+        category: 'mcp-todo',
+        component: 'mcp-todo',
+        errorName: error.name,
+        responseLength: response?.length || 0,
+        responsePreview: response?.substring(0, 200) || 'N/A',
+        responseSuffix: response?.substring(Math.max(0, (response?.length || 0) - 100)) || 'N/A',
+        stack: error.stack
+      });
+      throw new Error(`Failed to parse TODO response: ${error.message}`);
+    }
+  }
+
+  _validateTodo(todo) {
+    if (!todo.items || todo.items.length === 0) {
+      throw new Error('TODO must have at least one item');
     }
 
-    _parseTodoResponse(response, request) {
-        // Parse LLM response into TodoList structure
-        // Expected JSON format from LLM
-        try {
-            // FIXED 13.10.2025 - Strip markdown code blocks (```json ... ```)
-            // FIXED 14.10.2025 - Extract JSON from text if LLM added explanation
-            // FIXED 14.10.2025 - Handle ellipsis patterns (...) in JSON
-            let cleanResponse = response;
-            if (typeof cleanResponse === 'string') {
-                // Remove markdown wrappers
-                cleanResponse = cleanResponse
-                    .replace(/^```json\s*/i, '')
-                    .replace(/^```\s*/i, '')
-                    .replace(/\s*```$/i, '')
-                    .trim();
-                // Remove JS-style comments (fix for LLM output)
-                cleanResponse = cleanResponse.replace(/\/\*[\s\S]*?\*\//g, '');
-            }
-            const parsed = JSON.parse(cleanResponse);
-
-            return {
-                id: `todo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                request,
-                mode: parsed.mode || 'standard',
-                complexity: parsed.complexity || 5,
-                items: parsed.items.map((item, idx) => ({
-                    id: idx + 1,
-                    action: item.action,
-                    tools_needed: item.tools_needed || [],
-                    mcp_servers: item.mcp_servers || [],
-                    parameters: item.parameters || {},
-                    success_criteria: item.success_criteria || 'Action completed without errors',
-                    fallback_options: item.fallback_options || [],
-                    dependencies: item.dependencies || [],
-                    attempt: 0,
-                    max_attempts: 3,
-                    status: 'pending',
-                    tts: {
-                        start: item.tts?.start || `Виконую: ${item.action}`,
-                        success: item.tts?.success || '✅ Виконано',
-                        failure: item.tts?.failure || '❌ Помилка',
-                        verify: item.tts?.verify || 'Перевіряю...'
-                    }
-                })),
-                // FIXED 14.10.2025 - Initialize execution object to prevent undefined errors
-                execution: {
-                    start_time: Date.now(),
-                    end_time: null,
-                    total_attempts: 0,
-                    status: 'pending'
-                }
-            };
-        } catch (error) {
-            // FIXED 14.10.2025 - Better error logging with response preview
-            this.logger.error(`[MCP-TODO] Failed to parse TODO response: ${error.message}`, {
-                category: 'mcp-todo',
-                component: 'mcp-todo',
-                errorName: error.name,
-                responseLength: response?.length || 0,
-                responsePreview: response?.substring(0, 200) || 'N/A',
-                responseSuffix: response?.substring(Math.max(0, (response?.length || 0) - 100)) || 'N/A',
-                stack: error.stack
-            });
-            throw new Error(`Failed to parse TODO response: ${error.message}`);
-        }
+    if (todo.mode === 'standard' && todo.items.length > 3) {
+      this.logger.warn(`[MCP-TODO] Standard mode has ${todo.items.length} items (recommended 1-3)`, { category: 'mcp-todo', component: 'mcp-todo' });
     }
 
-    _validateTodo(todo) {
-        if (!todo.items || todo.items.length === 0) {
-            throw new Error('TODO must have at least one item');
-        }
-
-        if (todo.mode === 'standard' && todo.items.length > 3) {
-            this.logger.warn(`[MCP-TODO] Standard mode has ${todo.items.length} items (recommended 1-3)`, { category: 'mcp-todo', component: 'mcp-todo' });
-        }
-
-        if (todo.mode === 'extended' && todo.items.length > 10) {
-            throw new Error('Extended mode cannot exceed 10 items');
-        }
-
-        // Validate dependencies
-        for (const item of todo.items) {
-            for (const depId of item.dependencies || []) {
-                if (!todo.items.find(i => i.id === depId)) {
-                    throw new Error(`Item ${item.id} has invalid dependency ${depId}`);
-                }
-                if (depId >= item.id) {
-                    throw new Error(`Item ${item.id} has forward/circular dependency ${depId}`);
-                }
-            }
-        }
+    if (todo.mode === 'extended' && todo.items.length > 10) {
+      throw new Error('Extended mode cannot exceed 10 items');
     }
 
-    _parseToolPlan(response) {
-        try {
-            // FIXED 13.10.2025 - Clean markdown wrappers before parsing
-            // FIXED 14.10.2025 - Extract JSON from text if LLM added explanation
-            // FIXED 14.10.2025 - Handle <think> tags from reasoning models (phi-4-reasoning)
-            // FIXED 14.10.2025 - Aggressive extraction: handle unclosed tags and extract JSON
-            // FIXED 14.10.2025 NIGHT - Ultra-aggressive: cut at <think>, then extract JSON
-            let cleanResponse = response;
-            if (typeof response === 'string') {
-                // Step 1: ULTRA-AGGRESSIVE - cut everything from <think> onwards
-                // phi-4-reasoning sometimes doesn't close tags - just remove everything after <think>
-                const thinkIndex = response.indexOf('<think>');
-                if (thinkIndex !== -1) {
-                    // Cut before <think> - reasoning models put <think> FIRST
-                    cleanResponse = response.substring(0, thinkIndex).trim();
-                } else {
-                    cleanResponse = response;
-                }
-
-                // Step 2: Clean markdown wrappers
-                cleanResponse = cleanResponse
-                    .replace(/^```json\s*/i, '')  // Remove opening ```json
-                    .replace(/^```\s*/i, '')       // Remove opening ```
-                    .replace(/\s*```$/i, '')       // Remove closing ```
-                    .trim();
-
-                // Step 3: Aggressive JSON extraction - find first { to last }
-                // This handles cases where LLM adds text before/after JSON
-                const firstBrace = cleanResponse.indexOf('{');
-                const lastBrace = cleanResponse.lastIndexOf('}');
-
-                if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-                    cleanResponse = cleanResponse.substring(firstBrace, lastBrace + 1);
-                } else {
-                    // No JSON found in response - try to extract from original
-                    // Some models put JSON AFTER <think>, so try original response too
-                    const origFirstBrace = response.indexOf('{');
-                    const origLastBrace = response.lastIndexOf('}');
-
-                    if (origFirstBrace !== -1 && origLastBrace !== -1 && origLastBrace > origFirstBrace) {
-                        cleanResponse = response.substring(origFirstBrace, origLastBrace + 1);
-                    } else {
-                        throw new Error('No JSON object found in response (no curly braces)');
-                    }
-                }
-            }
-
-            let parsed;
-            if (typeof cleanResponse === 'string') {
-                try {
-                    parsed = JSON.parse(cleanResponse);
-                } catch (parseError) {
-                    // FIXED 15.10.2025 - ALWAYS attempt sanitization on ANY parse error
-                    // Previous logic only sanitized for specific error patterns, missing some cases
-                    this.logger.warn(`[MCP-TODO] Initial JSON parse failed: ${parseError.message}. Attempting sanitization...`, {
-                        category: 'mcp-todo',
-                        component: 'mcp-todo',
-                        errorPosition: parseError.message.match(/position (\d+)/)?.[1] || 'unknown'
-                    });
-
-                    try {
-                        const sanitized = this._sanitizeJsonString(cleanResponse);
-                        parsed = JSON.parse(sanitized);
-                        this.logger.warn('[MCP-TODO] ✅ JSON sanitization successful for tool plan response', {
-                            category: 'mcp-todo',
-                            component: 'mcp-todo',
-                            originalError: parseError.message,
-                            originalLength: cleanResponse.length,
-                            sanitizedLength: sanitized.length
-                        });
-                    } catch (sanitizedError) {
-                        // Log both original and sanitized responses for debugging
-                        this.logger.error(`[MCP-TODO] ❌ JSON sanitization also failed. Original error: ${parseError.message}. Sanitized error: ${sanitizedError.message}`, {
-                            category: 'mcp-todo',
-                            component: 'mcp-todo',
-                            originalResponse: cleanResponse.substring(0, 500),
-                            originalError: parseError.message,
-                            sanitizedError: sanitizedError.message
-                        });
-                        sanitizedError.originalMessage = parseError.message;
-                        throw sanitizedError;
-                    }
-                }
-            } else {
-                parsed = cleanResponse;
-            }
-            return {
-                tool_calls: parsed.tool_calls || [],
-                reasoning: parsed.reasoning || ''
-            };
-        } catch (error) {
-            // Truncate long responses for logging
-            const truncatedResponse = typeof response === 'string' && response.length > 500
-                ? response.substring(0, 500) + '... [truncated]'
-                : response;
-            this.logger.error(`[MCP-TODO] Failed to parse tool plan. Raw response: ${truncatedResponse}`, {
-                category: 'mcp-todo',
-                component: 'mcp-todo',
-                parseError: error.message
-            });
-            throw new Error(`Failed to parse tool plan: ${error.message}`);
+    // Validate dependencies
+    for (const item of todo.items) {
+      for (const depId of item.dependencies || []) {
+        if (!todo.items.find(i => i.id === depId)) {
+          throw new Error(`Item ${item.id} has invalid dependency ${depId}`);
         }
+        if (depId >= item.id) {
+          throw new Error(`Item ${item.id} has forward/circular dependency ${depId}`);
+        }
+      }
     }
+  }
 
-    _parseVerification(response) {
-        try {
-            // FIXED 13.10.2025 - Clean markdown wrappers before parsing
-            // FIXED 14.10.2025 - Handle <think> tags from reasoning models
-            // FIXED 14.10.2025 - Aggressive extraction: handle unclosed tags
-            // FIXED 14.10.2025 NIGHT - Ultra-aggressive: cut at <think>, then extract JSON
-            let cleanResponse = response;
-            if (typeof response === 'string') {
-                // Step 1: ULTRA-AGGRESSIVE - cut everything from <think> onwards
-                const thinkIndex = response.indexOf('<think>');
-                if (thinkIndex !== -1) {
-                    cleanResponse = response.substring(0, thinkIndex).trim();
-                } else {
-                    cleanResponse = response;
-                }
-
-                // Step 2: Clean markdown wrappers
-                cleanResponse = cleanResponse
-                    .replace(/^```json\s*/i, '')  // Remove opening ```json
-                    .replace(/^```\s*/i, '')       // Remove opening ```
-                    .replace(/\s*```$/i, '')       // Remove closing ```
-                    .trim();
-
-                // Step 3: Aggressive JSON extraction - find first { to last }
-                const firstBrace = cleanResponse.indexOf('{');
-                const lastBrace = cleanResponse.lastIndexOf('}');
-
-                if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-                    cleanResponse = cleanResponse.substring(firstBrace, lastBrace + 1);
-                } else {
-                    // Try original response
-                    const origFirstBrace = response.indexOf('{');
-                    const origLastBrace = response.lastIndexOf('}');
-
-                    if (origFirstBrace !== -1 && origLastBrace !== -1 && origLastBrace > origFirstBrace) {
-                        cleanResponse = response.substring(origFirstBrace, origLastBrace + 1);
-                    } else {
-                        throw new Error('No JSON object found in response (no curly braces)');
-                    }
-                }
-            }
-
-            // FIXED 15.10.2025 - Use sanitization logic like _parseToolPlan
-            let parsed;
-            if (typeof cleanResponse === 'string') {
-                try {
-                    parsed = JSON.parse(cleanResponse);
-                } catch (parseError) {
-                    this.logger.warn(`[MCP-TODO] Verification JSON parse failed: ${parseError.message}. Attempting sanitization...`, {
-                        category: 'mcp-todo',
-                        component: 'mcp-todo'
-                    });
-
-                    try {
-                        const sanitized = this._sanitizeJsonString(cleanResponse);
-                        parsed = JSON.parse(sanitized);
-                        this.logger.warn('[MCP-TODO] ✅ Verification JSON sanitization successful', {
-                            category: 'mcp-todo',
-                            component: 'mcp-todo'
-                        });
-                    } catch (sanitizedError) {
-                        this.logger.error(`[MCP-TODO] ❌ Verification JSON sanitization failed: ${sanitizedError.message}`, {
-                            category: 'mcp-todo',
-                            component: 'mcp-todo',
-                            originalResponse: cleanResponse.substring(0, 500)
-                        });
-                        sanitizedError.originalMessage = parseError.message;
-                        throw sanitizedError;
-                    }
-                }
-            } else {
-                parsed = cleanResponse;
-            }
-
-            return {
-                verified: parsed.verified === true,
-                reason: parsed.reason || '',
-                evidence: parsed.evidence || {}
-            };
-        } catch (error) {
-            // НОВИНКА 14.10.2025 - Better error handling with fallback
-            const truncatedResponse = typeof response === 'string' && response.length > 500
-                ? response.substring(0, 500) + '... [truncated]'
-                : response;
-            this.logger.error(`[MCP-TODO] Failed to parse verification. Raw response: ${truncatedResponse}`, {
-                category: 'mcp-todo',
-                component: 'mcp-todo',
-                parseError: error.message
-            });
-            throw new Error(`Failed to parse verification: ${error.message}`);
-        }
-    }
-
-    _parseAdjustment(response) {
-        try {
-            // FIXED 13.10.2025 - Clean markdown wrappers before parsing
-            // FIXED 14.10.2025 - Extract JSON from text if LLM added explanation
-            // FIXED 14.10.2025 - Aggressive extraction: handle unclosed tags
-            // FIXED 14.10.2025 NIGHT - Ultra-aggressive: cut at <think>, then extract JSON
-            let cleanResponse = response;
-            if (typeof response === 'string') {
-                // Step 1: ULTRA-AGGRESSIVE - cut everything from <think> onwards
-                const thinkIndex = response.indexOf('<think>');
-                if (thinkIndex !== -1) {
-                    cleanResponse = response.substring(0, thinkIndex).trim();
-                } else {
-                    cleanResponse = response;
-                }
-
-                // Step 2: Clean markdown wrappers
-                cleanResponse = cleanResponse
-                    .replace(/^```json\s*/i, '')  // Remove opening ```json
-                    .replace(/^```\s*/i, '')       // Remove opening ```
-                    .replace(/\s*```$/i, '')       // Remove closing ```
-                    .trim();
-
-                // Step 3: Aggressive JSON extraction - find first { to last }
-                const firstBrace = cleanResponse.indexOf('{');
-                const lastBrace = cleanResponse.lastIndexOf('}');
-
-                if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-                    cleanResponse = cleanResponse.substring(firstBrace, lastBrace + 1);
-                } else {
-                    // Fallback: Try original response
-                    const origFirstBrace = response.indexOf('{');
-                    const origLastBrace = response.lastIndexOf('}');
-
-                    if (origFirstBrace !== -1 && origLastBrace !== -1 && origLastBrace > origFirstBrace) {
-                        cleanResponse = response.substring(origFirstBrace, origLastBrace + 1);
-                    } else {
-                        throw new Error('No JSON object found in response (no curly braces)');
-                    }
-                }
-            }
-
-            // FIXED 15.10.2025 - Use sanitization logic like _parseToolPlan
-            let parsed;
-            if (typeof cleanResponse === 'string') {
-                try {
-                    parsed = JSON.parse(cleanResponse);
-                } catch (parseError) {
-                    this.logger.warn(`[MCP-TODO] Adjustment JSON parse failed: ${parseError.message}. Attempting sanitization...`, {
-                        category: 'mcp-todo',
-                        component: 'mcp-todo'
-                    });
-
-                    try {
-                        const sanitized = this._sanitizeJsonString(cleanResponse);
-                        parsed = JSON.parse(sanitized);
-                        this.logger.warn('[MCP-TODO] ✅ Adjustment JSON sanitization successful', {
-                            category: 'mcp-todo',
-                            component: 'mcp-todo'
-                        });
-                    } catch (sanitizedError) {
-                        this.logger.error(`[MCP-TODO] ❌ Adjustment JSON sanitization failed: ${sanitizedError.message}`, {
-                            category: 'mcp-todo',
-                            component: 'mcp-todo',
-                            originalResponse: cleanResponse.substring(0, 500)
-                        });
-                        sanitizedError.originalMessage = parseError.message;
-                        throw sanitizedError;
-                    }
-                }
-            } else {
-                parsed = cleanResponse;
-            }
-
-            return {
-                strategy: parsed.strategy || 'retry',
-                updated_todo_item: parsed.updated_todo_item || {},
-                reasoning: parsed.reasoning || ''
-            };
-        } catch (error) {
-            const truncatedResponse = typeof response === 'string' && response.length > 500
-                ? response.substring(0, 500) + '... [truncated]'
-                : response;
-            this.logger.error(`[MCP-TODO] Failed to parse adjustment. Raw response: ${truncatedResponse}`, {
-                category: 'mcp-todo',
-                component: 'mcp-todo',
-                parseError: error.message
-            });
-            throw new Error(`Failed to parse adjustment: ${error.message}`);
-        }
-    }
-
-    _parseScreenshotAdjustment(response) {
-        try {
-            // Same aggressive cleaning as other parse methods
-            let cleanResponse = response;
-            if (typeof response === 'string') {
-                // Step 1: Cut everything from <think> onwards
-                const thinkIndex = response.indexOf('<think>');
-                if (thinkIndex !== -1) {
-                    cleanResponse = response.substring(0, thinkIndex).trim();
-                } else {
-                    cleanResponse = response;
-                }
-
-                // Step 2: Clean markdown wrappers
-                cleanResponse = cleanResponse
-                    .replace(/^```json\s*/i, '')
-                    .replace(/^```\s*/i, '')
-                    .replace(/\s*```$/i, '')
-                    .trim();
-
-                // Step 3: Extract JSON object
-                const firstBrace = cleanResponse.indexOf('{');
-                const lastBrace = cleanResponse.lastIndexOf('}');
-
-                if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-                    cleanResponse = cleanResponse.substring(firstBrace, lastBrace + 1);
-                }
-            }
-
-            // Parse JSON
-            let parsed;
-            if (typeof cleanResponse === 'string') {
-                try {
-                    parsed = JSON.parse(cleanResponse);
-                } catch (parseError) {
-                    // Try sanitization
-                    const sanitized = this._sanitizeJsonString(cleanResponse);
-                    parsed = JSON.parse(sanitized);
-                }
-            } else {
-                parsed = cleanResponse;
-            }
-
-            return {
-                screenshot_taken: parsed.screenshot_taken || false,
-                screenshot_analysis: parsed.screenshot_analysis || '',
-                needs_adjustment: parsed.needs_adjustment || false,
-                adjustment_reason: parsed.adjustment_reason || '',
-                adjusted_plan: parsed.adjusted_plan || null,
-                tts_phrase: parsed.tts_phrase || 'Скрін готовий'
-            };
-        } catch (error) {
-            this.logger.error(`[MCP-TODO] Failed to parse screenshot adjustment: ${error.message}`, {
-                category: 'mcp-todo',
-                component: 'mcp-todo',
-                response: response.substring(0, 300)
-            });
-            // Return safe fallback - no adjustment
-            return {
-                screenshot_taken: true,
-                screenshot_analysis: 'Помилка аналізу',
-                needs_adjustment: false,
-                adjustment_reason: '',
-                adjusted_plan: null,
-                tts_phrase: 'Скрін готовий'
-            };
-        }
-    }
-
-    _sanitizeJsonString(rawPayload) {
-        if (typeof rawPayload !== 'string') {
-            throw new TypeError('Expected string payload for JSON sanitization');
-        }
-
-        let sanitized = rawPayload.trim()
-            .replace(/\uFEFF/g, '')
-            .replace(/['‛'`´]/g, "'")
-            .replace(/[""]/g, '"');
-
-        // Quote property names that are missing double quotes.
-        sanitized = sanitized.replace(/([,{]\s*)([A-Za-z0-9_]+)\s*:/g, '$1"$2":');
-
-        // FIXED 17.10.2025 - Conservative trailing comma removal
-        // Only remove commas that are ACTUALLY trailing (before } or ])
-        // Do NOT remove commas between array/object elements
-
-        // Pass 1: Remove trailing commas before closing braces/brackets
-        // Pattern: comma followed by optional whitespace/newlines, then } or ]
-        sanitized = sanitized.replace(/,(\s*[\r\n\t\s]*)}(?![:,])/g, '}');
-        sanitized = sanitized.replace(/,(\s*[\r\n\t\s]*)\](?![:,])/g, ']');
-
-        // Pass 2: Remove trailing commas at end of objects/arrays (simple cases)
-        sanitized = sanitized.replace(/,(\s*})(?![:,])/g, '$1');
-        sanitized = sanitized.replace(/,(\s*\])(?![:,])/g, '$1');
-
-        try {
-            JSON.parse(sanitized);
-            return sanitized;
-        } catch (firstError) {
-            // FIXED 17.10.2025 - Add ultra-aggressive trailing comma removal for nested multiline structures
-            let ultraSanitized = sanitized;
-
-            // Ultra-pass 1: Remove ALL commas before closing brackets/braces, even with escapes
-            ultraSanitized = ultraSanitized.replace(/,(\s*[\r\n\t]*(\\")?[\s\r\n\t]*)([}\]])/g, '$3');
-
-            // Ultra-pass 2: Handle commas in multiline string contexts (AppleScript code)
-            // Remove comma before \n, \t, or other escapes at end of lines
-            ultraSanitized = ultraSanitized.replace(/,(\s*\\[nt])/g, '$1');
-
-            // Ultra-pass 3: One more aggressive final pass
-            ultraSanitized = ultraSanitized.replace(/,(\s*([}\]]))(?!:)/g, '$2');
-
-            try {
-                JSON.parse(ultraSanitized);
-                this.logger.warn('[MCP-TODO] ✅ Ultra-aggressive sanitization successful', {
-                    category: 'mcp-todo',
-                    component: 'mcp-todo'
-                });
-                return ultraSanitized;
-            } catch (ultraError) {
-                // Attempt to convert single-quoted strings to double-quoted strings.
-                const withDoubleQuotedStrings = sanitized.replace(/:\s*'([^'\\]*(?:\\.[^'\\]*)*)'/g, (_, inner) => {
-                    const escaped = inner
-                        .replace(/\\/g, '\\\\')
-                        .replace(/"/g, '\\"');
-                    return `: "${escaped}"`;
-                }).replace(/\[\s*'([^'\\]*(?:\\.[^'\\]*)*)'/g, (match, inner) => {
-                    const escaped = inner
-                        .replace(/\\/g, '\\\\')
-                        .replace(/"/g, '\\"');
-                    return `[ "${escaped}"`;
-                }).replace(/,\s*'([^'\\]*(?:\\.[^'\\]*)*)'/g, (match, inner) => {
-                    const escaped = inner
-                        .replace(/\\/g, '\\\\')
-                        .replace(/"/g, '\\"');
-                    return `, "${escaped}"`;
-                });
-
-                try {
-                    JSON.parse(withDoubleQuotedStrings);
-                    return withDoubleQuotedStrings;
-                } catch (secondError) {
-                    try {
-                        const evaluated = vm.runInNewContext(`(${sanitized})`, {}, { timeout: 50 });
-                        return JSON.stringify(evaluated);
-                    } catch (vmError) {
-                        secondError.originalError = firstError.message;
-                        secondError.vmError = vmError.message;
-                        throw secondError;
-                    }
-                }
-            }
-        }
-    }
-
-    _generatePlanTTS(plan, item) {
-        // ENHANCED 14.10.2025 NIGHT - More informative TTS phrases
-        const toolCount = plan.tool_calls.length;
-        const actionVerb = item.action.split(' ')[0];
-
-        // Tetyana speaks about what she's planning to do
-        if (toolCount === 1) {
-            return `${actionVerb}`;
+  _parseToolPlan(response) {
+    try {
+      // FIXED 13.10.2025 - Clean markdown wrappers before parsing
+      // FIXED 14.10.2025 - Extract JSON from text if LLM added explanation
+      // FIXED 14.10.2025 - Handle <think> tags from reasoning models (phi-4-reasoning)
+      // FIXED 14.10.2025 - Aggressive extraction: handle unclosed tags and extract JSON
+      // FIXED 14.10.2025 NIGHT - Ultra-aggressive: cut at <think>, then extract JSON
+      let cleanResponse = response;
+      if (typeof response === 'string') {
+        // Step 1: ULTRA-AGGRESSIVE - cut everything from <think> onwards
+        // phi-4-reasoning sometimes doesn't close tags - just remove everything after <think>
+        const thinkIndex = response.indexOf('<think>');
+        if (thinkIndex !== -1) {
+          // Cut before <think> - reasoning models put <think> FIRST
+          cleanResponse = response.substring(0, thinkIndex).trim();
         } else {
-            return `${actionVerb}, ${toolCount} кроки`;
-        }
-    }
-
-    _generateExecutionTTS(results, item, allSuccessful) {
-        // ENHANCED 14.10.2025 NIGHT - More informative Tetyana execution phrases
-        if (allSuccessful) {
-            // Extract key result with more context
-            const mainAction = item.action.toLowerCase();
-
-            // Specific action feedback
-            if (mainAction.includes('створ') && mainAction.includes('файл')) {
-                return 'Файл створено';
-            }
-            if (mainAction.includes('відкр') && mainAction.includes('калькулятор')) {
-                return 'Калькулятор відкрито';
-            }
-            if (mainAction.includes('відкр') && mainAction.includes('браузер')) {
-                return 'Браузер відкрито';
-            }
-            if (mainAction.includes('збер')) {
-                return 'Дані збережено';
-            }
-            if (mainAction.includes('знайд')) {
-                return 'Знайдено';
-            }
-            if (mainAction.includes('введ') || mainAction.includes('ввод')) {
-                return 'Введено';
-            }
-            if (mainAction.includes('скріншот') || mainAction.includes('screenshot')) {
-                return 'Скріншот зроблено';
-            }
-
-            // Generic successful execution
-            return 'Виконано';
+          cleanResponse = response;
         }
 
-        // Partial success - be specific
-        const successCount = results.filter(r => r.success).length;
-        return `Виконано ${successCount} з ${results.length}`;
+        // Step 2: Clean markdown wrappers
+        cleanResponse = cleanResponse
+          .replace(/^```json\s*/i, '')  // Remove opening ```json
+          .replace(/^```\s*/i, '')       // Remove opening ```
+          .replace(/\s*```$/i, '')       // Remove closing ```
+          .trim();
+
+        // Step 3: Aggressive JSON extraction - find first { to last }
+        // This handles cases where LLM adds text before/after JSON
+        const firstBrace = cleanResponse.indexOf('{');
+        const lastBrace = cleanResponse.lastIndexOf('}');
+
+        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+          cleanResponse = cleanResponse.substring(firstBrace, lastBrace + 1);
+        } else {
+          // No JSON found in response - try to extract from original
+          // Some models put JSON AFTER <think>, so try original response too
+          const origFirstBrace = response.indexOf('{');
+          const origLastBrace = response.lastIndexOf('}');
+
+          if (origFirstBrace !== -1 && origLastBrace !== -1 && origLastBrace > origFirstBrace) {
+            cleanResponse = response.substring(origFirstBrace, origLastBrace + 1);
+          } else {
+            throw new Error('No JSON object found in response (no curly braces)');
+          }
+        }
+      }
+
+      let parsed;
+      if (typeof cleanResponse === 'string') {
+        try {
+          parsed = JSON.parse(cleanResponse);
+        } catch (parseError) {
+          // FIXED 15.10.2025 - ALWAYS attempt sanitization on ANY parse error
+          // Previous logic only sanitized for specific error patterns, missing some cases
+          this.logger.warn(`[MCP-TODO] Initial JSON parse failed: ${parseError.message}. Attempting sanitization...`, {
+            category: 'mcp-todo',
+            component: 'mcp-todo',
+            errorPosition: parseError.message.match(/position (\d+)/)?.[1] || 'unknown'
+          });
+
+          try {
+            const sanitized = this._sanitizeJsonString(cleanResponse);
+            parsed = JSON.parse(sanitized);
+            this.logger.warn('[MCP-TODO] ✅ JSON sanitization successful for tool plan response', {
+              category: 'mcp-todo',
+              component: 'mcp-todo',
+              originalError: parseError.message,
+              originalLength: cleanResponse.length,
+              sanitizedLength: sanitized.length
+            });
+          } catch (sanitizedError) {
+            // Log both original and sanitized responses for debugging
+            this.logger.error(`[MCP-TODO] ❌ JSON sanitization also failed. Original error: ${parseError.message}. Sanitized error: ${sanitizedError.message}`, {
+              category: 'mcp-todo',
+              component: 'mcp-todo',
+              originalResponse: cleanResponse.substring(0, 500),
+              originalError: parseError.message,
+              sanitizedError: sanitizedError.message
+            });
+            sanitizedError.originalMessage = parseError.message;
+            throw sanitizedError;
+          }
+        }
+      } else {
+        parsed = cleanResponse;
+      }
+      return {
+        tool_calls: parsed.tool_calls || [],
+        reasoning: parsed.reasoning || ''
+      };
+    } catch (error) {
+      // Truncate long responses for logging
+      const truncatedResponse = typeof response === 'string' && response.length > 500
+        ? response.substring(0, 500) + '... [truncated]'
+        : response;
+      this.logger.error(`[MCP-TODO] Failed to parse tool plan. Raw response: ${truncatedResponse}`, {
+        category: 'mcp-todo',
+        component: 'mcp-todo',
+        parseError: error.message
+      });
+      throw new Error(`Failed to parse tool plan: ${error.message}`);
+    }
+  }
+
+  _parseVerification(response) {
+    try {
+      // FIXED 13.10.2025 - Clean markdown wrappers before parsing
+      // FIXED 14.10.2025 - Handle <think> tags from reasoning models
+      // FIXED 14.10.2025 - Aggressive extraction: handle unclosed tags
+      // FIXED 14.10.2025 NIGHT - Ultra-aggressive: cut at <think>, then extract JSON
+      let cleanResponse = response;
+      if (typeof response === 'string') {
+        // Step 1: ULTRA-AGGRESSIVE - cut everything from <think> onwards
+        const thinkIndex = response.indexOf('<think>');
+        if (thinkIndex !== -1) {
+          cleanResponse = response.substring(0, thinkIndex).trim();
+        } else {
+          cleanResponse = response;
+        }
+
+        // Step 2: Clean markdown wrappers
+        cleanResponse = cleanResponse
+          .replace(/^```json\s*/i, '')  // Remove opening ```json
+          .replace(/^```\s*/i, '')       // Remove opening ```
+          .replace(/\s*```$/i, '')       // Remove closing ```
+          .trim();
+
+        // Step 3: Aggressive JSON extraction - find first { to last }
+        const firstBrace = cleanResponse.indexOf('{');
+        const lastBrace = cleanResponse.lastIndexOf('}');
+
+        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+          cleanResponse = cleanResponse.substring(firstBrace, lastBrace + 1);
+        } else {
+          // Try original response
+          const origFirstBrace = response.indexOf('{');
+          const origLastBrace = response.lastIndexOf('}');
+
+          if (origFirstBrace !== -1 && origLastBrace !== -1 && origLastBrace > origFirstBrace) {
+            cleanResponse = response.substring(origFirstBrace, origLastBrace + 1);
+          } else {
+            throw new Error('No JSON object found in response (no curly braces)');
+          }
+        }
+      }
+
+      // FIXED 15.10.2025 - Use sanitization logic like _parseToolPlan
+      let parsed;
+      if (typeof cleanResponse === 'string') {
+        try {
+          parsed = JSON.parse(cleanResponse);
+        } catch (parseError) {
+          this.logger.warn(`[MCP-TODO] Verification JSON parse failed: ${parseError.message}. Attempting sanitization...`, {
+            category: 'mcp-todo',
+            component: 'mcp-todo'
+          });
+
+          try {
+            const sanitized = this._sanitizeJsonString(cleanResponse);
+            parsed = JSON.parse(sanitized);
+            this.logger.warn('[MCP-TODO] ✅ Verification JSON sanitization successful', {
+              category: 'mcp-todo',
+              component: 'mcp-todo'
+            });
+          } catch (sanitizedError) {
+            this.logger.error(`[MCP-TODO] ❌ Verification JSON sanitization failed: ${sanitizedError.message}`, {
+              category: 'mcp-todo',
+              component: 'mcp-todo',
+              originalResponse: cleanResponse.substring(0, 500)
+            });
+            sanitizedError.originalMessage = parseError.message;
+            throw sanitizedError;
+          }
+        }
+      } else {
+        parsed = cleanResponse;
+      }
+
+      return {
+        verified: parsed.verified === true,
+        reason: parsed.reason || '',
+        evidence: parsed.evidence || {}
+      };
+    } catch (error) {
+      // НОВИНКА 14.10.2025 - Better error handling with fallback
+      const truncatedResponse = typeof response === 'string' && response.length > 500
+        ? response.substring(0, 500) + '... [truncated]'
+        : response;
+      this.logger.error(`[MCP-TODO] Failed to parse verification. Raw response: ${truncatedResponse}`, {
+        category: 'mcp-todo',
+        component: 'mcp-todo',
+        parseError: error.message
+      });
+      throw new Error(`Failed to parse verification: ${error.message}`);
+    }
+  }
+
+  _parseAdjustment(response) {
+    try {
+      // FIXED 13.10.2025 - Clean markdown wrappers before parsing
+      // FIXED 14.10.2025 - Extract JSON from text if LLM added explanation
+      // FIXED 14.10.2025 - Aggressive extraction: handle unclosed tags
+      // FIXED 14.10.2025 NIGHT - Ultra-aggressive: cut at <think>, then extract JSON
+      let cleanResponse = response;
+      if (typeof response === 'string') {
+        // Step 1: ULTRA-AGGRESSIVE - cut everything from <think> onwards
+        const thinkIndex = response.indexOf('<think>');
+        if (thinkIndex !== -1) {
+          cleanResponse = response.substring(0, thinkIndex).trim();
+        } else {
+          cleanResponse = response;
+        }
+
+        // Step 2: Clean markdown wrappers
+        cleanResponse = cleanResponse
+          .replace(/^```json\s*/i, '')  // Remove opening ```json
+          .replace(/^```\s*/i, '')       // Remove opening ```
+          .replace(/\s*```$/i, '')       // Remove closing ```
+          .trim();
+
+        // Step 3: Aggressive JSON extraction - find first { to last }
+        const firstBrace = cleanResponse.indexOf('{');
+        const lastBrace = cleanResponse.lastIndexOf('}');
+
+        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+          cleanResponse = cleanResponse.substring(firstBrace, lastBrace + 1);
+        } else {
+          // Fallback: Try original response
+          const origFirstBrace = response.indexOf('{');
+          const origLastBrace = response.lastIndexOf('}');
+
+          if (origFirstBrace !== -1 && origLastBrace !== -1 && origLastBrace > origFirstBrace) {
+            cleanResponse = response.substring(origFirstBrace, origLastBrace + 1);
+          } else {
+            throw new Error('No JSON object found in response (no curly braces)');
+          }
+        }
+      }
+
+      // FIXED 15.10.2025 - Use sanitization logic like _parseToolPlan
+      let parsed;
+      if (typeof cleanResponse === 'string') {
+        try {
+          parsed = JSON.parse(cleanResponse);
+        } catch (parseError) {
+          this.logger.warn(`[MCP-TODO] Adjustment JSON parse failed: ${parseError.message}. Attempting sanitization...`, {
+            category: 'mcp-todo',
+            component: 'mcp-todo'
+          });
+
+          try {
+            const sanitized = this._sanitizeJsonString(cleanResponse);
+            parsed = JSON.parse(sanitized);
+            this.logger.warn('[MCP-TODO] ✅ Adjustment JSON sanitization successful', {
+              category: 'mcp-todo',
+              component: 'mcp-todo'
+            });
+          } catch (sanitizedError) {
+            this.logger.error(`[MCP-TODO] ❌ Adjustment JSON sanitization failed: ${sanitizedError.message}`, {
+              category: 'mcp-todo',
+              component: 'mcp-todo',
+              originalResponse: cleanResponse.substring(0, 500)
+            });
+            sanitizedError.originalMessage = parseError.message;
+            throw sanitizedError;
+          }
+        }
+      } else {
+        parsed = cleanResponse;
+      }
+
+      return {
+        strategy: parsed.strategy || 'retry',
+        updated_todo_item: parsed.updated_todo_item || {},
+        reasoning: parsed.reasoning || ''
+      };
+    } catch (error) {
+      const truncatedResponse = typeof response === 'string' && response.length > 500
+        ? response.substring(0, 500) + '... [truncated]'
+        : response;
+      this.logger.error(`[MCP-TODO] Failed to parse adjustment. Raw response: ${truncatedResponse}`, {
+        category: 'mcp-todo',
+        component: 'mcp-todo',
+        parseError: error.message
+      });
+      throw new Error(`Failed to parse adjustment: ${error.message}`);
+    }
+  }
+
+  _parseScreenshotAdjustment(response) {
+    try {
+      // Same aggressive cleaning as other parse methods
+      let cleanResponse = response;
+      if (typeof response === 'string') {
+        // Step 1: Cut everything from <think> onwards
+        const thinkIndex = response.indexOf('<think>');
+        if (thinkIndex !== -1) {
+          cleanResponse = response.substring(0, thinkIndex).trim();
+        } else {
+          cleanResponse = response;
+        }
+
+        // Step 2: Clean markdown wrappers
+        cleanResponse = cleanResponse
+          .replace(/^```json\s*/i, '')
+          .replace(/^```\s*/i, '')
+          .replace(/\s*```$/i, '')
+          .trim();
+
+        // Step 3: Extract JSON object
+        const firstBrace = cleanResponse.indexOf('{');
+        const lastBrace = cleanResponse.lastIndexOf('}');
+
+        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+          cleanResponse = cleanResponse.substring(firstBrace, lastBrace + 1);
+        }
+      }
+
+      // Parse JSON
+      let parsed;
+      if (typeof cleanResponse === 'string') {
+        try {
+          parsed = JSON.parse(cleanResponse);
+        } catch (parseError) {
+          // Try sanitization
+          const sanitized = this._sanitizeJsonString(cleanResponse);
+          parsed = JSON.parse(sanitized);
+        }
+      } else {
+        parsed = cleanResponse;
+      }
+
+      return {
+        screenshot_taken: parsed.screenshot_taken || false,
+        screenshot_analysis: parsed.screenshot_analysis || '',
+        needs_adjustment: parsed.needs_adjustment || false,
+        adjustment_reason: parsed.adjustment_reason || '',
+        adjusted_plan: parsed.adjusted_plan || null,
+        tts_phrase: parsed.tts_phrase || 'Скрін готовий'
+      };
+    } catch (error) {
+      this.logger.error(`[MCP-TODO] Failed to parse screenshot adjustment: ${error.message}`, {
+        category: 'mcp-todo',
+        component: 'mcp-todo',
+        response: response.substring(0, 300)
+      });
+      // Return safe fallback - no adjustment
+      return {
+        screenshot_taken: true,
+        screenshot_analysis: 'Помилка аналізу',
+        needs_adjustment: false,
+        adjustment_reason: '',
+        adjusted_plan: null,
+        tts_phrase: 'Скрін готовий'
+      };
+    }
+  }
+
+  _sanitizeJsonString(rawPayload) {
+    if (typeof rawPayload !== 'string') {
+      throw new TypeError('Expected string payload for JSON sanitization');
     }
 
-    /**
+    let sanitized = rawPayload.trim()
+      .replace(/\uFEFF/g, '')
+      .replace(/['‛'`´]/g, '\'')
+      .replace(/[""]/g, '"');
+
+    // Quote property names that are missing double quotes.
+    sanitized = sanitized.replace(/([,{]\s*)([A-Za-z0-9_]+)\s*:/g, '$1"$2":');
+
+    // FIXED 17.10.2025 - Conservative trailing comma removal
+    // Only remove commas that are ACTUALLY trailing (before } or ])
+    // Do NOT remove commas between array/object elements
+
+    // Pass 1: Remove trailing commas before closing braces/brackets
+    // Pattern: comma followed by optional whitespace/newlines, then } or ]
+    sanitized = sanitized.replace(/,(\s*[\r\n\t\s]*)}(?![:,])/g, '}');
+    sanitized = sanitized.replace(/,(\s*[\r\n\t\s]*)\](?![:,])/g, ']');
+
+    // Pass 2: Remove trailing commas at end of objects/arrays (simple cases)
+    sanitized = sanitized.replace(/,(\s*})(?![:,])/g, '$1');
+    sanitized = sanitized.replace(/,(\s*\])(?![:,])/g, '$1');
+
+    try {
+      JSON.parse(sanitized);
+      return sanitized;
+    } catch (firstError) {
+      // FIXED 17.10.2025 - Add ultra-aggressive trailing comma removal for nested multiline structures
+      let ultraSanitized = sanitized;
+
+      // Ultra-pass 1: Remove ALL commas before closing brackets/braces, even with escapes
+      ultraSanitized = ultraSanitized.replace(/,(\s*[\r\n\t]*(\\")?[\s\r\n\t]*)([}\]])/g, '$3');
+
+      // Ultra-pass 2: Handle commas in multiline string contexts (AppleScript code)
+      // Remove comma before \n, \t, or other escapes at end of lines
+      ultraSanitized = ultraSanitized.replace(/,(\s*\\[nt])/g, '$1');
+
+      // Ultra-pass 3: One more aggressive final pass
+      ultraSanitized = ultraSanitized.replace(/,(\s*([}\]]))(?!:)/g, '$2');
+
+      try {
+        JSON.parse(ultraSanitized);
+        this.logger.warn('[MCP-TODO] ✅ Ultra-aggressive sanitization successful', {
+          category: 'mcp-todo',
+          component: 'mcp-todo'
+        });
+        return ultraSanitized;
+      } catch (ultraError) {
+        // Attempt to convert single-quoted strings to double-quoted strings.
+        const withDoubleQuotedStrings = sanitized.replace(/:\s*'([^'\\]*(?:\\.[^'\\]*)*)'/g, (_, inner) => {
+          const escaped = inner
+            .replace(/\\/g, '\\\\')
+            .replace(/"/g, '\\"');
+          return `: "${escaped}"`;
+        }).replace(/\[\s*'([^'\\]*(?:\\.[^'\\]*)*)'/g, (match, inner) => {
+          const escaped = inner
+            .replace(/\\/g, '\\\\')
+            .replace(/"/g, '\\"');
+          return `[ "${escaped}"`;
+        }).replace(/,\s*'([^'\\]*(?:\\.[^'\\]*)*)'/g, (match, inner) => {
+          const escaped = inner
+            .replace(/\\/g, '\\\\')
+            .replace(/"/g, '\\"');
+          return `, "${escaped}"`;
+        });
+
+        try {
+          JSON.parse(withDoubleQuotedStrings);
+          return withDoubleQuotedStrings;
+        } catch (secondError) {
+          try {
+            const evaluated = vm.runInNewContext(`(${sanitized})`, {}, { timeout: 50 });
+            return JSON.stringify(evaluated);
+          } catch (vmError) {
+            secondError.originalError = firstError.message;
+            secondError.vmError = vmError.message;
+            throw secondError;
+          }
+        }
+      }
+    }
+  }
+
+  _generatePlanTTS(plan, item) {
+    // ENHANCED 14.10.2025 NIGHT - More informative TTS phrases
+    const toolCount = plan.tool_calls.length;
+    const actionVerb = item.action.split(' ')[0];
+
+    // Tetyana speaks about what she's planning to do
+    if (toolCount === 1) {
+      return `${actionVerb}`;
+    } else {
+      return `${actionVerb}, ${toolCount} кроки`;
+    }
+  }
+
+  _generateExecutionTTS(results, item, allSuccessful) {
+    // ENHANCED 14.10.2025 NIGHT - More informative Tetyana execution phrases
+    if (allSuccessful) {
+      // Extract key result with more context
+      const mainAction = item.action.toLowerCase();
+
+      // Specific action feedback
+      if (mainAction.includes('створ') && mainAction.includes('файл')) {
+        return 'Файл створено';
+      }
+      if (mainAction.includes('відкр') && mainAction.includes('калькулятор')) {
+        return 'Калькулятор відкрито';
+      }
+      if (mainAction.includes('відкр') && mainAction.includes('браузер')) {
+        return 'Браузер відкрито';
+      }
+      if (mainAction.includes('збер')) {
+        return 'Дані збережено';
+      }
+      if (mainAction.includes('знайд')) {
+        return 'Знайдено';
+      }
+      if (mainAction.includes('введ') || mainAction.includes('ввод')) {
+        return 'Введено';
+      }
+      if (mainAction.includes('скріншот') || mainAction.includes('screenshot')) {
+        return 'Скріншот зроблено';
+      }
+
+      // Generic successful execution
+      return 'Виконано';
+    }
+
+    // Partial success - be specific
+    const successCount = results.filter(r => r.success).length;
+    return `Виконано ${successCount} з ${results.length}`;
+  }
+
+  /**
      * Safe TTS helper - speaks only if TTS is available
      * FIXED 13.10.2025 - Added null-safety for TTS
      * FIXED 14.10.2025 NIGHT - Pass wsManager for frontend TTS delivery
-     * 
+     *
      * @param {string} phrase - Text to speak
      * @param {Object} options - TTS options (mode, duration)
      * @param {string} [options.agent='tetyana'] - Agent name for voice
      * @returns {Promise<void>}
      */
-    async _safeTTSSpeak(phrase, options = {}) {
-        // FIXED 14.10.2025 NIGHT v2 - TTSSyncManager has wsManager internally now
-        const ttsOptions = {
-            ...options,
-            agent: options.agent || 'tetyana'  // Default to Tetyana for execution
-        };
+  async _safeTTSSpeak(phrase, options = {}) {
+    // FIXED 14.10.2025 NIGHT v2 - TTSSyncManager has wsManager internally now
+    const ttsOptions = {
+      ...options,
+      agent: options.agent || 'tetyana'  // Default to Tetyana for execution
+    };
 
-        // Debug TTS availability (ADDED 15.10.2025)
-        this.logger.system('mcp-todo', `[TODO] 🔍 TTS check: tts=${!!this.tts}, speak=${this.tts ? typeof this.tts.speak : 'N/A'}`);
+    // Debug TTS availability (ADDED 15.10.2025)
+    this.logger.system('mcp-todo', `[TODO] 🔍 TTS check: tts=${!!this.tts}, speak=${this.tts ? typeof this.tts.speak : 'N/A'}`);
 
-        // REMOVED 16.10.2025 - Don't send chat messages from TTS, they're sent by verifyItem/executeTools
-        // Chat messages are now sent by the methods that call _safeTTSSpeak
+    // REMOVED 16.10.2025 - Don't send chat messages from TTS, they're sent by verifyItem/executeTools
+    // Chat messages are now sent by the methods that call _safeTTSSpeak
 
-        if (this.tts && typeof this.tts.speak === 'function') {
-            try {
-                this.logger.system('mcp-todo', `[TODO] 🔊 Requesting TTS: "${phrase}" (agent: ${ttsOptions.agent})`);
-                await this.tts.speak(phrase, ttsOptions);
-                this.logger.system('mcp-todo', `[TODO] ✅ TTS completed successfully`);
-            } catch (ttsError) {
-                this.logger.warn(`[MCP-TODO] TTS failed: ${ttsError.message}`, {
-                    category: 'mcp-todo',
-                    component: 'mcp-todo',
-                    stack: ttsError.stack
-                });
-            }
-        } else {
-            this.logger.warn(`[MCP-TODO] TTS not available - tts=${!!this.tts}, speak=${this.tts ? typeof this.tts.speak : 'N/A'}`, {
-                category: 'mcp-todo',
-                component: 'mcp-todo'
-            });
-        }
-        // Silently skip if TTS not available
+    if (this.tts && typeof this.tts.speak === 'function') {
+      try {
+        this.logger.system('mcp-todo', `[TODO] 🔊 Requesting TTS: "${phrase}" (agent: ${ttsOptions.agent})`);
+        await this.tts.speak(phrase, ttsOptions);
+        this.logger.system('mcp-todo', `[TODO] ✅ TTS completed successfully`);
+      } catch (ttsError) {
+        this.logger.warn(`[MCP-TODO] TTS failed: ${ttsError.message}`, {
+          category: 'mcp-todo',
+          component: 'mcp-todo',
+          stack: ttsError.stack
+        });
+      }
+    } else {
+      this.logger.warn(`[MCP-TODO] TTS not available - tts=${!!this.tts}, speak=${this.tts ? typeof this.tts.speak : 'N/A'}`, {
+        category: 'mcp-todo',
+        component: 'mcp-todo'
+      });
     }
+    // Silently skip if TTS not available
+  }
 
-    /**
+  /**
      * Extract short task description for Atlas TTS
      * ADDED 14.10.2025 NIGHT - Atlas speaks more naturally
-     * 
+     *
      * @param {string} request - User's original request
      * @returns {string} Short task description
      */
-    _extractTaskDescription(request) {
-        const lowerRequest = request.toLowerCase();
+  _extractTaskDescription(request) {
+    const lowerRequest = request.toLowerCase();
 
-        // Extract main action keywords
-        if (lowerRequest.includes('калькулятор')) return 'калькулятор';
-        if (lowerRequest.includes('браузер')) return 'браузер';
-        if (lowerRequest.includes('файл')) return 'робота з файлами';
-        if (lowerRequest.includes('скріншот')) return 'скріншот';
-        if (lowerRequest.includes('знайд')) return 'пошук';
-        if (lowerRequest.includes('створ')) return 'створення';
-        if (lowerRequest.includes('відкр')) return 'відкриття';
-        if (lowerRequest.includes('збер')) return 'збереження';
+    // Extract main action keywords
+    if (lowerRequest.includes('калькулятор')) return 'калькулятор';
+    if (lowerRequest.includes('браузер')) return 'браузер';
+    if (lowerRequest.includes('файл')) return 'робота з файлами';
+    if (lowerRequest.includes('скріншот')) return 'скріншот';
+    if (lowerRequest.includes('знайд')) return 'пошук';
+    if (lowerRequest.includes('створ')) return 'створення';
+    if (lowerRequest.includes('відкр')) return 'відкриття';
+    if (lowerRequest.includes('збер')) return 'збереження';
 
-        // Fallback: take first 3-4 words
-        const words = request.split(' ').slice(0, 4).join(' ');
-        return words.length > 30 ? words.substring(0, 30) + '...' : words;
-    }
+    // Fallback: take first 3-4 words
+    const words = request.split(' ').slice(0, 4).join(' ');
+    return words.length > 30 ? words.substring(0, 30) + '...' : words;
+  }
 
-    _getPluralForm(count, one, few, many) {
-        const mod10 = count % 10;
-        const mod100 = count % 100;
+  _getPluralForm(count, one, few, many) {
+    const mod10 = count % 10;
+    const mod100 = count % 100;
 
-        if (mod10 === 1 && mod100 !== 11) return one;
-        if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return few;
-        return many;
-    }
+    if (mod10 === 1 && mod100 !== 11) return one;
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return few;
+    return many;
+  }
 
-    /**
+  /**
      * Plan verification tools for Grisha (NEW 16.10.2025)
      * Grisha decides which MCP tools to use for verification (screenshot is mandatory)
-     * 
+     *
      * @param {TodoItem} item - Item being verified
      * @param {Object} execution - Tetyana's execution results
      * @param {Object} options - Options (toolsSummary, etc)
      * @returns {Promise<Object>} Verification tool plan
      * @private
      */
-    async _planVerificationTools(item, execution, options = {}) {
-        this.logger.system('mcp-todo', `[TODO] 🔍 Grisha planning verification tools for item ${item.id}`);
+  async _planVerificationTools(item, execution, options = {}) {
+    this.logger.system('mcp-todo', `[TODO] 🔍 Grisha planning verification tools for item ${item.id}`);
 
-        try {
-            // ENHANCEMENT 16.10.2025 - Use pre-selected servers if available (same as Tetyana)
-            let toolsSummary;
+    try {
+      // ENHANCEMENT 16.10.2025 - Use pre-selected servers if available (same as Tetyana)
+      let toolsSummary;
 
-            if (options.selectedServers && Array.isArray(options.selectedServers) && options.selectedServers.length > 0) {
-                this.logger.system('mcp-todo', `[TODO] 🎯 Grisha using ${options.selectedServers.length} pre-selected servers: ${options.selectedServers.join(', ')}`);
-                toolsSummary = options.toolsSummary || this.mcpManager.getDetailedToolsSummary(options.selectedServers);
-            } else {
-                toolsSummary = options.toolsSummary || this.mcpManager.getToolsSummary();
-                this.logger.warn(`[TODO] ⚠️ Grisha using ALL servers for verification (no pre-selection)`, {
-                    category: 'mcp-todo',
-                    component: 'mcp-todo'
-                });
-            }
+      if (options.selectedServers && Array.isArray(options.selectedServers) && options.selectedServers.length > 0) {
+        this.logger.system('mcp-todo', `[TODO] 🎯 Grisha using ${options.selectedServers.length} pre-selected servers: ${options.selectedServers.join(', ')}`);
+        toolsSummary = options.toolsSummary || this.mcpManager.getDetailedToolsSummary(options.selectedServers);
+      } else {
+        toolsSummary = options.toolsSummary || this.mcpManager.getToolsSummary();
+        this.logger.warn(`[TODO] ⚠️ Grisha using ALL servers for verification (no pre-selection)`, {
+          category: 'mcp-todo',
+          component: 'mcp-todo'
+        });
+      }
 
-            // Build prompt for Grisha to plan verification tools
-            const planPrompt = `Ти Гриша - верифікатор. Визнач які MCP інструменти потрібні для перевірки виконання.
+      // Build prompt for Grisha to plan verification tools
+      const planPrompt = `Ти Гриша - верифікатор. Визнач які MCP інструменти потрібні для перевірки виконання.
 
 ⚠️ ОБОВ'ЯЗКОВО: ЗАВЖДИ включай screenshot для візуальної перевірки!
 
@@ -2123,112 +2140,112 @@ Return ONLY JSON:
   "tts_phrase": "Перевіряю докази"
 }`;
 
-            await this._waitForRateLimit();
+      await this._waitForRateLimit();
 
-            // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
-            const apiEndpointConfig = MCP_MODEL_CONFIG.apiEndpoint;
-            const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
+      // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
+      const apiEndpointConfig = MCP_MODEL_CONFIG.apiEndpoint;
+      const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
 
-            const modelConfig = MCP_MODEL_CONFIG.getStageConfig('verify_item');
+      const modelConfig = MCP_MODEL_CONFIG.getStageConfig('verify_item');
 
-            // FIXED 17.10.2025 - Reduced timeout for gpt-4o-mini (30s instead of 60s)
-            const timeoutMs = 30000;  // 30s max for gpt-4o-mini (much faster than gpt-4.1)
+      // FIXED 17.10.2025 - Reduced timeout for gpt-4o-mini (30s instead of 60s)
+      const timeoutMs = 30000;  // 30s max for gpt-4o-mini (much faster than gpt-4.1)
 
-            this.logger.system('mcp-todo', `[TODO] 🔍 Planning verification tools with ${modelConfig.model} (timeout: ${timeoutMs}ms)`);
+      this.logger.system('mcp-todo', `[TODO] 🔍 Planning verification tools with ${modelConfig.model} (timeout: ${timeoutMs}ms)`);
 
-            const apiResponse = await axios.post(apiUrl, {
-                model: modelConfig.model,
-                messages: [
-                    { role: 'system', content: 'You are a JSON-only API. Return ONLY valid JSON, no markdown, no explanations.' },
-                    { role: 'user', content: planPrompt }
-                ],
-                temperature: modelConfig.temperature,  // Use config temperature (0.15)
-                max_tokens: modelConfig.max_tokens    // Use config max_tokens (800)
-            }, {
-                headers: { 'Content-Type': 'application/json' },
-                timeout: timeoutMs
-            });
+      const apiResponse = await axios.post(apiUrl, {
+        model: modelConfig.model,
+        messages: [
+          { role: 'system', content: 'You are a JSON-only API. Return ONLY valid JSON, no markdown, no explanations.' },
+          { role: 'user', content: planPrompt }
+        ],
+        temperature: modelConfig.temperature,  // Use config temperature (0.15)
+        max_tokens: modelConfig.max_tokens    // Use config max_tokens (800)
+      }, {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: timeoutMs
+      });
 
-            const response = apiResponse.data.choices[0].message.content;
-            const plan = this._parseToolPlan(response);  // Reuse existing parser
+      const response = apiResponse.data.choices[0].message.content;
+      const plan = this._parseToolPlan(response);  // Reuse existing parser
 
-            this.logger.system('mcp-todo', `[TODO] 🔍 Grisha planned ${plan.tool_calls.length} verification tools`);
+      this.logger.system('mcp-todo', `[TODO] 🔍 Grisha planned ${plan.tool_calls.length} verification tools`);
 
-            return plan;
+      return plan;
 
-        } catch (error) {
-            this.logger.error(`[MCP-TODO] Grisha failed to plan verification tools: ${error.message}`, {
-                category: 'mcp-todo',
-                component: 'mcp-todo',
-                stack: error.stack
-            });
-            throw new Error(`Verification tool planning failed: ${error.message}`);
-        }
+    } catch (error) {
+      this.logger.error(`[MCP-TODO] Grisha failed to plan verification tools: ${error.message}`, {
+        category: 'mcp-todo',
+        component: 'mcp-todo',
+        stack: error.stack
+      });
+      throw new Error(`Verification tool planning failed: ${error.message}`);
     }
+  }
 
-    /**
+  /**
      * Execute verification tools for Grisha (NEW 16.10.2025)
      * Grisha executes MCP tools (screenshot, file checks, etc) to gather evidence
-     * 
+     *
      * @param {Object} plan - Verification tool plan
      * @param {TodoItem} item - Item being verified
      * @returns {Promise<Object>} Verification execution results
      * @private
      */
-    async _executeVerificationTools(plan, item) {
-        this.logger.system('mcp-todo', `[TODO] 🔧 Grisha executing ${plan.tool_calls.length} verification tools`);
+  async _executeVerificationTools(plan, item) {
+    this.logger.system('mcp-todo', `[TODO] 🔧 Grisha executing ${plan.tool_calls.length} verification tools`);
 
-        const results = [];
-        let allSuccessful = true;
+    const results = [];
+    let allSuccessful = true;
 
-        for (const toolCall of plan.tool_calls) {
-            try {
-                this.logger.system('mcp-todo', `[TODO] 🔧 Grisha calling ${toolCall.tool} on ${toolCall.server}`);
+    for (const toolCall of plan.tool_calls) {
+      try {
+        this.logger.system('mcp-todo', `[TODO] 🔧 Grisha calling ${toolCall.tool} on ${toolCall.server}`);
 
-                const result = await this.mcpManager.executeTool(
-                    toolCall.server,
-                    toolCall.tool,
-                    toolCall.parameters || {}
-                );
+        const result = await this.mcpManager.executeTool(
+          toolCall.server,
+          toolCall.tool,
+          toolCall.parameters || {}
+        );
 
-                results.push({
-                    tool: toolCall.tool,
-                    server: toolCall.server,
-                    success: true,
-                    result
-                });
+        results.push({
+          tool: toolCall.tool,
+          server: toolCall.server,
+          success: true,
+          result
+        });
 
-                this.logger.system('mcp-todo', `[TODO] ✅ Grisha tool ${toolCall.tool} succeeded`);
+        this.logger.system('mcp-todo', `[TODO] ✅ Grisha tool ${toolCall.tool} succeeded`);
 
-            } catch (error) {
-                this.logger.error(`[MCP-TODO] Grisha tool ${toolCall.tool} failed: ${error.message}`, {
-                    category: 'mcp-todo',
-                    component: 'mcp-todo',
-                    toolCall,
-                    stack: error.stack
-                });
+      } catch (error) {
+        this.logger.error(`[MCP-TODO] Grisha tool ${toolCall.tool} failed: ${error.message}`, {
+          category: 'mcp-todo',
+          component: 'mcp-todo',
+          toolCall,
+          stack: error.stack
+        });
 
-                results.push({
-                    tool: toolCall.tool,
-                    server: toolCall.server,
-                    success: false,
-                    error: error.message
-                });
+        results.push({
+          tool: toolCall.tool,
+          server: toolCall.server,
+          success: false,
+          error: error.message
+        });
 
-                allSuccessful = false;
-            }
-        }
-
-        return {
-            results,
-            all_successful: allSuccessful
-        };
+        allSuccessful = false;
+      }
     }
 
-    /**
+    return {
+      results,
+      all_successful: allSuccessful
+    };
+  }
+
+  /**
      * Analyze verification results and make final decision (NEW 16.10.2025)
      * Grisha analyzes evidence from MCP tools and decides if item is verified
-     * 
+     *
      * @param {TodoItem} item - Item being verified
      * @param {Object} execution - Tetyana's execution results
      * @param {Object} verificationResults - Results from Grisha's verification tools
@@ -2236,79 +2253,79 @@ Return ONLY JSON:
      * @returns {Promise<Object>} Final verification decision
      * @private
      */
-    async _analyzeVerificationResults(item, execution, verificationResults, options = {}) {
-        this.logger.system('mcp-todo', `[TODO] 🧠 Grisha analyzing verification evidence`);
+  async _analyzeVerificationResults(item, execution, verificationResults, options = {}) {
+    this.logger.system('mcp-todo', `[TODO] 🧠 Grisha analyzing verification evidence`);
 
-        try {
-            // FIXED 16.10.2025 - Ensure execution.results is an array
-            if (!execution || !Array.isArray(execution.results)) {
-                this.logger.warn(`[MCP-TODO] Execution results missing or not array, cannot verify`, {
-                    category: 'mcp-todo',
-                    component: 'mcp-todo',
-                    hasExecution: !!execution,
-                    isArray: Array.isArray(execution?.results)
-                });
+    try {
+      // FIXED 16.10.2025 - Ensure execution.results is an array
+      if (!execution || !Array.isArray(execution.results)) {
+        this.logger.warn(`[MCP-TODO] Execution results missing or not array, cannot verify`, {
+          category: 'mcp-todo',
+          component: 'mcp-todo',
+          hasExecution: !!execution,
+          isArray: Array.isArray(execution?.results)
+        });
 
-                // CRITICAL FIX 16.10.2025 EVENING: Cannot verify without execution results!
-                // Tool execution flag is NOT sufficient for verification
-                // Must have actual results to analyze
-                return {
-                    verified: false,
-                    reason: 'Execution data invalid - cannot verify without results',
-                    evidence: `Execution structure incomplete or corrupted`,
-                    tts_phrase: 'Не можу перевірити - немає даних виконання'
-                };
-            }
+        // CRITICAL FIX 16.10.2025 EVENING: Cannot verify without execution results!
+        // Tool execution flag is NOT sufficient for verification
+        // Must have actual results to analyze
+        return {
+          verified: false,
+          reason: 'Execution data invalid - cannot verify without results',
+          evidence: `Execution structure incomplete or corrupted`,
+          tts_phrase: 'Не можу перевірити - немає даних виконання'
+        };
+      }
 
-            // Truncate results to avoid token limits
-            const truncatedExecution = execution.results.map(result => {
-                const truncated = { ...result };
-                if (truncated.content && typeof truncated.content === 'string' && truncated.content.length > 300) {
-                    truncated.content = truncated.content.substring(0, 300) + '... [truncated]';
-                }
-                if (truncated.error && typeof truncated.error === 'string' && truncated.error.length > 200) {
-                    truncated.error = truncated.error.substring(0, 200) + '... [truncated]';
-                }
-                return truncated;
-            });
+      // Truncate results to avoid token limits
+      const truncatedExecution = execution.results.map(result => {
+        const truncated = { ...result };
+        if (truncated.content && typeof truncated.content === 'string' && truncated.content.length > 300) {
+          truncated.content = truncated.content.substring(0, 300) + '... [truncated]';
+        }
+        if (truncated.error && typeof truncated.error === 'string' && truncated.error.length > 200) {
+          truncated.error = truncated.error.substring(0, 200) + '... [truncated]';
+        }
+        return truncated;
+      });
 
-            // FIXED 16.10.2025 - Ensure verificationResults.results is an array
-            if (!Array.isArray(verificationResults?.results)) {
-                this.logger.warn(`[MCP-TODO] Verification results missing or not array`, {
-                    category: 'mcp-todo',
-                    component: 'mcp-todo',
-                    hasVerificationResults: !!verificationResults,
-                    isArray: Array.isArray(verificationResults?.results)
-                });
+      // FIXED 16.10.2025 - Ensure verificationResults.results is an array
+      if (!Array.isArray(verificationResults?.results)) {
+        this.logger.warn(`[MCP-TODO] Verification results missing or not array`, {
+          category: 'mcp-todo',
+          component: 'mcp-todo',
+          hasVerificationResults: !!verificationResults,
+          isArray: Array.isArray(verificationResults?.results)
+        });
 
-                // CRITICAL FIX 16.10.2025 EVENING: Cannot verify without actual verification results!
-                // Do NOT trust execution.all_successful alone - tools may execute but produce wrong output
-                return {
-                    verified: false,
-                    reason: 'Unable to verify - no verification tools executed',
-                    evidence: `Executed ${execution.results.length} tools but verification failed to produce results`,
-                    tts_phrase: 'Не можу підтвердити - немає даних перевірки'
-                };
-            }
+        // CRITICAL FIX 16.10.2025 EVENING: Cannot verify without actual verification results!
+        // Do NOT trust execution.all_successful alone - tools may execute but produce wrong output
+        return {
+          verified: false,
+          reason: 'Unable to verify - no verification tools executed',
+          evidence: `Executed ${execution.results.length} tools but verification failed to produce results`,
+          tts_phrase: 'Не можу підтвердити - немає даних перевірки'
+        };
+      }
 
-            const truncatedVerification = verificationResults.results.map(result => {
-                const truncated = { ...result };
-                if (truncated.result && typeof truncated.result === 'object') {
-                    // Truncate screenshot paths and large content
-                    if (truncated.result.content && typeof truncated.result.content === 'string' && truncated.result.content.length > 500) {
-                        truncated.result.content = truncated.result.content.substring(0, 500) + '... [truncated]';
-                    }
-                }
-                return truncated;
-            });
+      const truncatedVerification = verificationResults.results.map(result => {
+        const truncated = { ...result };
+        if (truncated.result && typeof truncated.result === 'object') {
+          // Truncate screenshot paths and large content
+          if (truncated.result.content && typeof truncated.result.content === 'string' && truncated.result.content.length > 500) {
+            truncated.result.content = truncated.result.content.substring(0, 500) + '... [truncated]';
+          }
+        }
+        return truncated;
+      });
 
-            // FIXED 16.10.2025 - Safe extraction of screenshot evidence
-            const screenshotResult = verificationResults.results.find(r => r.tool === 'screenshot');
-            const hasScreenshot = screenshotResult && screenshotResult.success;
-            const screenshotPath = hasScreenshot && screenshotResult.result ? (screenshotResult.result.path || '[no path]') : '[no screenshot]';
+      // FIXED 16.10.2025 - Safe extraction of screenshot evidence
+      const screenshotResult = verificationResults.results.find(r => r.tool === 'screenshot');
+      const hasScreenshot = screenshotResult && screenshotResult.success;
+      const screenshotPath = hasScreenshot && screenshotResult.result ? (screenshotResult.result.path || '[no path]') : '[no screenshot]';
 
-            // Build analysis prompt with available evidence
-            let analysisPrompt = `Verify that the action was executed correctly.
+      // Build analysis prompt with available evidence
+      let analysisPrompt = `Verify that the action was executed correctly.
 
 Item action: ${item.action}
 Success criteria: ${item.success_criteria}
@@ -2318,111 +2335,111 @@ Execution success: ${execution.all_successful}
 
 Verification evidence: ${verificationResults.results.length} checks performed`;
 
-            if (hasScreenshot) {
-                analysisPrompt += `\nScreenshot taken: ${screenshotPath}`;
-            } else {
-                analysisPrompt += `\nNo screenshot taken`;
-            }
+      if (hasScreenshot) {
+        analysisPrompt += `\nScreenshot taken: ${screenshotPath}`;
+      } else {
+        analysisPrompt += `\nNo screenshot taken`;
+      }
 
-            analysisPrompt += `\n\nRespond with JSON: { "verified": true/false, "confidence": 0-100, "reason": "...", "evidence": "..." }`;
+      analysisPrompt += `\n\nRespond with JSON: { "verified": true/false, "confidence": 0-100, "reason": "...", "evidence": "..." }`;
 
-            await this._waitForRateLimit();
+      await this._waitForRateLimit();
 
-            // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
-            const apiEndpointConfig = MCP_MODEL_CONFIG.apiEndpoint;
-            const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
+      // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
+      const apiEndpointConfig = MCP_MODEL_CONFIG.apiEndpoint;
+      const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
 
-            const modelConfig = MCP_MODEL_CONFIG.getStageConfig('verify_item');
+      const modelConfig = MCP_MODEL_CONFIG.getStageConfig('verify_item');
 
-            // FIXED 17.10.2025 - Reduced timeout for gpt-4o-mini (30s instead of 60s)
-            const timeoutMs = 30000;  // 30s max for gpt-4o-mini
+      // FIXED 17.10.2025 - Reduced timeout for gpt-4o-mini (30s instead of 60s)
+      const timeoutMs = 30000;  // 30s max for gpt-4o-mini
 
-            this.logger.system('mcp-todo', `[TODO] 🧠 Analyzing verification results with ${modelConfig.model}`);
+      this.logger.system('mcp-todo', `[TODO] 🧠 Analyzing verification results with ${modelConfig.model}`);
 
-            const apiResponse = await axios.post(apiUrl, {
-                model: modelConfig.model,
-                messages: [
-                    { role: 'system', content: 'You are a JSON-only API. Return ONLY valid JSON, no markdown, no explanations.' },
-                    { role: 'user', content: analysisPrompt }
-                ],
-                temperature: modelConfig.temperature,  // Use config temperature (0.15)
-                max_tokens: modelConfig.max_tokens     // Use config max_tokens (800)
-            }, {
-                headers: { 'Content-Type': 'application/json' },
-                timeout: timeoutMs
-            });
+      const apiResponse = await axios.post(apiUrl, {
+        model: modelConfig.model,
+        messages: [
+          { role: 'system', content: 'You are a JSON-only API. Return ONLY valid JSON, no markdown, no explanations.' },
+          { role: 'user', content: analysisPrompt }
+        ],
+        temperature: modelConfig.temperature,  // Use config temperature (0.15)
+        max_tokens: modelConfig.max_tokens     // Use config max_tokens (800)
+      }, {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: timeoutMs
+      });
 
-            const response = apiResponse.data.choices[0].message.content;
-            const verification = this._parseVerification(response);
+      const response = apiResponse.data.choices[0].message.content;
+      const verification = this._parseVerification(response);
 
-            // Add TTS phrase if not provided
-            if (!verification.tts_phrase) {
-                verification.tts_phrase = verification.verified ? 'Підтверджено' : 'Не підтверджено';
-            }
+      // Add TTS phrase if not provided
+      if (!verification.tts_phrase) {
+        verification.tts_phrase = verification.verified ? 'Підтверджено' : 'Не підтверджено';
+      }
 
-            this.logger.system('mcp-todo', `[TODO] 🧠 Grisha analysis: ${verification.verified ? '✅ VERIFIED' : '❌ NOT VERIFIED'}`);
+      this.logger.system('mcp-todo', `[TODO] 🧠 Grisha analysis: ${verification.verified ? '✅ VERIFIED' : '❌ NOT VERIFIED'}`);
 
-            return verification;
+      return verification;
 
-        } catch (error) {
-            this.logger.error(`[MCP-TODO] Grisha failed to analyze verification results: ${error.message}`, {
-                category: 'mcp-todo',
-                component: 'mcp-todo',
-                stack: error.stack
-            });
-            throw new Error(`Verification analysis failed: ${error.message}`);
-        }
+    } catch (error) {
+      this.logger.error(`[MCP-TODO] Grisha failed to analyze verification results: ${error.message}`, {
+        category: 'mcp-todo',
+        component: 'mcp-todo',
+        stack: error.stack
+      });
+      throw new Error(`Verification analysis failed: ${error.message}`);
     }
+  }
 
-    /**
+  /**
      * Stage 2.0: Select optimal MCP servers for TODO item
      * ADDED 16.10.2025 - Intelligent server pre-selection
-     * 
+     *
      * @param {TodoItem} item - TODO item
      * @param {TodoList} todo - Parent TODO list
      * @returns {Promise<Object>} {selected_servers: string[], reasoning: string}
      * @private
      */
-    async _selectMCPServers(item, todo) {
-        this.logger.system('mcp-todo', `[TODO] 🎯 Stage 2.0: Selecting optimal MCP servers for item ${item.id}`);
+  async _selectMCPServers(item, todo) {
+    this.logger.system('mcp-todo', `[TODO] 🎯 Stage 2.0: Selecting optimal MCP servers for item ${item.id}`);
 
-        try {
-            // Get available MCP servers with tool counts
-            const availableServers = [];
-            for (const [serverName, server] of this.mcpManager.servers) {
-                if (Array.isArray(server.tools) && server.tools.length > 0) {
-                    availableServers.push({
-                        name: serverName,
-                        tool_count: server.tools.length
-                    });
-                }
-            }
+    try {
+      // Get available MCP servers with tool counts
+      const availableServers = [];
+      for (const [serverName, server] of this.mcpManager.servers) {
+        if (Array.isArray(server.tools) && server.tools.length > 0) {
+          availableServers.push({
+            name: serverName,
+            tool_count: server.tools.length
+          });
+        }
+      }
 
-            if (availableServers.length === 0) {
-                throw new Error('No MCP servers available');
-            }
+      if (availableServers.length === 0) {
+        throw new Error('No MCP servers available');
+      }
 
-            // Build servers description for LLM
-            const serversDescription = availableServers.map(s =>
-                `- ${s.name} (${s.tool_count} tools)`
-            ).join('\n');
+      // Build servers description for LLM
+      const serversDescription = availableServers.map(s =>
+        `- ${s.name} (${s.tool_count} tools)`
+      ).join('\n');
 
-            // Import Server Selection prompt
-            const { MCP_PROMPTS } = await import('../../prompts/mcp/index.js');
-            const selectionPrompt = MCP_PROMPTS.SERVER_SELECTION;
+      // Import Server Selection prompt
+      const { MCP_PROMPTS } = await import('../../prompts/mcp/index.js');
+      const selectionPrompt = MCP_PROMPTS.SERVER_SELECTION;
 
-            if (!selectionPrompt) {
-                this.logger.warn('[MCP-TODO] SERVER_SELECTION prompt not found, using all servers', {
-                    category: 'mcp-todo',
-                    component: 'mcp-todo'
-                });
-                return {
-                    selected_servers: availableServers.map(s => s.name),
-                    reasoning: 'Prompt not available - using all servers'
-                };
-            }
+      if (!selectionPrompt) {
+        this.logger.warn('[MCP-TODO] SERVER_SELECTION prompt not found, using all servers', {
+          category: 'mcp-todo',
+          component: 'mcp-todo'
+        });
+        return {
+          selected_servers: availableServers.map(s => s.name),
+          reasoning: 'Prompt not available - using all servers'
+        };
+      }
 
-            const userMessage = `
+      const userMessage = `
 TODO Item: ${item.action}
 Success Criteria: ${item.success_criteria}
 Available MCP Servers:
@@ -2431,92 +2448,92 @@ ${serversDescription}
 Select 1-2 most relevant servers.
 `;
 
-            // Use fast classification model for server selection
-            const modelConfig = MCP_MODEL_CONFIG.getStageConfig('classification');
+      // Use fast classification model for server selection
+      const modelConfig = MCP_MODEL_CONFIG.getStageConfig('classification');
 
-            // Wait for rate limit
-            await this._waitForRateLimit();
+      // Wait for rate limit
+      await this._waitForRateLimit();
 
-            // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
-            const apiEndpointConfig = MCP_MODEL_CONFIG.apiEndpoint;
-            const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
+      // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
+      const apiEndpointConfig = MCP_MODEL_CONFIG.apiEndpoint;
+      const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
 
-            const apiResponse = await axios.post(apiUrl, {
-                model: modelConfig.model,
-                messages: [
-                    {
-                        role: 'system',
-                        content: selectionPrompt.systemPrompt || selectionPrompt.SYSTEM_PROMPT
-                    },
-                    {
-                        role: 'user',
-                        content: userMessage
-                    }
-                ],
-                temperature: modelConfig.temperature,
-                max_tokens: modelConfig.max_tokens
-            }, {
-                headers: { 'Content-Type': 'application/json' },
-                timeout: 30000
-            });
+      const apiResponse = await axios.post(apiUrl, {
+        model: modelConfig.model,
+        messages: [
+          {
+            role: 'system',
+            content: selectionPrompt.systemPrompt || selectionPrompt.SYSTEM_PROMPT
+          },
+          {
+            role: 'user',
+            content: userMessage
+          }
+        ],
+        temperature: modelConfig.temperature,
+        max_tokens: modelConfig.max_tokens
+      }, {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 30000
+      });
 
-            const response = apiResponse.data.choices[0].message.content;
+      const response = apiResponse.data.choices[0].message.content;
 
-            // Parse JSON response
-            let cleanResponse = response;
-            if (typeof response === 'string') {
-                cleanResponse = response
-                    .replace(/^```json\s*/i, '')
-                    .replace(/^```\s*/i, '')
-                    .replace(/\s*```$/i, '')
-                    .trim();
+      // Parse JSON response
+      let cleanResponse = response;
+      if (typeof response === 'string') {
+        cleanResponse = response
+          .replace(/^```json\s*/i, '')
+          .replace(/^```\s*/i, '')
+          .replace(/\s*```$/i, '')
+          .trim();
 
-                const firstBrace = cleanResponse.indexOf('{');
-                const lastBrace = cleanResponse.lastIndexOf('}');
-                if (firstBrace !== -1 && lastBrace !== -1) {
-                    cleanResponse = cleanResponse.substring(firstBrace, lastBrace + 1);
-                }
-            }
-
-            const parsed = JSON.parse(cleanResponse);
-            const selectedServers = parsed.selected_servers || [];
-
-            // Validate selected servers exist
-            const validServers = selectedServers.filter(s =>
-                availableServers.some(avail => avail.name === s)
-            );
-
-            if (validServers.length === 0) {
-                this.logger.warn('[MCP-TODO] No valid servers selected, using all', {
-                    category: 'mcp-todo',
-                    component: 'mcp-todo',
-                    selected: selectedServers,
-                    available: availableServers.map(s => s.name)
-                });
-                return {
-                    selected_servers: availableServers.map(s => s.name),
-                    reasoning: 'Invalid selection - using all servers'
-                };
-            }
-
-            this.logger.system('mcp-todo', `[TODO] 🎯 Selected ${validServers.length} servers: ${validServers.join(', ')}`);
-            this.logger.system('mcp-todo', `[TODO] 📊 Reasoning: ${parsed.reasoning || 'N/A'}`);
-
-            return {
-                selected_servers: validServers,
-                reasoning: parsed.reasoning || '',
-                confidence: parsed.confidence || 0
-            };
-
-        } catch (error) {
-            this.logger.error(`[MCP-TODO] Server selection failed: ${error.message}`, {
-                category: 'mcp-todo',
-                component: 'mcp-todo',
-                stack: error.stack
-            });
-            throw error;
+        const firstBrace = cleanResponse.indexOf('{');
+        const lastBrace = cleanResponse.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace !== -1) {
+          cleanResponse = cleanResponse.substring(firstBrace, lastBrace + 1);
         }
+      }
+
+      const parsed = JSON.parse(cleanResponse);
+      const selectedServers = parsed.selected_servers || [];
+
+      // Validate selected servers exist
+      const validServers = selectedServers.filter(s =>
+        availableServers.some(avail => avail.name === s)
+      );
+
+      if (validServers.length === 0) {
+        this.logger.warn('[MCP-TODO] No valid servers selected, using all', {
+          category: 'mcp-todo',
+          component: 'mcp-todo',
+          selected: selectedServers,
+          available: availableServers.map(s => s.name)
+        });
+        return {
+          selected_servers: availableServers.map(s => s.name),
+          reasoning: 'Invalid selection - using all servers'
+        };
+      }
+
+      this.logger.system('mcp-todo', `[TODO] 🎯 Selected ${validServers.length} servers: ${validServers.join(', ')}`);
+      this.logger.system('mcp-todo', `[TODO] 📊 Reasoning: ${parsed.reasoning || 'N/A'}`);
+
+      return {
+        selected_servers: validServers,
+        reasoning: parsed.reasoning || '',
+        confidence: parsed.confidence || 0
+      };
+
+    } catch (error) {
+      this.logger.error(`[MCP-TODO] Server selection failed: ${error.message}`, {
+        category: 'mcp-todo',
+        component: 'mcp-todo',
+        stack: error.stack
+      });
+      throw error;
     }
+  }
 }
 
 export default MCPTodoManager;
