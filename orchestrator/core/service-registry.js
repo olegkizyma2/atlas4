@@ -15,6 +15,7 @@ import GlobalConfig from '../../config/global-config.js';
 import { MCPManager } from '../ai/mcp-manager.js';
 import { MCPTodoManager } from '../workflow/mcp-todo-manager.js';
 import { TTSSyncManager } from '../workflow/tts-sync-manager.js';
+import { VisionAnalysisService } from '../services/vision-analysis-service.js';
 import {
     ModeSelectionProcessor,
     AtlasTodoPlanningProcessor,
@@ -144,8 +145,51 @@ export function registerStateServices(container) {
  * @returns {DIContainer}
  */
 export function registerUtilityServices(container) {
+    logger.system('startup', '[DI-UTILITY] 🔧 Starting utility services registration...');
+
     // Network Config
     container.value('networkConfig', GlobalConfig.NETWORK_CONFIG);
+    logger.system('startup', '[DI-UTILITY] ✅ Registered networkConfig');
+
+    // Vision Analysis Service (OPTIMIZED 2025-10-17)
+    // Priority: Port 4000 (fast ~2-5s) → Ollama (slow ~120s free) → OpenRouter (fast but $)
+    logger.system('startup', '[DI-UTILITY] 🚀 Registering visionAnalysis service...');
+    try {
+        container.singleton('visionAnalysis', (c) => {
+            const logger = c.resolve('logger');
+            const service = new VisionAnalysisService({
+                logger,
+                config: { visionProvider: 'auto' }  // Auto-select based on availability
+            });
+            service._logger = logger;  // Attach logger for lifecycle hook
+            return service;
+        }, {
+            dependencies: ['logger'],
+            metadata: { category: 'utilities', priority: 45 },
+            lifecycle: {
+                onInit: async function () {
+                    const logger = this._logger || globalThis.logger;
+                    if (logger) {
+                        logger.system('startup', '[DI] 🚀 Vision Analysis Service initializing...');
+                    }
+                    try {
+                        await this.initialize();  // Check port 4000, Ollama availability
+                        if (logger) {
+                            const provider = this.visionProvider || 'unknown';
+                            logger.system('startup', `[DI] ✅ Vision Analysis Service initialized with provider: ${provider}`);
+                        }
+                    } catch (error) {
+                        if (logger) {
+                            logger.error('startup', `[DI] ❌ Vision Analysis Service init error: ${error.message}`);
+                        }
+                    }
+                }
+            }
+        });
+        logger.system('startup', '[DI-UTILITY] ✅ Vision Analysis Service registered successfully');
+    } catch (visionError) {
+        logger.error('startup', `[DI-UTILITY] ❌ Failed to register visionAnalysis: ${visionError.message}`);
+    }
 
     return container;
 }
@@ -288,10 +332,11 @@ export function registerMCPProcessors(container) {
         return new GrishaVerifyItemProcessor({
             mcpTodoManager: c.resolve('mcpTodoManager'),
             mcpManager: c.resolve('mcpManager'),
+            visionAnalysis: c.resolve('visionAnalysis'),
             logger: c.resolve('logger')
         });
     }, {
-        dependencies: ['mcpTodoManager', 'mcpManager', 'logger'],
+        dependencies: ['mcpTodoManager', 'mcpManager', 'visionAnalysis', 'logger'],
         metadata: { category: 'processors', priority: 40 }
     });
 

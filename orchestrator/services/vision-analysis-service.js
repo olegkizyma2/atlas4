@@ -21,10 +21,12 @@ import { VISION_CONFIG } from '../../config/global-config.js';
  * Vision Analysis Service
  * Uses AI vision models to analyze screenshots
  * 
- * PRIORITY:
- * 1. Ollama local llama3.2-vision (FREE!)
- * 2. OpenRouter Llama-11b ($0.0002/img)
- * 3. Fallback to cheapest/standard models
+ * PRIORITY (OPTIMIZED 2025-10-17):
+ * 1. Port 4000 LLM API - Fast inference (~2-5 sec) ✅ PRIMARY
+ * 2. Ollama local llama3.2-vision (FREE but slow 120+ sec) - FALLBACK ONLY
+ * 3. OpenRouter Llama-11b ($0.0002/img) - Emergency fallback
+ * 
+ * Decision: Use port 4000 as primary for SPEED (2s target), Ollama only if port 4000 unavailable
  */
 export class VisionAnalysisService {
     /**
@@ -36,36 +38,62 @@ export class VisionAnalysisService {
         this.logger = logger;
         this.config = config || {};
 
-        // Determine vision model (priority: Ollama → OpenRouter)
-        this.visionProvider = config.visionProvider || 'auto'; // 'ollama', 'openrouter', or 'auto'
+        // Determine vision model (priority: Port 4000 → Ollama → OpenRouter)
+        this.visionProvider = config.visionProvider || 'auto'; // 'port4000', 'ollama', 'openrouter', or 'auto'
         this.visionModel = config.visionModel || null;
 
         this.initialized = false;
+        this.port4000Available = false;
         this.ollamaAvailable = false;
     }
 
     /**
      * Initialize vision analysis service
-     * Checks Ollama availability and selects best model
+     * Checks port 4000 availability first, then Ollama as fallback
      */
     async initialize() {
         this.logger.system('vision-analysis', '[VISION] Initializing Vision Analysis Service...');
 
-        // Check if Ollama is available
-        this.ollamaAvailable = await this._checkOllamaAvailability();
+        // Check port 4000 FIRST (PRIORITY for SPEED)
+        this.port4000Available = await this._checkPort4000Availability();
 
-        if (this.ollamaAvailable && this.visionProvider !== 'openrouter') {
-            this.logger.system('vision-analysis', '[VISION] ✅ Ollama detected - using LOCAL llama3.2-vision (FREE!)');
-            this.visionProvider = 'ollama';
-            this.visionModel = VISION_CONFIG.local.model;
-        } else if (this.visionProvider === 'auto') {
-            this.logger.system('vision-analysis', '[VISION] ℹ️ Ollama not available - using OpenRouter Llama-11b');
-            this.visionProvider = 'openrouter';
-            this.visionModel = VISION_CONFIG.fast.model;
+        if (this.port4000Available) {
+            this.logger.system('vision-analysis', '[VISION] 🚀 ⚡ PORT 4000 detected - using FAST LLM API (~2-5 sec)');
+            this.visionProvider = 'port4000';
+            this.visionModel = 'fast'; // Placeholder - will use whatever model is on port 4000
+        } else {
+            // Check Ollama as fallback (slow but free)
+            this.ollamaAvailable = await this._checkOllamaAvailability();
+
+            if (this.ollamaAvailable) {
+                this.logger.system('vision-analysis', '[VISION] ⚠️  Port 4000 unavailable - falling back to Ollama (slow 120+ sec)');
+                this.visionProvider = 'ollama';
+                this.visionModel = 'llama3.2-vision';
+            } else {
+                this.logger.system('vision-analysis', '[VISION] ℹ️ No local services - using OpenRouter as emergency fallback');
+                this.visionProvider = 'openrouter';
+                this.visionModel = 'meta/llama-3.2-11b-vision-instruct';
+            }
         }
 
         this.initialized = true;
-        this.logger.system('vision-analysis', `[VISION] ✅ Vision Analysis initialized: ${this.visionProvider}/${this.visionModel}`);
+        this.logger.system('vision-analysis', `[VISION] ✅ Vision Analysis initialized: ${this.visionProvider} (${this.visionModel})`);
+    }
+
+    /**
+     * Check if port 4000 API is available
+     * @returns {Promise<boolean>}
+     * @private
+     */
+    async _checkPort4000Availability() {
+        try {
+            const response = await axios.get('http://localhost:4000/v1/models', {
+                timeout: 2000
+            });
+            return response.status === 200;
+        } catch (error) {
+            return false;
+        }
     }
 
     /**
@@ -305,7 +333,7 @@ Return ONLY the JSON object.`;
 
     /**
      * Call vision API with single image
-     * Automatically chooses between Ollama (local) or OpenRouter (cloud)
+     * Automatically routes to fastest available: Port 4000 → Ollama → OpenRouter
      * 
      * @param {string} base64Image - Base64 encoded image
      * @param {string} prompt - Analysis prompt
@@ -314,12 +342,17 @@ Return ONLY the JSON object.`;
      */
     async _callVisionAPI(base64Image, prompt) {
         try {
-            // Use Ollama if available and configured
+            // PRIMARY: Try port 4000 first (FAST ~2-5 sec)
+            if (this.port4000Available && this.visionProvider === 'port4000') {
+                return await this._callPort4000VisionAPI(base64Image, prompt);
+            }
+
+            // FALLBACK: Try Ollama (SLOW ~120+ sec but FREE)
             if (this.visionProvider === 'ollama' && this.ollamaAvailable) {
                 return await this._callOllamaVisionAPI(base64Image, prompt);
             }
 
-            // Fallback to OpenRouter
+            // EMERGENCY: Use OpenRouter (FAST but costs $)
             return await this._callOpenRouterVisionAPI(base64Image, prompt);
 
         } catch (error) {
@@ -333,7 +366,86 @@ Return ONLY the JSON object.`;
     }
 
     /**
-     * Call Ollama vision API (local)
+     * Call Port 4000 LLM API (FAST inference)
+     * @param {string} base64Image - Base64 encoded image
+     * @param {string} prompt - Analysis prompt
+     * @returns {Promise<Object>} Parsed analysis result
+     * @private
+     */
+    async _callPort4000VisionAPI(base64Image, prompt) {
+        try {
+            this.logger.system('vision-analysis', '[PORT-4000] 🚀 Calling Port 4000 LLM API (FAST ~2-5 sec)...');
+
+            const response = await axios.post('http://localhost:4000/v1/chat/completions', {
+                model: 'gpt-4o-mini',  // Fast model for speed
+                messages: [
+                    {
+                        role: 'user',
+                        content: [
+                            {
+                                type: 'text',
+                                text: prompt
+                            },
+                            {
+                                type: 'image_url',
+                                image_url: {
+                                    url: `data:image/png;base64,${base64Image}`,
+                                    detail: 'low'  // Low detail for SPEED
+                                }
+                            }
+                        ]
+                    }
+                ],
+                max_tokens: 500,  // Shorter response for speed
+                temperature: 0.1
+            }, {
+                timeout: 15000,  // 15 sec MAX for port 4000 (should be 2-5 sec normally)
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            const content = response.data.choices[0]?.message?.content;
+            this.logger.system('vision-analysis', '[PORT-4000] ✅ Fast response received');
+
+            return this._parseVisionResponse(content);
+
+        } catch (error) {
+            if (error.code === 'ECONNREFUSED') {
+                this.logger.warn('[PORT-4000] Connection refused - port 4000 not available', {
+                    category: 'vision-analysis'
+                });
+                this.port4000Available = false;
+
+                // Try Ollama instead
+                if (this.ollamaAvailable) {
+                    this.logger.system('vision-analysis', '[FALLBACK] Trying Ollama...');
+                    return await this._callOllamaVisionAPI(base64Image, prompt);
+                }
+
+                // Last resort: OpenRouter
+                return await this._callOpenRouterVisionAPI(base64Image, prompt);
+            }
+
+            // Timeout error
+            if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+                this.logger.warn('[PORT-4000] Timeout - port 4000 too slow, trying Ollama', {
+                    category: 'vision-analysis'
+                });
+
+                if (this.ollamaAvailable) {
+                    return await this._callOllamaVisionAPI(base64Image, prompt);
+                }
+
+                return await this._callOpenRouterVisionAPI(base64Image, prompt);
+            }
+
+            throw error;
+        }
+    }
+
+    /**
+     * Call Ollama vision API (local, SLOW, FREE)
+     * Only used as FALLBACK if port 4000 unavailable
+     * 
      * @param {string} base64Image - Base64 encoded image
      * @param {string} prompt - Analysis prompt
      * @returns {Promise<Object>} Parsed analysis result
@@ -341,42 +453,40 @@ Return ONLY the JSON object.`;
      */
     async _callOllamaVisionAPI(base64Image, prompt) {
         try {
-            this.logger.system('vision-analysis', '[OLLAMA] Calling local Ollama vision API...');
+            this.logger.system('vision-analysis', '[OLLAMA] ⚠️  Calling Ollama (slow 120+ sec, FREE fallback)...');
 
             const response = await axios.post('http://localhost:11434/api/generate', {
-                model: this.visionModel,
+                model: 'llama3.2-vision',
                 prompt: prompt,
                 images: [base64Image],
                 stream: false
             }, {
-                timeout: 300000,  // 5min timeout for local Ollama processing (M1 MAX needs 120+ sec)
+                timeout: 300000,  // 5min timeout - Ollama is VERY slow
                 headers: { 'Content-Type': 'application/json' }
             });
 
             const content = response.data.response;
-            this.logger.system('vision-analysis', '[OLLAMA] ✅ Response received');
+            this.logger.system('vision-analysis', '[OLLAMA] ✅ Slow response received');
 
             return this._parseVisionResponse(content);
 
         } catch (error) {
             if (error.code === 'ECONNREFUSED') {
-                this.logger.warn('[OLLAMA] Connection refused - falling back to OpenRouter', {
+                this.logger.warn('[OLLAMA] Ollama not available - trying OpenRouter', {
                     category: 'vision-analysis'
                 });
                 this.ollamaAvailable = false;
                 return await this._callOpenRouterVisionAPI(base64Image, prompt);
             }
-            
-            // Handle timeout error - fall back to OpenRouter
+
             if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
-                this.logger.warn('[OLLAMA] Timeout after 300s - falling back to OpenRouter', {
-                    category: 'vision-analysis',
-                    error: error.message
+                this.logger.warn('[OLLAMA] Ollama timeout 300s - using OpenRouter', {
+                    category: 'vision-analysis'
                 });
                 this.ollamaAvailable = false;
                 return await this._callOpenRouterVisionAPI(base64Image, prompt);
             }
-            
+
             throw error;
         }
     }
@@ -429,7 +539,7 @@ Return ONLY the JSON object.`;
             if (error.code === 'ECONNREFUSED') {
                 throw new Error('Vision API endpoint not available. Ensure OpenRouter API is running on localhost:4000.');
             }
-            
+
             // Handle timeout error
             if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
                 this.logger.error('[OPENROUTER] Timeout - both vision APIs failed', {
