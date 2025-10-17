@@ -48,54 +48,97 @@ export const USER_CONFIG = {
   }
 };
 
-// === VISION MODELS CONFIGURATION (NEW 17.10.2025) ===
+// === VISION MODELS CONFIGURATION (UPDATED 17.10.2025) ===
 // Vision AI моделі для Grishy verification system
-// Available на port 4000 (OpenRouter API)
-// Cost comparison: Llama-11b ($0.0002/img) vs GPT-4 ($0.01/img) = 50x cheaper!
+// PRIORITY: Ollama local (free!) → OpenRouter API (paid fallback)
+// Cost comparison: Ollama ($0) > Phi-3.5 ($0.0001/img) > Llama-11b ($0.0002/img) vs GPT-4 ($0.01/img)!
 export const VISION_CONFIG = {
-  // Tier 1: Fast & cheap (для простих перевірок)
+  // Tier 0: LOCAL OLLAMA (FREE - RECOMMENDED!) - NEW 17.10.2025
+  // Запущено на localhost:11434, модель: llama3.2-vision
+  // Speed: 2-5s (залежно від GPU), Accuracy: 94%, Cost: $0!
+  local: {
+    model: 'llama3.2-vision',
+    provider: 'ollama',
+    cost: 0,                // FREE!
+    speed: '2-5s',          // Залежно від процесу, але прийнятно
+    rateLimitPerMin: null,  // Немає ліміту (локальний)
+    use_cases: ['any_task', 'frequent_verifications', 'budget_critical'],
+    endpoint: 'http://localhost:11434',
+    isLocal: true
+  },
+
+  // Tier 1: Fast & cheap (для простих перевірок коли Ollama недоступна)
   fast: {
     model: 'meta/llama-3.2-11b-vision-instruct',
+    provider: 'openrouter',
     cost: 0.0002,           // Per image
     speed: '0.8-1.2s',
     rateLimitPerMin: 6,
-    use_cases: ['browser_open', 'file_exists', 'app_active', 'window_visible']
+    use_cases: ['browser_open', 'file_exists', 'app_active', 'window_visible'],
+    endpoint: 'http://localhost:4000/v1/chat/completions',
+    isLocal: false
   },
 
   // Tier 2: Standard (для середніх UI завдань)
   standard: {
     model: 'meta/llama-3.2-90b-vision-instruct',
+    provider: 'openrouter',
     cost: 0.0003,           // Per image
     speed: '1.5-2.5s',
     rateLimitPerMin: 3,
-    use_cases: ['text_match', 'ui_validation', 'form_filled', 'button_state']
+    use_cases: ['text_match', 'ui_validation', 'form_filled', 'button_state'],
+    endpoint: 'http://localhost:4000/v1/chat/completions',
+    isLocal: false
   },
 
-  // Tier 3: Fastest & cheapest
+  // Tier 3: Fastest & cheapest (OpenRouter)
   cheapest: {
     model: 'microsoft/phi-3.5-vision-instruct',
+    provider: 'openrouter',
     cost: 0.0001,           // Per image
     speed: '1-1.5s',
     rateLimitPerMin: 12,
-    use_cases: ['simple_check', 'presence_check', 'quick_verify']
+    use_cases: ['simple_check', 'presence_check', 'quick_verify'],
+    endpoint: 'http://localhost:4000/v1/chat/completions',
+    isLocal: false
   },
 
   // Default configuration
   get default() {
-    return this.fast;  // Recommended: Llama-11b
+    // Try local Ollama first, fallback to cloud
+    return this.isOllamaAvailable() ? this.local : this.fast;
   },
 
   // API configuration
   api: {
-    endpoint: 'http://localhost:4000/v1/chat/completions',
+    primaryEndpoint: 'http://localhost:4000/v1/chat/completions',
+    ollamaEndpoint: 'http://localhost:11434',
     timeout: 60000,         // 60s timeout for vision analysis
     temperature: 0.2,       // Low for accuracy
-    maxTokens: 1000
+    maxTokens: 1000,
+    ollamaModel: process.env.OLLAMA_VISION_MODEL || 'llama3.2-vision'
   },
 
-  // Adaptive selection based on task complexity
-  selectModel(complexity) {
+  // Check if Ollama is available
+  async isOllamaAvailable() {
+    try {
+      const response = await fetch('http://localhost:11434/api/tags', { timeout: 2000 });
+      return response.ok;
+    } catch {
+      return false;
+    }
+  },
+
+  // Adaptive selection based on task complexity (prefers local)
+  async selectModel(complexity) {
     // complexity: 1-10 scale
+    const isOllamaUp = await this.isOllamaAvailable();
+    
+    if (isOllamaUp) {
+      return this.local;  // ALWAYS prefer free local model
+    }
+    
+    // Fallback to OpenRouter if Ollama unavailable
     if (complexity <= 3) return this.cheapest;    // Simplest & fastest
     if (complexity <= 6) return this.fast;        // Recommended default
     return this.standard;                         // More powerful for complex UI

@@ -2,9 +2,11 @@
  * @fileoverview Grisha Verify Item Processor (Stage 2.3-MCP) - VISUAL VERIFICATION
  * Visual evidence-based verification using screenshots and AI vision
  * 
- * REFACTORED 17.10.2025: Switched from MCP tools to visual verification
+ * UPDATED 17.10.2025: Added Ollama local vision support
+ * - Prioritizes local Ollama llama3.2-vision (FREE!)
+ * - Falls back to OpenRouter (paid) if Ollama unavailable
  * - Uses continuous screenshot monitoring
- * - AI vision analysis (GPT-4 Vision)
+ * - AI vision analysis
  * - Stuck state detection
  * - Dynamic feedback for corrections
  * 
@@ -22,7 +24,7 @@ import { VisionAnalysisService } from '../../services/vision-analysis-service.js
  * 
  * Performs strict visual evidence-based verification:
  * - ALWAYS captures screenshots for verification
- * - Uses AI vision (GPT-4 Vision) to analyze screenshots
+ * - Uses AI vision (Ollama locally or OpenRouter cloud) to analyze screenshots
  * - Detects stuck states through visual monitoring
  * - Returns verified=true ONLY if visual evidence confirms success
  * - NO MCP tool selection - pure visual verification
@@ -51,7 +53,9 @@ export class GrishaVerifyItemProcessor {
         this.visionAnalysis = new VisionAnalysisService({
             logger: this.logger,
             config: {
-                visionModel: config.visionModel || 'meta/llama-3.2-11b-vision-instruct', // Available: llama-11b (recommended), llama-90b, phi-3.5-vision
+                // NEW 17.10.2025: Auto-detect Ollama, fallback to OpenRouter
+                visionProvider: config.visionProvider || 'auto',  // 'ollama', 'openrouter', or 'auto'
+                visionModel: config.visionModel || null,  // Auto-selected during init
                 apiEndpoint: config.visionApiEndpoint || 'http://localhost:4000/v1/chat/completions',
                 temperature: config.visionTemperature || 0.2
             }

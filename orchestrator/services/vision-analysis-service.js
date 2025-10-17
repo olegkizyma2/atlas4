@@ -15,10 +15,16 @@
 import axios from 'axios';
 import fs from 'fs/promises';
 import path from 'path';
+import { VISION_CONFIG } from '../config/global-config.js';
 
 /**
  * Vision Analysis Service
  * Uses AI vision models to analyze screenshots
+ * 
+ * PRIORITY:
+ * 1. Ollama local llama3.2-vision (FREE!)
+ * 2. OpenRouter Llama-11b ($0.0002/img)
+ * 3. Fallback to cheapest/standard models
  */
 export class VisionAnalysisService {
     /**
@@ -29,43 +35,53 @@ export class VisionAnalysisService {
     constructor({ logger, config = {} }) {
         this.logger = logger;
         this.config = config || {};
-        this.apiEndpoint = config.apiEndpoint || 'http://localhost:4000/v1/chat/completions';
-        // ✅ Vision models available on port 4000 (OpenRouter):
-        // - meta/llama-3.2-11b-vision-instruct (recommended: cheap & fast)
-        // - meta/llama-3.2-90b-vision-instruct (powerful: better accuracy)
-        // - microsoft/phi-3.5-vision-instruct (fastest & cheapest)
-        this.visionModel = config.visionModel || 'meta/llama-3.2-11b-vision-instruct';
-
+        
+        // Determine vision model (priority: Ollama → OpenRouter)
+        this.visionProvider = config.visionProvider || 'auto'; // 'ollama', 'openrouter', or 'auto'
+        this.visionModel = config.visionModel || null;
+        
         this.initialized = false;
+        this.ollamaAvailable = false;
     }
 
     /**
      * Initialize vision analysis service
+     * Checks Ollama availability and selects best model
      */
     async initialize() {
         this.logger.system('vision-analysis', '[VISION] Initializing Vision Analysis Service...');
         
-        // Verify API endpoint is accessible
-        try {
-            const response = await axios.get(this.config.apiEndpoint.replace('/v1/chat/completions', '/health'), {
-                timeout: 5000
-            }).catch(() => ({ status: 'unavailable' }));
-            
-            if (response.status === 'unavailable') {
-                this.logger.warn('[VISION] Vision API endpoint not accessible, will try on first use', {
-                    category: 'vision-analysis',
-                    component: 'vision-analysis'
-                });
-            }
-        } catch (error) {
-            this.logger.warn('[VISION] Vision API health check failed, will try on first use', {
-                category: 'vision-analysis',
-                component: 'vision-analysis'
-            });
+        // Check if Ollama is available
+        this.ollamaAvailable = await this._checkOllamaAvailability();
+        
+        if (this.ollamaAvailable && this.visionProvider !== 'openrouter') {
+            this.logger.system('vision-analysis', '[VISION] ✅ Ollama detected - using LOCAL llama3.2-vision (FREE!)');
+            this.visionProvider = 'ollama';
+            this.visionModel = VISION_CONFIG.local.model;
+        } else if (this.visionProvider === 'auto') {
+            this.logger.system('vision-analysis', '[VISION] ℹ️ Ollama not available - using OpenRouter Llama-11b');
+            this.visionProvider = 'openrouter';
+            this.visionModel = VISION_CONFIG.fast.model;
         }
 
         this.initialized = true;
-        this.logger.system('vision-analysis', '[VISION] ✅ Vision Analysis Service initialized');
+        this.logger.system('vision-analysis', `[VISION] ✅ Vision Analysis initialized: ${this.visionProvider}/${this.visionModel}`);
+    }
+
+    /**
+     * Check if Ollama is available
+     * @returns {Promise<boolean>}
+     * @private
+     */
+    async _checkOllamaAvailability() {
+        try {
+            const response = await axios.get('http://localhost:11434/api/tags', { 
+                timeout: 3000 
+            });
+            return response.status === 200;
+        } catch (error) {
+            return false;
+        }
     }
 
     /**
@@ -289,6 +305,7 @@ Return ONLY the JSON object.`;
 
     /**
      * Call vision API with single image
+     * Automatically chooses between Ollama (local) or OpenRouter (cloud)
      * 
      * @param {string} base64Image - Base64 encoded image
      * @param {string} prompt - Analysis prompt
@@ -297,8 +314,76 @@ Return ONLY the JSON object.`;
      */
     async _callVisionAPI(base64Image, prompt) {
         try {
-            const response = await axios.post(this.config.apiEndpoint, {
-                model: this.config.visionModel,
+            // Use Ollama if available and configured
+            if (this.visionProvider === 'ollama' && this.ollamaAvailable) {
+                return await this._callOllamaVisionAPI(base64Image, prompt);
+            }
+            
+            // Fallback to OpenRouter
+            return await this._callOpenRouterVisionAPI(base64Image, prompt);
+
+        } catch (error) {
+            this.logger.error(`[VISION] API call failed: ${error.message}`, {
+                category: 'vision-analysis',
+                component: 'vision-analysis',
+                stack: error.stack
+            });
+            throw error;
+        }
+    }
+
+    /**
+     * Call Ollama vision API (local)
+     * @param {string} base64Image - Base64 encoded image
+     * @param {string} prompt - Analysis prompt
+     * @returns {Promise<Object>} Parsed analysis result
+     * @private
+     */
+    async _callOllamaVisionAPI(base64Image, prompt) {
+        try {
+            this.logger.system('vision-analysis', '[OLLAMA] Calling local Ollama vision API...');
+            
+            const response = await axios.post('http://localhost:11434/api/generate', {
+                model: this.visionModel,
+                prompt: prompt,
+                images: [base64Image],
+                stream: false
+            }, {
+                timeout: 120000,  // 2min timeout for local processing
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            const content = response.data.response;
+            this.logger.system('vision-analysis', '[OLLAMA] ✅ Response received');
+            
+            return this._parseVisionResponse(content);
+
+        } catch (error) {
+            if (error.code === 'ECONNREFUSED') {
+                this.logger.warn('[OLLAMA] Connection refused - falling back to OpenRouter', {
+                    category: 'vision-analysis'
+                });
+                this.ollamaAvailable = false;
+                return await this._callOpenRouterVisionAPI(base64Image, prompt);
+            }
+            throw error;
+        }
+    }
+
+    /**
+     * Call OpenRouter vision API (cloud)
+     * @param {string} base64Image - Base64 encoded image
+     * @param {string} prompt - Analysis prompt
+     * @returns {Promise<Object>} Parsed analysis result
+     * @private
+     */
+    async _callOpenRouterVisionAPI(base64Image, prompt) {
+        try {
+            this.logger.system('vision-analysis', '[OPENROUTER] Calling OpenRouter vision API...');
+            
+            const apiEndpoint = 'http://localhost:4000/v1/chat/completions';
+            const response = await axios.post(apiEndpoint, {
+                model: this.visionModel,
                 messages: [
                     {
                         role: 'user',
@@ -311,27 +396,27 @@ Return ONLY the JSON object.`;
                                 type: 'image_url',
                                 image_url: {
                                     url: `data:image/png;base64,${base64Image}`,
-                                    detail: this.config.imageDetailLevel
+                                    detail: 'auto'
                                 }
                             }
                         ]
                     }
                 ],
-                max_tokens: this.config.maxTokens,
-                temperature: this.config.temperature
+                max_tokens: 1000,
+                temperature: 0.2
             }, {
-                timeout: this.config.timeout,
+                timeout: 60000,
                 headers: { 'Content-Type': 'application/json' }
             });
 
             const content = response.data.choices[0].message.content;
+            this.logger.system('vision-analysis', '[OPENROUTER] ✅ Response received');
             
-            // Parse JSON response
             return this._parseVisionResponse(content);
 
         } catch (error) {
             if (error.code === 'ECONNREFUSED') {
-                throw new Error('Vision API endpoint not available. Ensure API server is running.');
+                throw new Error('Vision API endpoint not available. Ensure OpenRouter API is running on localhost:4000.');
             }
             throw error;
         }
