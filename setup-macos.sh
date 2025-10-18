@@ -325,27 +325,27 @@ install_dependencies() {
 # =============================================================================
 
 install_mcp_servers() {
-    log_step "КРОК 7: Встановлення MCP серверів (6 серверів, 92 tools)"
+    log_step "КРОК 7: Встановлення MCP серверів (6 серверів, ~66 tools)"
     
     log_info "ATLAS v5.0 використовує Pure MCP mode - встановлення глобальних серверів..."
     
-    # MCP packages (6 operational servers з setup-mcp-todo-system.sh)
+    # MCP packages (6 operational servers - git disabled due to crashes)
     local MCP_PACKAGES=(
         "@modelcontextprotocol/server-filesystem"
         "@executeautomation/playwright-mcp-server"
         "super-shell-mcp"
         "@peakmojo/applescript-mcp"
-        "@cyanheads/git-mcp-server"
+        "@modelcontextprotocol/server-fetch"
         "@modelcontextprotocol/server-memory"
     )
     
     echo ""
-    log_info "📦 MCP Сервери (6 серверів, 92 tools):"
+    log_info "📦 MCP Сервери (6 серверів, ~66 tools):"
     echo -e "  ${GREEN}1. filesystem${NC}   - 14 tools - Файли та директорії"
     echo -e "  ${GREEN}2. playwright${NC}   - 32 tools - Браузер automation"
     echo -e "  ${GREEN}3. shell${NC}        -  9 tools - Shell команди"
     echo -e "  ${GREEN}4. applescript${NC}  -  1 tool  - macOS GUI automation"
-    echo -e "  ${GREEN}5. git${NC}          - 27 tools - Git операції"
+    echo -e "  ${GREEN}5. fetch${NC}        -  1 tool  - HTTP/REST API"
     echo -e "  ${GREEN}6. memory${NC}       -  9 tools - Cross-session пам'ять"
     echo ""
     
@@ -368,7 +368,7 @@ install_mcp_servers() {
     echo ""
     if [ "$all_installed" = true ]; then
         log_success "Всі MCP сервери встановлено (6/6)"
-        log_info "Total tools: 92 (14+32+9+1+27+9)"
+        log_info "Total tools: ~66 (14+32+9+1+1+9) - git disabled"
     else
         log_warn "Деякі MCP сервери не встановились - перевірте помилки вище"
         log_warn "Система працюватиме з доступними серверами"
@@ -851,17 +851,17 @@ print_final_instructions() {
     echo -e "${GREEN}╚════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
     echo -e "${CYAN}🚀 ATLAS v5.0 Features:${NC}"
-    echo -e "   ${WHITE}✓${NC} Pure MCP режим (6 серверів, 92 tools)"
+    echo -e "   ${WHITE}✓${NC} Pure MCP режим (6 серверів, ~66 tools)"
     echo -e "   ${WHITE}✓${NC} Mac Studio M1 MAX оптимізації"
     echo -e "   ${WHITE}✓${NC} Централізована конфігурація через .env"
     echo -e "   ${WHITE}✓${NC} Metal GPU acceleration для Whisper та TTS"
     echo ""
-    echo -e "${CYAN}� MCP Servers (6/6):${NC}"
+    echo -e "${CYAN}🔧 MCP Servers (6/6):${NC}"
     echo -e "   ${WHITE}•${NC} filesystem (14 tools) - Файли та директорії"
     echo -e "   ${WHITE}•${NC} playwright (32 tools) - Браузер automation"
     echo -e "   ${WHITE}•${NC} shell (9 tools) - Системні команди"
     echo -e "   ${WHITE}•${NC} applescript (1 tool) - macOS GUI"
-    echo -e "   ${WHITE}•${NC} git (27 tools) - Версійний контроль"
+    echo -e "   ${WHITE}•${NC} fetch (1 tool) - HTTP/REST API"
     echo -e "   ${WHITE}•${NC} memory (9 tools) - Cross-session пам'ять"
     echo ""
     echo -e "${CYAN}�📋 Наступні кроки:${NC}"

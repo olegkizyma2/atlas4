@@ -370,6 +370,12 @@ export const AI_BACKEND_CONFIG = {
           env: {}
         },
 
+        fetch: {
+          command: 'npx',
+          args: ['-y', '@modelcontextprotocol/server-fetch'],
+          env: {}
+        },
+
         // DISABLED: GitHub MCP server - зависає при ініціалізації
         // TODO: Try alternative package when available
         /*

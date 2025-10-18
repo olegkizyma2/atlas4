@@ -833,7 +833,16 @@ export class MCPTodoManager {
 
       // Import Tetyana Plan Tools prompt
       const { MCP_PROMPTS } = await import('../../prompts/mcp/index.js');
-      const planPrompt = MCP_PROMPTS.TETYANA_PLAN_TOOLS;
+      
+      // NEW 18.10.2025: Use specialized prompt if provided
+      let planPrompt;
+      if (options.promptOverride && MCP_PROMPTS[options.promptOverride]) {
+        planPrompt = MCP_PROMPTS[options.promptOverride];
+        this.logger.system('mcp-todo', `[TODO] 🎯 Using specialized prompt: ${options.promptOverride}`);
+      } else {
+        planPrompt = MCP_PROMPTS.TETYANA_PLAN_TOOLS;
+        this.logger.system('mcp-todo', `[TODO] Using general TETYANA_PLAN_TOOLS prompt`);
+      }
 
       // FIXED 15.10.2025 - Truncate execution_results to prevent 413 errors
       const previousItemsSummary = todo.items.slice(0, item.id - 1).map(i => {

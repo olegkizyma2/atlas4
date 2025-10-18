@@ -80,10 +80,32 @@ export class TetyanaПlanToolsProcessor {
             // OPTIMIZATION (15.10.2025): Pass toolsSummary to planTools for {{AVAILABLE_TOOLS}} substitution
             this.logger.debug('tetyana-plan-tools', `[STAGE-2.1-MCP] Tools summary:\n${toolsSummary}`);
 
-            // Plan tools using MCPTodoManager with dynamic tools list
+            // NEW 18.10.2025: Select MCP-specific prompt based on selected servers
+            let promptOverride = null;
+            if (selected_servers && selected_servers.length === 1) {
+                const serverName = selected_servers[0].toLowerCase();
+                const specializedPrompts = {
+                    'playwright': 'TETYANA_PLAN_TOOLS_PLAYWRIGHT',
+                    'filesystem': 'TETYANA_PLAN_TOOLS_FILESYSTEM',
+                    'applescript': 'TETYANA_PLAN_TOOLS_APPLESCRIPT',
+                    'fetch': 'TETYANA_PLAN_TOOLS_FETCH',
+                    'shell': 'TETYANA_PLAN_TOOLS_SHELL',
+                    'memory': 'TETYANA_PLAN_TOOLS_MEMORY'
+                };
+
+                if (specializedPrompts[serverName]) {
+                    promptOverride = specializedPrompts[serverName];
+                    this.logger.system('tetyana-plan-tools', `[STAGE-2.1-MCP] 🎯 Using specialized prompt: ${promptOverride}`);
+                }
+            }
+
+            // Plan tools using MCPTodoManager with dynamic tools list + specialized prompt
             this.logger.system('tetyana-plan-tools', `[STAGE-2.1-MCP] Calling mcpTodoManager.planTools()...`);
 
-            const plan = await this.mcpTodoManager.planTools(currentItem, todo, { toolsSummary });
+            const plan = await this.mcpTodoManager.planTools(currentItem, todo, { 
+                toolsSummary,
+                promptOverride  // NEW: Pass specialized prompt name
+            });
 
             this.logger.system('tetyana-plan-tools', `[STAGE-2.1-MCP] planTools() returned: ${JSON.stringify(plan).substring(0, 300)}`);
 
