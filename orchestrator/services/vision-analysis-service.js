@@ -708,9 +708,22 @@ Return ONLY the JSON object.`;
       // OPTIMIZATION 2025-10-17: Check and optimize image to prevent 413 errors
       const optimizedImage = this._optimizeImageForAPI(base64Image);
 
-      // Get vision model from GlobalConfig
-      const visionConfig = GlobalConfig.VISION_CONFIG.default;
-      const apiEndpoint = visionConfig.endpoint;
+      // Get vision model from GlobalConfig (with safe access)
+      const visionConfig = GlobalConfig.VISION_CONFIG?.default || {
+        model: 'copilot-gpt-4o',
+        endpoint: 'http://localhost:4000/v1/chat/completions',
+        temperature: 0.2
+      };
+      const apiEndpoint = visionConfig.endpoint || 'http://localhost:4000/v1/chat/completions';
+
+      // Prepare headers - add Copilot-Vision-Request for GitHub Copilot models
+      const headers = { 'Content-Type': 'application/json' };
+      
+      // FIXED 18.10.2025: GitHub Copilot requires special header for vision requests
+      if (visionConfig.model && visionConfig.model.includes('copilot')) {
+        headers['Copilot-Vision-Request'] = 'true';
+        this.logger.system('vision-analysis', '[PORT-4000] Adding Copilot-Vision-Request header for GitHub Copilot model');
+      }
 
       const response = await axios.post(apiEndpoint, {
         model: visionConfig.model,
@@ -736,7 +749,7 @@ Return ONLY the JSON object.`;
         temperature: 0.1
       }, {
         timeout: 15000,  // 15 sec MAX for port 4000 (should be 2-5 sec normally)
-        headers: { 'Content-Type': 'application/json' }
+        headers
       });
 
       const content = response.data.choices[0]?.message?.content;

@@ -323,11 +323,27 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
         logger.system('executor', `[CHAT-CONTEXT] Sending ${recentMessages.length} messages to LLM`);
         logger.system('executor', `[CHAT-CONTEXT] Context for LLM: ${JSON.stringify(recentMessages.map(m => ({ role: m.role, preview: m.content.substring(0, 40) })), null, 2)}`);
 
-        // Get API endpoint (with safe access)
+        // DIAGNOSTIC: Check GlobalConfig structure
+        logger.system('executor', `[DIAGNOSTIC] GlobalConfig exists: ${!!GlobalConfig}`);
+        logger.system('executor', `[DIAGNOSTIC] AI_MODEL_CONFIG exists: ${!!GlobalConfig.AI_MODEL_CONFIG}`);
+        logger.system('executor', `[DIAGNOSTIC] AI_MODEL_CONFIG type: ${typeof GlobalConfig.AI_MODEL_CONFIG}`);
+        
+        // Get API endpoint (with safe access and comprehensive fallback)
         const apiEndpointConfig = GlobalConfig.AI_MODEL_CONFIG?.apiEndpoint;
-        let apiUrl = apiEndpointConfig 
-          ? (typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary)
-          : 'http://localhost:4000/v1/chat/completions';
+        logger.system('executor', `[DIAGNOSTIC] apiEndpointConfig: ${JSON.stringify(apiEndpointConfig)}`);
+        
+        let apiUrl;
+        if (!apiEndpointConfig) {
+          logger.warn('executor', '[CHAT] apiEndpoint config is undefined, using fallback URL');
+          apiUrl = 'http://localhost:4000/v1/chat/completions';
+        } else if (typeof apiEndpointConfig === 'string') {
+          apiUrl = apiEndpointConfig;
+        } else if (typeof apiEndpointConfig === 'object') {
+          apiUrl = apiEndpointConfig.primary || 'http://localhost:4000/v1/chat/completions';
+        } else {
+          logger.warn('executor', `[CHAT] Unexpected apiEndpointConfig type: ${typeof apiEndpointConfig}`);
+          apiUrl = 'http://localhost:4000/v1/chat/completions';
+        }
 
         logger.system('executor', `Calling chat API at ${apiUrl} with model ${modelConfig.model}`);
 
@@ -371,7 +387,7 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
 
         } catch (primaryError) {
           // Try fallback if primary fails
-          if (apiEndpointConfig.fallback && !usedFallback) {
+          if (apiEndpointConfig?.fallback && !usedFallback) {
             logger.warn('executor', `Chat API failed: ${primaryError.message}, attempting fallback...`);
             apiUrl = apiEndpointConfig.fallback;
             usedFallback = true;

@@ -36,12 +36,26 @@ export class ModeSelectionProcessor {
 
     _ensureConfig() {
         if (!this.modelConfig) {
-            const apiConfig = GlobalConfig.MCP_MODEL_CONFIG.apiEndpoint;
-            this.apiEndpoint = apiConfig.useFallback && apiConfig.fallback
-                ? apiConfig.fallback
-                : apiConfig.primary;
-            this.apiTimeout = apiConfig.timeout || 60000;
-            this.modelConfig = GlobalConfig.MCP_MODEL_CONFIG.stages.mode_selection;
+            // Safe access to apiEndpoint config
+            const apiConfig = GlobalConfig.MCP_MODEL_CONFIG?.apiEndpoint;
+            
+            // Validate apiConfig structure and provide fallback
+            if (!apiConfig || typeof apiConfig !== 'object') {
+                this.logger.warn('mode-selection', '[STAGE-0-MCP] ⚠️ apiEndpoint config not found, using fallback');
+                this.apiEndpoint = 'http://localhost:4000/v1/chat/completions';
+                this.apiTimeout = 60000;
+            } else {
+                this.apiEndpoint = (apiConfig.useFallback && apiConfig.fallback)
+                    ? apiConfig.fallback
+                    : (apiConfig.primary || 'http://localhost:4000/v1/chat/completions');
+                this.apiTimeout = apiConfig.timeout || 60000;
+            }
+            
+            this.modelConfig = GlobalConfig.MCP_MODEL_CONFIG?.stages?.mode_selection || {
+                model: 'atlas-ministral-3b',
+                temperature: 0.05,
+                max_tokens: 50
+            };
             
             this.logger.system('mode-selection', `[STAGE-0-MCP] 🔧 Using API: ${this.apiEndpoint}, Model: ${this.modelConfig.model}`);
         }

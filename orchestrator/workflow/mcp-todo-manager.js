@@ -274,15 +274,21 @@ export class MCPTodoManager {
       await this._waitForRateLimit();
 
       // FIXED 14.10.2025 - Use MCP_MODEL_CONFIG for per-stage models
-      const modelConfig = GlobalConfig.MCP_MODEL_CONFIG.getStageConfig('todo_planning');
+      const modelConfig = GlobalConfig.MCP_MODEL_CONFIG?.getStageConfig?.('todo_planning') || {
+        model: 'atlas-grok-3',
+        temperature: 0.3,
+        max_tokens: 4000
+      };
 
       // LOG MODEL SELECTION (ADDED 14.10.2025 - Debugging)
       this.logger.system('mcp-todo', `[TODO] Using model: ${modelConfig.model} (temp: ${modelConfig.temperature}, max_tokens: ${modelConfig.max_tokens})`);
 
       // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
       // IMPROVED 16.10.2025 - Support fallback API endpoint with automatic retry
-      const apiEndpointConfig = GlobalConfig.MCP_MODEL_CONFIG.apiEndpoint;
-      let apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
+      const apiEndpointConfig = GlobalConfig.MCP_MODEL_CONFIG?.apiEndpoint;
+      let apiUrl = apiEndpointConfig
+        ? (typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary)
+        : 'http://localhost:4000/v1/chat/completions';
 
       this.logger.system('mcp-todo', `[TODO] Using primary API endpoint: ${apiUrl}`);
 
@@ -810,14 +816,20 @@ Create precise MCP tool execution plan.
       // FIXED 14.10.2025 - Use MCP_MODEL_CONFIG for per-stage models
       let apiResponse;
       try {
-        const modelConfig = GlobalConfig.MCP_MODEL_CONFIG.getStageConfig('plan_tools');
+        const modelConfig = GlobalConfig.MCP_MODEL_CONFIG?.getStageConfig?.('plan_tools') || {
+          model: 'atlas-gpt-4o',
+          temperature: 0.1,
+          max_tokens: 2500
+        };
 
         // LOG MODEL SELECTION (ADDED 14.10.2025 - Debugging)
         this.logger.system('mcp-todo', `[TODO] Planning tools with model: ${modelConfig.model} (temp: ${modelConfig.temperature}, max_tokens: ${modelConfig.max_tokens})`);
 
         // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
-        const apiEndpointConfig = GlobalConfig.MCP_MODEL_CONFIG.apiEndpoint;
-        const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
+        const apiEndpointConfig = GlobalConfig.MCP_MODEL_CONFIG?.apiEndpoint;
+        const apiUrl = apiEndpointConfig
+          ? (typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary)
+          : 'http://localhost:4000/v1/chat/completions';
         this.logger.system('mcp-todo', `[TODO] Calling LLM API at ${apiUrl}...`);
 
         // Wait for rate limit (ADDED 14.10.2025)
@@ -967,15 +979,21 @@ Create precise MCP tool execution plan.
         .replace('{{SUCCESS_CRITERIA}}', item.success_criteria)
         .replace('{{CURRENT_PLAN}}', JSON.stringify(plan, null, 2));
 
-      const modelConfig = GlobalConfig.MCP_MODEL_CONFIG.getStageConfig('plan_tools'); // Reuse same model as planning
+      const modelConfig = GlobalConfig.MCP_MODEL_CONFIG?.getStageConfig?.('plan_tools') || {
+        model: 'atlas-gpt-4o',
+        temperature: 0.1,
+        max_tokens: 2500
+      }; // Reuse same model as planning
 
       this.logger.system('mcp-todo', `[TODO] Analyzing screenshot with model: ${modelConfig.model}`);
 
       await this._waitForRateLimit();
 
       // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
-      const apiEndpointConfig = GlobalConfig.MCP_MODEL_CONFIG.apiEndpoint;
-      const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
+      const apiEndpointConfig = GlobalConfig.MCP_MODEL_CONFIG?.apiEndpoint;
+      const apiUrl = apiEndpointConfig
+        ? (typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary)
+        : 'http://localhost:4000/v1/chat/completions';
 
       const apiResponse = await axios.post(apiUrl, {
         model: modelConfig.model,
@@ -1246,14 +1264,20 @@ Attempt: ${attempt}/${item.max_attempts}
 
       // FIXED 13.10.2025 - Use correct API call format
       // FIXED 14.10.2025 - Use MCP_MODEL_CONFIG for per-stage models
-      const modelConfig = GlobalConfig.MCP_MODEL_CONFIG.getStageConfig('adjust_todo');
+      const modelConfig = GlobalConfig.MCP_MODEL_CONFIG?.getStageConfig?.('adjust_todo') || {
+        model: 'atlas-gpt-4o-mini',
+        temperature: 0.2,
+        max_tokens: 1500
+      };
 
       // Wait for rate limit (ADDED 14.10.2025)
       await this._waitForRateLimit();
 
       // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
-      const apiEndpointConfig = GlobalConfig.MCP_MODEL_CONFIG.apiEndpoint;
-      const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
+      const apiEndpointConfig = GlobalConfig.MCP_MODEL_CONFIG?.apiEndpoint;
+      const apiUrl = apiEndpointConfig
+        ? (typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary)
+        : 'http://localhost:4000/v1/chat/completions';
 
       const apiResponse = await axios.post(apiUrl, {
         model: modelConfig.model,
@@ -1351,14 +1375,20 @@ Results: ${JSON.stringify(todo.items.map(i => ({
     // FIXED 14.10.2025 - Use MCP_MODEL_CONFIG for per-stage models
     let llmText = '';
     try {
-      const modelConfig = GlobalConfig.MCP_MODEL_CONFIG.getStageConfig('final_summary');
+      const modelConfig = GlobalConfig.MCP_MODEL_CONFIG?.getStageConfig?.('final_summary') || {
+        model: 'atlas-ministral-3b',
+        temperature: 0.5,
+        max_tokens: 600
+      };
 
       // Wait for rate limit (ADDED 14.10.2025)
       await this._waitForRateLimit();
 
       // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
-      const apiEndpointConfig = GlobalConfig.MCP_MODEL_CONFIG.apiEndpoint;
-      const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
+      const apiEndpointConfig = GlobalConfig.MCP_MODEL_CONFIG?.apiEndpoint;
+      const apiUrl = apiEndpointConfig
+        ? (typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary)
+        : 'http://localhost:4000/v1/chat/completions';
 
       const apiResponse = await axios.post(apiUrl, {
         model: modelConfig.model,
@@ -2143,10 +2173,16 @@ Return ONLY JSON:
       await this._waitForRateLimit();
 
       // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
-      const apiEndpointConfig = GlobalConfig.MCP_MODEL_CONFIG.apiEndpoint;
-      const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
+      const apiEndpointConfig = GlobalConfig.MCP_MODEL_CONFIG?.apiEndpoint;
+      const apiUrl = apiEndpointConfig
+        ? (typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary)
+        : 'http://localhost:4000/v1/chat/completions';
 
-      const modelConfig = GlobalConfig.MCP_MODEL_CONFIG.getStageConfig('verify_item');
+      const modelConfig = GlobalConfig.MCP_MODEL_CONFIG?.getStageConfig?.('verify_item') || {
+        model: 'atlas-gpt-4o-mini',
+        temperature: 0.15,
+        max_tokens: 800
+      };
 
       // FIXED 17.10.2025 - Reduced timeout for gpt-4o-mini (30s instead of 60s)
       const timeoutMs = 30000;  // 30s max for gpt-4o-mini (much faster than gpt-4.1)
@@ -2346,10 +2382,16 @@ Verification evidence: ${verificationResults.results.length} checks performed`;
       await this._waitForRateLimit();
 
       // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
-      const apiEndpointConfig = GlobalConfig.MCP_MODEL_CONFIG.apiEndpoint;
-      const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
+      const apiEndpointConfig = GlobalConfig.MCP_MODEL_CONFIG?.apiEndpoint;
+      const apiUrl = apiEndpointConfig
+        ? (typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary)
+        : 'http://localhost:4000/v1/chat/completions';
 
-      const modelConfig = GlobalConfig.MCP_MODEL_CONFIG.getStageConfig('verify_item');
+      const modelConfig = GlobalConfig.MCP_MODEL_CONFIG?.getStageConfig?.('verify_item') || {
+        model: 'atlas-gpt-4o-mini',
+        temperature: 0.15,
+        max_tokens: 800
+      };
 
       // FIXED 17.10.2025 - Reduced timeout for gpt-4o-mini (30s instead of 60s)
       const timeoutMs = 30000;  // 30s max for gpt-4o-mini
@@ -2449,14 +2491,20 @@ Select 1-2 most relevant servers.
 `;
 
       // Use fast classification model for server selection
-      const modelConfig = GlobalConfig.MCP_MODEL_CONFIG.getStageConfig('classification');
+      const modelConfig = GlobalConfig.MCP_MODEL_CONFIG?.getStageConfig?.('classification') || {
+        model: 'atlas-ministral-3b',
+        temperature: 0.05,
+        max_tokens: 50
+      };
 
       // Wait for rate limit
       await this._waitForRateLimit();
 
       // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
-      const apiEndpointConfig = GlobalConfig.MCP_MODEL_CONFIG.apiEndpoint;
-      const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
+      const apiEndpointConfig = GlobalConfig.MCP_MODEL_CONFIG?.apiEndpoint;
+      const apiUrl = apiEndpointConfig
+        ? (typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary)
+        : 'http://localhost:4000/v1/chat/completions';
 
       const apiResponse = await axios.post(apiUrl, {
         model: modelConfig.model,
