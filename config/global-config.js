@@ -256,29 +256,30 @@ export const MCP_MODEL_CONFIG = {
 
     // Stage 1-MCP: Atlas TODO Planning
     // T=0.3 для балансу планування (точність + креатив для генерації ідей)
-    // grok-3: Потужна модель для планування
+    // UPDATED 18.10.2025: Змінено з grok-3 на copilot-gpt-4o через timeout проблеми
+    // copilot-gpt-4o: Швидка модель для планування (завершується за <30 сек)
     todo_planning: {
-      get model() { return process.env.MCP_MODEL_TODO_PLANNING || 'atlas-grok-3'; },
+      get model() { return process.env.MCP_MODEL_TODO_PLANNING || 'copilot-gpt-4o'; },
       get temperature() { return parseFloat(process.env.MCP_TEMP_TODO_PLANNING || '0.3'); },
       max_tokens: 4000,
-      description: 'Atlas TODO Planning - баланс точності та креативу (atlas-grok-3)'
+      description: 'Atlas TODO Planning - швидке планування без timeout (copilot-gpt-4o, <30s)'
     },
 
     // Stage 2.1-MCP: Tetyana Plan Tools
     // T=0.1 для ЧИСТОГО JSON output без варіацій (критично важливо!)
-    // gpt-4o: Чистий JSON, надійна структура
+    // copilot-gpt-4o: Чистий JSON, надійна структура
     plan_tools: {
-      get model() { return process.env.MCP_MODEL_PLAN_TOOLS || 'atlas-gpt-4o'; },
+      get model() { return process.env.MCP_MODEL_PLAN_TOOLS || 'copilot-gpt-4o'; },
       get temperature() { return parseFloat(process.env.MCP_TEMP_PLAN_TOOLS || '0.1'); },
       max_tokens: 2500,
-      description: 'Tetyana Plan Tools - чистий JSON без markdown (atlas-gpt-4o)'
+      description: 'Tetyana Plan Tools - чистий JSON без markdown (copilot-gpt-4o)'
     },
 
     // Stage 2.3-MCP: Grisha Verify Item
     // T=0.15 для точної верифікації з мінімальною варіативністю
-    // gpt-4o-mini: Швидка верифікація, точна, 90 req/min (FIXED 17.10.2025)
+    // copilot-gpt-4o-mini: Швидка верифікація, точна, 90 req/min (FIXED 17.10.2025)
     verify_item: {
-      get model() { return process.env.MCP_MODEL_VERIFY_ITEM || 'atlas-gpt-4o-mini'; },
+      get model() { return process.env.MCP_MODEL_VERIFY_ITEM || 'copilot-gpt-4o-mini'; },
       get temperature() { return parseFloat(process.env.MCP_TEMP_VERIFY_ITEM || '0.15'); },
       max_tokens: 800,
       description: 'Grisha Verify Item - швидка верифікація з JSON output (90 req/min, ~0.3ms latency)'
@@ -286,9 +287,9 @@ export const MCP_MODEL_CONFIG = {
 
     // Stage 3-MCP: Atlas Adjust TODO
     // T=0.2 для точного аналізу та корекції з великим контекстом
-    // gpt-4o-mini: 35 req/min (якість + 128K контекст вже не потрібен)
+    // copilot-gpt-4o-mini: 35 req/min (якість + 128K контекст вже не потрібен)
     adjust_todo: {
-      get model() { return process.env.MCP_MODEL_ADJUST_TODO || 'atlas-gpt-4o-mini'; },
+      get model() { return process.env.MCP_MODEL_ADJUST_TODO || 'copilot-gpt-4o-mini'; },
       get temperature() { return parseFloat(process.env.MCP_TEMP_ADJUST_TODO || '0.2'); },
       max_tokens: 1500,
       description: 'Atlas Adjust TODO - точна корекція з аналізом (35 req/min)'

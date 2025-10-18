@@ -274,8 +274,9 @@ export class MCPTodoManager {
       await this._waitForRateLimit();
 
       // FIXED 14.10.2025 - Use MCP_MODEL_CONFIG for per-stage models
+      // UPDATED 18.10.2025 - Changed fallback to copilot-gpt-4o
       const modelConfig = GlobalConfig.MCP_MODEL_CONFIG?.getStageConfig?.('todo_planning') || {
-        model: 'atlas-grok-3',
+        model: 'copilot-gpt-4o',
         temperature: 0.3,
         max_tokens: 4000
       };
@@ -817,7 +818,7 @@ Create precise MCP tool execution plan.
       let apiResponse;
       try {
         const modelConfig = GlobalConfig.MCP_MODEL_CONFIG?.getStageConfig?.('plan_tools') || {
-          model: 'atlas-gpt-4o',
+          model: 'copilot-gpt-4o',
           temperature: 0.1,
           max_tokens: 2500
         };
@@ -980,7 +981,7 @@ Create precise MCP tool execution plan.
         .replace('{{CURRENT_PLAN}}', JSON.stringify(plan, null, 2));
 
       const modelConfig = GlobalConfig.MCP_MODEL_CONFIG?.getStageConfig?.('plan_tools') || {
-        model: 'atlas-gpt-4o',
+        model: 'copilot-gpt-4o',
         temperature: 0.1,
         max_tokens: 2500
       }; // Reuse same model as planning
@@ -1265,7 +1266,7 @@ Attempt: ${attempt}/${item.max_attempts}
       // FIXED 13.10.2025 - Use correct API call format
       // FIXED 14.10.2025 - Use MCP_MODEL_CONFIG for per-stage models
       const modelConfig = GlobalConfig.MCP_MODEL_CONFIG?.getStageConfig?.('adjust_todo') || {
-        model: 'atlas-gpt-4o-mini',
+        model: 'copilot-gpt-4o-mini',
         temperature: 0.2,
         max_tokens: 1500
       };
@@ -2179,7 +2180,7 @@ Return ONLY JSON:
         : 'http://localhost:4000/v1/chat/completions';
 
       const modelConfig = GlobalConfig.MCP_MODEL_CONFIG?.getStageConfig?.('verify_item') || {
-        model: 'atlas-gpt-4o-mini',
+        model: 'copilot-gpt-4o-mini',
         temperature: 0.15,
         max_tokens: 800
       };
@@ -2388,7 +2389,7 @@ Verification evidence: ${verificationResults.results.length} checks performed`;
         : 'http://localhost:4000/v1/chat/completions';
 
       const modelConfig = GlobalConfig.MCP_MODEL_CONFIG?.getStageConfig?.('verify_item') || {
-        model: 'atlas-gpt-4o-mini',
+        model: 'copilot-gpt-4o-mini',
         temperature: 0.15,
         max_tokens: 800
       };
