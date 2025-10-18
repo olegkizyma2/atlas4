@@ -11,7 +11,7 @@
 import logger from '../utils/logger.js';
 import axios from 'axios';
 import vm from 'node:vm';
-import { MCP_MODEL_CONFIG } from '../../config/global-config.js';
+import GlobalConfig from '../../config/global-config.js';
 
 /**
  * @typedef {Object} TodoItem
@@ -274,14 +274,14 @@ export class MCPTodoManager {
       await this._waitForRateLimit();
 
       // FIXED 14.10.2025 - Use MCP_MODEL_CONFIG for per-stage models
-      const modelConfig = MCP_MODEL_CONFIG.getStageConfig('todo_planning');
+      const modelConfig = GlobalConfig.MCP_MODEL_CONFIG.getStageConfig('todo_planning');
 
       // LOG MODEL SELECTION (ADDED 14.10.2025 - Debugging)
       this.logger.system('mcp-todo', `[TODO] Using model: ${modelConfig.model} (temp: ${modelConfig.temperature}, max_tokens: ${modelConfig.max_tokens})`);
 
       // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
       // IMPROVED 16.10.2025 - Support fallback API endpoint with automatic retry
-      const apiEndpointConfig = MCP_MODEL_CONFIG.apiEndpoint;
+      const apiEndpointConfig = GlobalConfig.MCP_MODEL_CONFIG.apiEndpoint;
       let apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
 
       this.logger.system('mcp-todo', `[TODO] Using primary API endpoint: ${apiUrl}`);
@@ -810,13 +810,13 @@ Create precise MCP tool execution plan.
       // FIXED 14.10.2025 - Use MCP_MODEL_CONFIG for per-stage models
       let apiResponse;
       try {
-        const modelConfig = MCP_MODEL_CONFIG.getStageConfig('plan_tools');
+        const modelConfig = GlobalConfig.MCP_MODEL_CONFIG.getStageConfig('plan_tools');
 
         // LOG MODEL SELECTION (ADDED 14.10.2025 - Debugging)
         this.logger.system('mcp-todo', `[TODO] Planning tools with model: ${modelConfig.model} (temp: ${modelConfig.temperature}, max_tokens: ${modelConfig.max_tokens})`);
 
         // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
-        const apiEndpointConfig = MCP_MODEL_CONFIG.apiEndpoint;
+        const apiEndpointConfig = GlobalConfig.MCP_MODEL_CONFIG.apiEndpoint;
         const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
         this.logger.system('mcp-todo', `[TODO] Calling LLM API at ${apiUrl}...`);
 
@@ -1246,7 +1246,7 @@ Attempt: ${attempt}/${item.max_attempts}
 
       // FIXED 13.10.2025 - Use correct API call format
       // FIXED 14.10.2025 - Use MCP_MODEL_CONFIG for per-stage models
-      const modelConfig = MCP_MODEL_CONFIG.getStageConfig('adjust_todo');
+      const modelConfig = GlobalConfig.MCP_MODEL_CONFIG.getStageConfig('adjust_todo');
 
       // Wait for rate limit (ADDED 14.10.2025)
       await this._waitForRateLimit();
@@ -1351,7 +1351,7 @@ Results: ${JSON.stringify(todo.items.map(i => ({
     // FIXED 14.10.2025 - Use MCP_MODEL_CONFIG for per-stage models
     let llmText = '';
     try {
-      const modelConfig = MCP_MODEL_CONFIG.getStageConfig('final_summary');
+      const modelConfig = GlobalConfig.MCP_MODEL_CONFIG.getStageConfig('final_summary');
 
       // Wait for rate limit (ADDED 14.10.2025)
       await this._waitForRateLimit();
@@ -2146,7 +2146,7 @@ Return ONLY JSON:
       const apiEndpointConfig = MCP_MODEL_CONFIG.apiEndpoint;
       const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
 
-      const modelConfig = MCP_MODEL_CONFIG.getStageConfig('verify_item');
+      const modelConfig = GlobalConfig.MCP_MODEL_CONFIG.getStageConfig('verify_item');
 
       // FIXED 17.10.2025 - Reduced timeout for gpt-4o-mini (30s instead of 60s)
       const timeoutMs = 30000;  // 30s max for gpt-4o-mini (much faster than gpt-4.1)
@@ -2349,7 +2349,7 @@ Verification evidence: ${verificationResults.results.length} checks performed`;
       const apiEndpointConfig = MCP_MODEL_CONFIG.apiEndpoint;
       const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
 
-      const modelConfig = MCP_MODEL_CONFIG.getStageConfig('verify_item');
+      const modelConfig = GlobalConfig.MCP_MODEL_CONFIG.getStageConfig('verify_item');
 
       // FIXED 17.10.2025 - Reduced timeout for gpt-4o-mini (30s instead of 60s)
       const timeoutMs = 30000;  // 30s max for gpt-4o-mini
