@@ -967,14 +967,14 @@ Create precise MCP tool execution plan.
         .replace('{{SUCCESS_CRITERIA}}', item.success_criteria)
         .replace('{{CURRENT_PLAN}}', JSON.stringify(plan, null, 2));
 
-      const modelConfig = MCP_MODEL_CONFIG.getStageConfig('plan_tools'); // Reuse same model as planning
+      const modelConfig = GlobalConfig.MCP_MODEL_CONFIG.getStageConfig('plan_tools'); // Reuse same model as planning
 
       this.logger.system('mcp-todo', `[TODO] Analyzing screenshot with model: ${modelConfig.model}`);
 
       await this._waitForRateLimit();
 
       // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
-      const apiEndpointConfig = MCP_MODEL_CONFIG.apiEndpoint;
+      const apiEndpointConfig = GlobalConfig.MCP_MODEL_CONFIG.apiEndpoint;
       const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
 
       const apiResponse = await axios.post(apiUrl, {
@@ -1252,7 +1252,7 @@ Attempt: ${attempt}/${item.max_attempts}
       await this._waitForRateLimit();
 
       // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
-      const apiEndpointConfig = MCP_MODEL_CONFIG.apiEndpoint;
+      const apiEndpointConfig = GlobalConfig.MCP_MODEL_CONFIG.apiEndpoint;
       const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
 
       const apiResponse = await axios.post(apiUrl, {
@@ -1357,7 +1357,7 @@ Results: ${JSON.stringify(todo.items.map(i => ({
       await this._waitForRateLimit();
 
       // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
-      const apiEndpointConfig = MCP_MODEL_CONFIG.apiEndpoint;
+      const apiEndpointConfig = GlobalConfig.MCP_MODEL_CONFIG.apiEndpoint;
       const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
 
       const apiResponse = await axios.post(apiUrl, {
@@ -2143,7 +2143,7 @@ Return ONLY JSON:
       await this._waitForRateLimit();
 
       // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
-      const apiEndpointConfig = MCP_MODEL_CONFIG.apiEndpoint;
+      const apiEndpointConfig = GlobalConfig.MCP_MODEL_CONFIG.apiEndpoint;
       const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
 
       const modelConfig = GlobalConfig.MCP_MODEL_CONFIG.getStageConfig('verify_item');
@@ -2346,7 +2346,7 @@ Verification evidence: ${verificationResults.results.length} checks performed`;
       await this._waitForRateLimit();
 
       // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
-      const apiEndpointConfig = MCP_MODEL_CONFIG.apiEndpoint;
+      const apiEndpointConfig = GlobalConfig.MCP_MODEL_CONFIG.apiEndpoint;
       const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
 
       const modelConfig = GlobalConfig.MCP_MODEL_CONFIG.getStageConfig('verify_item');
@@ -2449,13 +2449,13 @@ Select 1-2 most relevant servers.
 `;
 
       // Use fast classification model for server selection
-      const modelConfig = MCP_MODEL_CONFIG.getStageConfig('classification');
+      const modelConfig = GlobalConfig.MCP_MODEL_CONFIG.getStageConfig('classification');
 
       // Wait for rate limit
       await this._waitForRateLimit();
 
       // FIXED 16.10.2025 - Extract primary URL from apiEndpoint object
-      const apiEndpointConfig = MCP_MODEL_CONFIG.apiEndpoint;
+      const apiEndpointConfig = GlobalConfig.MCP_MODEL_CONFIG.apiEndpoint;
       const apiUrl = typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary;
 
       const apiResponse = await axios.post(apiUrl, {
