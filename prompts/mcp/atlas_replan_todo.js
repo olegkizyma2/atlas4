@@ -253,6 +253,47 @@ Replan Decision:
   "tts_phrase": "Шукаю правильний API endpoint"
 }
 
+**Приклад 6: replan для недоступних інструментів**
+
+Failed Item: "Створити презентацію з цінами BYD_Song_Plus_Prices.pptx"
+Tetyana: Plan contains invalid tools: applescript.create_powerpoint (tool does not exist)
+Grisha: "Інструменти для PowerPoint недоступні в MCP"
+
+Analysis:
+- PowerPoint tools відсутні в MCP servers
+- Дані вже зібрані в попередніх пунктах
+- Можна зберегти в альтернативному форматі (CSV, JSON, TXT)
+
+Replan Decision:
+{
+  "replanned": true,
+  "reasoning": "MCP не має інструментів для створення PowerPoint презентацій. Замість цього збережу дані про ціни в CSV файл на робочому столі, який легко відкрити в Excel або Google Sheets для подальшого форматування.",
+  "strategy": "replan_and_continue",
+  "new_items": [
+    {
+      "action": "Створити CSV файл BYD_Song_Plus_Prices.csv на робочому столі",
+      "tools_needed": ["filesystem__write_file"],
+      "parameters": {
+        "path": "~/Desktop/BYD_Song_Plus_Prices.csv",
+        "content": "№,Марка,Модель,Рік,Ціна (USD),Пробіг (км),Посилання\n"
+      },
+      "success_criteria": "CSV файл створено на робочому столі",
+      "fallback_options": ["Створити JSON файл", "Створити TXT файл"]
+    },
+    {
+      "action": "Додати дані про 10 автомобілів до CSV файлу",
+      "tools_needed": ["filesystem__append_file"],
+      "parameters": {
+        "path": "~/Desktop/BYD_Song_Plus_Prices.csv",
+        "content": "{{collected_data}}"
+      },
+      "success_criteria": "Дані додано до CSV файлу",
+      "fallback_options": ["Перезаписати файл повністю"]
+    }
+  ],
+  "tts_phrase": "Створюю CSV замість презентації"
+}
+
 ВАЖЛИВІ ПРИНЦИПИ:
 
 1. **Аналізуй context** - дивись на original request, completed items, remaining items

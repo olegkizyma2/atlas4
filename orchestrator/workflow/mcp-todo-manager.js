@@ -667,11 +667,12 @@ export class MCPTodoManager {
         }
 
         // Stage 2.1: Plan Tools (Tetyana) - with pre-selected servers
+        // NOTE: Tool validation and replan is now handled by tetyana-plan-tools-processor.js
         const plan = await this.planTools(item, todo, {
           selectedServers,
           toolsSummary
         });
-        // Store plan for Atlas replan (NEW 18.10.2025)
+        // Store plan for Atlas replan
         item.last_plan = plan;
         await this._safeTTSSpeak(plan.tts_phrase, { mode: 'quick', duration: 150, agent: 'tetyana' });
 

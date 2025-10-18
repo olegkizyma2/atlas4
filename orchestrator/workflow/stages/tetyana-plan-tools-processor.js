@@ -102,20 +102,70 @@ export class TetyanaПlanToolsProcessor {
                     this.logger.warn(`[STAGE-2.1-MCP]   Suggestions: ${validation.suggestions.join(', ')}`, { category: 'tetyana-plan-tools', component: 'tetyana-plan-tools' });
                 }
 
-                // Return error with suggestions for LLM to retry
-                return {
-                    success: false,
-                    error: 'Invalid tools in plan',
-                    validationErrors: validation.errors,
-                    suggestions: validation.suggestions,
-                    summary: `⚠️ План містить невалідні інструменти. ${validation.suggestions[0] || ''}`,
-                    metadata: {
-                        itemId: currentItem.id,
-                        stage: 'tool-planning',
-                        needsRetry: true,
-                        filteredServers  // Track which servers were used
-                    }
-                };
+                // NEW 18.10.2025 - Trigger Atlas replan for invalid tools instead of simple retry
+                this.logger.system('tetyana-plan-tools', `[STAGE-2.1-MCP] 🔍 Triggering Atlas replan for invalid tools...`);
+
+                try {
+                    // Prepare data for Atlas replan
+                    const tetyanaData = {
+                        plan: plan,
+                        execution: null,
+                        invalid_tools: validation.invalidTools || []
+                    };
+
+                    const grishaData = {
+                        verified: false,
+                        reason: `Plan contains invalid/unavailable tools: ${validation.errors.join(', ')}`,
+                        evidence: `Validation errors: ${validation.errors.join('; ')}. Suggestions: ${validation.suggestions.join('; ')}`,
+                        confidence: 100
+                    };
+
+                    // Call Atlas replan through mcpTodoManager
+                    const replanResult = await this.mcpTodoManager._analyzeAndReplanTodo(
+                        currentItem,
+                        todo,
+                        tetyanaData,
+                        grishaData
+                    );
+
+                    // Return replan result to be handled by workflow
+                    return {
+                        success: false,
+                        error: 'Invalid tools in plan',
+                        validationErrors: validation.errors,
+                        suggestions: validation.suggestions,
+                        summary: `⚠️ План містить невалідні інструменти. Atlas аналізує альтернативи...`,
+                        replanResult: replanResult,  // NEW: Include replan result
+                        metadata: {
+                            itemId: currentItem.id,
+                            stage: 'tool-planning',
+                            needsReplan: true,  // Changed from needsRetry
+                            filteredServers
+                        }
+                    };
+
+                } catch (replanError) {
+                    this.logger.error(`[STAGE-2.1-MCP] Atlas replan failed: ${replanError.message}`, {
+                        category: 'tetyana-plan-tools',
+                        component: 'tetyana-plan-tools',
+                        stack: replanError.stack
+                    });
+
+                    // Fallback to old retry behavior
+                    return {
+                        success: false,
+                        error: 'Invalid tools in plan',
+                        validationErrors: validation.errors,
+                        suggestions: validation.suggestions,
+                        summary: `⚠️ План містить невалідні інструменти. ${validation.suggestions[0] || ''}`,
+                        metadata: {
+                            itemId: currentItem.id,
+                            stage: 'tool-planning',
+                            needsRetry: true,
+                            filteredServers
+                        }
+                    };
+                }
             }
 
             // Log planned tools
