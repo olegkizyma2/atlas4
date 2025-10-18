@@ -109,6 +109,27 @@ export class TetyanaПlanToolsProcessor {
 
             this.logger.system('tetyana-plan-tools', `[STAGE-2.1-MCP] planTools() returned: ${JSON.stringify(plan).substring(0, 300)}`);
 
+            // NEW 2025-10-18: Check if Tetyana signals that item needs to be split
+            if (plan.needs_split === true) {
+                this.logger.system('tetyana-plan-tools', `[STAGE-2.1-MCP] 🔀 Tetyana signals: item too complex, needs split`);
+                this.logger.system('tetyana-plan-tools', `[STAGE-2.1-MCP] Suggested splits: ${plan.suggested_splits?.join(', ') || 'none'}`);
+
+                // Return special signal to workflow to trigger Atlas split
+                return {
+                    success: false,
+                    needs_split: true,
+                    reasoning: plan.reasoning || 'Item too complex, requires >5 tools',
+                    suggested_splits: plan.suggested_splits || [],
+                    summary: `🔀 Пункт занадто складний. Розділяю на ${plan.suggested_splits?.length || 'кілька'} простіших завдань...`,
+                    metadata: {
+                        itemId: currentItem.id,
+                        stage: 'tool-planning',
+                        requiresSplit: true,
+                        estimatedToolCount: '>5'
+                    }
+                };
+            }
+
             if (!plan || !plan.tool_calls) {
                 throw new Error('MCPTodoManager.planTools() returned invalid plan');
             }

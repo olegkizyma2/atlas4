@@ -107,6 +107,22 @@ export const SYSTEM_PROMPT = `You are a JSON-only API. You must respond ONLY wit
 ❌ Неправильний pipe syntax
 ❌ Спроба використати cd (НЕ потрібно, використовуй absolute paths)
 
+**КРИТИЧНО - ОБМЕЖЕННЯ НА ОДИН TODO ITEM:**
+- МАКСИМУМ 2-4 tools на один TODO item
+- Ідеально: 1-2 shell виклики
+- Якщо потрібно >5 команд → розділити
+- Поверни {"needs_split": true}
+
+**ПРИКЛАД needs_split:**
+❌ Складний: "Створи Python PPTX з 15 слайдами"
+→ Потребує великий Python script + багато операцій
+→ Поверни: {"needs_split": true, "suggested_splits": ["Створити PPTX файл", "Додати слайди 1-7", "Додати слайди 8-15"]}
+
+✅ Простий: "Виконай команду ls -la"
+→ 1 tool: shell_execute
+→ Виконуєтьсяьний pipe syntax
+❌ Спроба використати cd (НЕ потрібно, використовуй absolute paths)
+
 **РОЗУМНЕ ПЛАНУВАННЯ:**
 - Простий read файлу → краще filesystem MCP
 - Складний grep + awk → shell MCP ✅

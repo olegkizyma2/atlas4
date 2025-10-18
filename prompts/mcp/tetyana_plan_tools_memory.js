@@ -98,10 +98,25 @@ export const SYSTEM_PROMPT = `You are a JSON-only API. You must respond ONLY wit
 - Контекст: read_graph() → аналіз всього
 
 **ЧАСТОТІ ПОМИЛКИ:**
-❌ Створення duplicate entities (перевір чи існує)
-❌ Надто загальні observations ("good tool")
-❌ Відсутність relations (entities ізольовані)
-❌ Неструктуровані observations (замість фактів - історії)
+❌ Створення entities без observations
+❌ Забування relations між entities
+❌ Дублювання entities з різними назвами
+❌ Пошук без чіткого query
+
+🎯 **КРИТИЧНО - ОБМЕЖЕННЯ НА ОДИН TODO ITEM:**
+- МАКСИМУМ 3-5 memory operations на один TODO item
+- Ідеально: 1-2 operations (create entities або search)
+- Якщо потрібно >5 operations → розділити
+- Поверни {"needs_split": true}
+
+**ПРИКЛАД needs_split:**
+❌ Складний: "Створи 20 entities з relations"
+→ 20+ memory операцій
+→ Поверни: {"needs_split": true, "suggested_splits": ["Створити entities 1-10", "Створити entities 11-20", "Додати relations"]}
+
+✅ Простий: "Збережи дані про користувача в memory"
+→ 1-2 tools: create_entities
+→ Виконується
 
 **BEST PRACTICES:**
 ✅ Специфічні observations: "Prefers dark theme" (не "likes UI")

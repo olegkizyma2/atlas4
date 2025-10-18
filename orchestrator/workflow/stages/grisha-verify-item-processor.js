@@ -374,6 +374,230 @@ export class GrishaVerifyItemProcessor {
     }
 
     /**
+     * Get detailed analysis for Atlas replanning
+     * NEW 2025-10-18
+     * 
+     * Provides comprehensive failure analysis including:
+     * - Visual evidence from screenshot
+     * - Specific suggestions for Atlas
+     * - Root cause determination
+     * - Recommended strategy
+     * 
+     * @param {Object} item - TODO item
+     * @param {Object} execution - Execution results
+     * @returns {Promise<Object>} Detailed analysis for Atlas
+     */
+    async getDetailedAnalysisForAtlas(item, execution) {
+        this.logger.system('grisha-verify-item', '[VISUAL-GRISHA] 🔍 Generating detailed analysis for Atlas...');
+
+        // Perform verification first
+        const verification = await this.execute({ currentItem: item, execution });
+
+        // Build detailed analysis
+        const analysis = {
+            verified: verification.verified,
+            confidence: verification.confidence,
+            reason: verification.verification.reason,
+
+            // Visual evidence
+            visual_evidence: {
+                observed: verification.verification.visual_evidence?.observed || 'No visual data',
+                matches_criteria: verification.verification.visual_evidence?.matches_criteria || false,
+                details: verification.verification.visual_evidence?.details || 'No details'
+            },
+
+            // Screenshot info
+            screenshot_path: verification.verification.screenshot_path,
+            screenshot_hash: verification.verification.screenshot_hash,
+
+            // Suggestions for Atlas
+            suggestions: this._generateAtlasSuggestions(verification, item, execution),
+
+            // What went wrong
+            failure_analysis: this._analyzeFailure(verification, execution, item),
+
+            // Metadata
+            vision_model: verification.verification.vision_model,
+            timestamp: new Date().toISOString()
+        };
+
+        this.logger.system('grisha-verify-item', `[VISUAL-GRISHA] Analysis complete. Root cause: ${analysis.failure_analysis.likely_cause}`);
+        this.logger.system('grisha-verify-item', `[VISUAL-GRISHA] Recommended strategy: ${analysis.failure_analysis.recommended_strategy}`);
+
+        return analysis;
+    }
+
+    /**
+     * Generate suggestions for Atlas based on verification failure
+     * NEW 2025-10-18
+     * 
+     * @param {Object} verification - Verification result
+     * @param {Object} item - TODO item
+     * @param {Object} execution - Execution results
+     * @returns {Array<string>} Suggestions
+     * @private
+     */
+    _generateAtlasSuggestions(verification, item, execution) {
+        const suggestions = [];
+        const reason = (verification.verification?.reason || '').toLowerCase();
+
+        // Analyze based on verification reason
+        if (reason.includes('не завантажилось') || reason.includes('loading') || reason.includes('завантаження')) {
+            suggestions.push('Add explicit wait_for_load_state after navigation');
+            suggestions.push('Increase timeout for page operations');
+            suggestions.push('Split navigate and scrape into separate TODO items');
+        }
+
+        if (reason.includes('не знайдено') || reason.includes('not found') || reason.includes('відсутній')) {
+            suggestions.push('Verify search query correctness');
+            suggestions.push('Use alternative search strategy');
+            suggestions.push('Try different CSS selectors or XPath');
+            suggestions.push('Check if website structure changed');
+        }
+
+        if (reason.includes('невірний') || reason.includes('invalid') || reason.includes('wrong')) {
+            suggestions.push('Fix tool parameters (path/URL/selector)');
+            suggestions.push('Validate input data before execution');
+            suggestions.push('Use correct parameter names');
+        }
+
+        if (reason.includes('результат') && reason.includes('не відповідає')) {
+            suggestions.push('Adjust success criteria to be more realistic');
+            suggestions.push('Split complex criteria into smaller checks');
+            suggestions.push('Add intermediate verification steps');
+        }
+
+        // Analyze based on execution results
+        if (execution && !execution.all_successful) {
+            suggestions.push('Some tools failed - review tool parameters');
+            suggestions.push('Check if required data/files exist before using them');
+        }
+
+        // Default suggestions if none matched
+        if (suggestions.length === 0) {
+            suggestions.push('Review visual evidence and adjust approach');
+            suggestions.push('Consider splitting into smaller TODO items');
+            suggestions.push('Verify all prerequisites are met');
+        }
+
+        return suggestions;
+    }
+
+    /**
+     * Analyze failure to determine root cause
+     * NEW 2025-10-18
+     * 
+     * @param {Object} verification - Verification result
+     * @param {Object} execution - Execution results
+     * @param {Object} item - TODO item
+     * @returns {Object} Failure analysis
+     * @private
+     */
+    _analyzeFailure(verification, execution, item) {
+        const analysis = {
+            stage: 'verification',
+            what_failed: null,
+            execution_succeeded: execution?.all_successful || false,
+            visual_mismatch: false,
+            likely_cause: 'unknown',
+            recommended_strategy: 'modify'
+        };
+
+        // Determine what failed
+        if (!verification.verified) {
+            analysis.what_failed = 'Visual verification did not match success criteria';
+            analysis.visual_mismatch = !verification.verification?.visual_evidence?.matches_criteria;
+        }
+
+        // Determine likely cause
+        analysis.likely_cause = this._determineLikelyCause(verification, execution);
+
+        // Recommend strategy based on cause
+        analysis.recommended_strategy = this._recommendStrategy(verification, execution, item);
+
+        return analysis;
+    }
+
+    /**
+     * Determine likely cause of failure
+     * NEW 2025-10-18
+     * 
+     * @param {Object} verification - Verification result
+     * @param {Object} execution - Execution results
+     * @returns {string} Likely cause
+     * @private
+     */
+    _determineLikelyCause(verification, execution) {
+        // Check if tools executed successfully
+        if (execution && !execution.all_successful) {
+            return 'tool_execution_failed';
+        }
+
+        // Check confidence level
+        if (verification.confidence < 50) {
+            return 'unclear_state';
+        }
+
+        // Analyze verification reason
+        const reason = (verification.verification?.reason || '').toLowerCase();
+
+        if (reason.includes('timeout') || reason.includes('loading') || reason.includes('завантаження')) {
+            return 'timing_issue';
+        }
+
+        if (reason.includes('не знайдено') || reason.includes('відсутній') || reason.includes('not found')) {
+            return 'wrong_approach';
+        }
+
+        if (reason.includes('невірний') || reason.includes('invalid') || reason.includes('wrong')) {
+            return 'wrong_parameters';
+        }
+
+        if (reason.includes('не відповідає') || reason.includes('mismatch')) {
+            return 'unrealistic_criteria';
+        }
+
+        return 'unknown';
+    }
+
+    /**
+     * Recommend strategy based on failure analysis
+     * NEW 2025-10-18
+     * 
+     * @param {Object} verification - Verification result
+     * @param {Object} execution - Execution results
+     * @param {Object} item - TODO item
+     * @returns {string} Recommended strategy
+     * @private
+     */
+    _recommendStrategy(verification, execution, item) {
+        const cause = this._determineLikelyCause(verification, execution);
+
+        switch (cause) {
+            case 'timing_issue':
+                return 'retry_with_delays';
+
+            case 'wrong_approach':
+                return 'replan_with_different_tools';
+
+            case 'tool_execution_failed':
+                return 'fix_tool_parameters';
+
+            case 'wrong_parameters':
+                return 'modify_parameters';
+
+            case 'unrealistic_criteria':
+                return 'adjust_success_criteria';
+
+            case 'unclear_state':
+                return 'split_into_smaller_items';
+
+            default:
+                return 'modify_or_split';
+        }
+    }
+
+    /**
      * Cleanup and shutdown
      */
     async destroy() {

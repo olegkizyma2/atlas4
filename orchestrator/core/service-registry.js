@@ -24,6 +24,7 @@ import {
     TetyanaExecuteToolsProcessor,
     GrishaVerifyItemProcessor,
     AtlasAdjustTodoProcessor,
+    AtlasReplanTodoProcessor,
     McpFinalSummaryProcessor
 } from '../workflow/stages/index.js';
 
@@ -320,10 +321,11 @@ export function registerMCPProcessors(container) {
     container.singleton('tetyanaExecuteToolsProcessor', (c) => {
         return new TetyanaExecuteToolsProcessor({
             mcpTodoManager: c.resolve('mcpTodoManager'),
+            mcpManager: c.resolve('mcpManager'),
             logger: c.resolve('logger')
         });
     }, {
-        dependencies: ['mcpTodoManager', 'logger'],
+        dependencies: ['mcpTodoManager', 'mcpManager', 'logger'],
         metadata: { category: 'processors', priority: 40 }
     });
 
@@ -351,6 +353,17 @@ export function registerMCPProcessors(container) {
         metadata: { category: 'processors', priority: 40 }
     });
 
+    // Atlas Replan TODO Processor (Stage 3.5-MCP) - NEW 18.10.2025
+    container.singleton('atlasReplanTodoProcessor', (c) => {
+        return new AtlasReplanTodoProcessor({
+            mcpManager: c.resolve('mcpManager'),
+            logger: c.resolve('logger')
+        });
+    }, {
+        dependencies: ['mcpManager', 'logger'],
+        metadata: { category: 'processors', priority: 40 }
+    });
+
     // MCP Final Summary Processor (Stage 8-MCP)
     container.singleton('mcpFinalSummaryProcessor', (c) => {
         return new McpFinalSummaryProcessor({
@@ -362,7 +375,7 @@ export function registerMCPProcessors(container) {
         metadata: { category: 'processors', priority: 40 }
     });
 
-    logger.system('startup', '[DI] Registered 8 MCP stage processors');  // UPDATED 15.10.2025 (was 7)
+    logger.system('startup', '[DI] Registered 9 MCP stage processors');  // UPDATED 18.10.2025 (was 8)
 
     return container;
 }

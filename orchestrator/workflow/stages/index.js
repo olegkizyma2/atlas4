@@ -13,7 +13,7 @@ import { TetyanaПlanToolsProcessor } from './tetyana-plan-tools-processor.js';
 import { TetyanaExecuteToolsProcessor } from './tetyana-execute-tools-processor.js';
 import { GrishaVerifyItemProcessor } from './grisha-verify-item-processor.js';
 import { AtlasAdjustTodoProcessor } from './atlas-adjust-todo-processor.js';
-import { AtlasReplanProcessor } from './atlas-replan-processor.js';
+import { AtlasReplanTodoProcessor } from './atlas-replan-todo-processor.js';
 import { McpFinalSummaryProcessor } from './mcp-final-summary-processor.js';
 
 // Re-export individual classes
@@ -25,7 +25,7 @@ export {
     TetyanaExecuteToolsProcessor,
     GrishaVerifyItemProcessor,
     AtlasAdjustTodoProcessor,
-    AtlasReplanProcessor,
+    AtlasReplanTodoProcessor,
     McpFinalSummaryProcessor
 };
 
@@ -57,7 +57,7 @@ export const MCP_PROCESSORS = {
     ATLAS_ADJUST_TODO: AtlasAdjustTodoProcessor,
     
     // Stage 3.5-MCP - Atlas Replan TODO (NEW 18.10.2025)
-    ATLAS_REPLAN_TODO: AtlasReplanProcessor,
+    ATLAS_REPLAN_TODO: AtlasReplanTodoProcessor,
     
     // Stage 8-MCP - MCP Final Summary
     MCP_FINAL_SUMMARY: McpFinalSummaryProcessor

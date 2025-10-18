@@ -2,8 +2,13 @@
  * @fileoverview Tetyana Execute Tools Processor (Stage 2.2-MCP)
  * Executes planned MCP tool calls for TODO items
  * 
- * @version 4.0.0
- * @date 2025-10-13
+ * UPDATED 2025-10-18: Added step-by-step execution mode
+ * - Execute tools one-by-one for complex items
+ * - Intermediate checks between tools
+ * - Better failure detection
+ * 
+ * @version 4.1.0
+ * @date 2025-10-18
  */
 
 import logger from '../../utils/logger.js';
@@ -33,6 +38,8 @@ export class TetyanaExecuteToolsProcessor {
     /**
      * Execute planned tools for TODO item
      * 
+     * NEW 2025-10-18: Supports step-by-step execution mode
+     * 
      * @param {Object} context - Stage context
      * @param {Object} context.currentItem - Current TODO item
      * @param {Object} context.plan - Tool plan from Stage 2.1
@@ -56,7 +63,38 @@ export class TetyanaExecuteToolsProcessor {
             this.logger.system('tetyana-execute-tools', `[STAGE-2.2-MCP] Item: ${currentItem.id}. ${currentItem.action}`);
             this.logger.system('tetyana-execute-tools', `[STAGE-2.2-MCP] Executing ${plan.tool_calls.length} tool call(s)...`);
 
-            // Execute tools using MCPTodoManager
+            // NEW 2025-10-18: Detect if step-by-step execution is needed
+            const needsStepByStep = this._shouldExecuteStepByStep(plan, currentItem);
+            
+            if (needsStepByStep) {
+                this.logger.system('tetyana-execute-tools', '[STAGE-2.2-MCP] 🔄 Using STEP-BY-STEP execution mode');
+                const executionResult = await this._executeStepByStep(plan, currentItem);
+                
+                // Log results
+                this.logger.system('tetyana-execute-tools', `[STAGE-2.2-MCP] Step-by-step execution completed`);
+                this.logger.system('tetyana-execute-tools', `[STAGE-2.2-MCP]   Success: ${executionResult.all_successful ? '✅' : '❌'}`);
+                this.logger.system('tetyana-execute-tools', `[STAGE-2.2-MCP]   Completed: ${executionResult.successful_calls}/${plan.tool_calls.length}`);
+                
+                const summary = this._generateExecutionSummary(currentItem, executionResult);
+                
+                return {
+                    success: executionResult.all_successful,
+                    execution: executionResult,
+                    summary,
+                    metadata: {
+                        itemId: currentItem.id,
+                        toolCount: plan.tool_calls.length,
+                        successfulCalls: executionResult.successful_calls || 0,
+                        failedCalls: executionResult.failed_calls || 0,
+                        allSuccessful: executionResult.all_successful,
+                        executionMode: 'step_by_step',
+                        stoppedAt: executionResult.stopped_at_index
+                    }
+                };
+            }
+
+            // LEGACY: Batch execution (all tools at once)
+            this.logger.system('tetyana-execute-tools', '[STAGE-2.2-MCP] Using BATCH execution mode');
             const executionResult = await this.mcpTodoManager.executeTools(plan, currentItem);
 
             if (!executionResult) {
@@ -264,6 +302,204 @@ export class TetyanaExecuteToolsProcessor {
         } else {
             return 'unknown';
         }
+    }
+
+    /**
+     * Determine if step-by-step execution is needed
+     * NEW 2025-10-18
+     * 
+     * @param {Object} plan - Tool execution plan
+     * @param {Object} item - TODO item
+     * @returns {boolean} True if step-by-step execution recommended
+     * @private
+     */
+    _shouldExecuteStepByStep(plan, item) {
+        // RULE 1: More than 3 playwright tools → step-by-step
+        const playwrightTools = plan.tool_calls.filter(t => t.server === 'playwright').length;
+        if (playwrightTools > 3) {
+            this.logger.system('tetyana-execute-tools', `[STEP-BY-STEP] Triggered: ${playwrightTools} playwright tools > 3`);
+            return true;
+        }
+
+        // RULE 2: Item involves search/scraping → step-by-step
+        const actionLower = item.action.toLowerCase();
+        const searchKeywords = ['знайди', 'знайти', 'search', 'пошук', 'зібрати', 'collect', 'scrape'];
+        for (const keyword of searchKeywords) {
+            if (actionLower.includes(keyword)) {
+                this.logger.system('tetyana-execute-tools', `[STEP-BY-STEP] Triggered: action contains "${keyword}"`);
+                return true;
+            }
+        }
+
+        // RULE 3: Retry attempt → step-by-step (previous batch failed)
+        if (item.attempt && item.attempt > 1) {
+            this.logger.system('tetyana-execute-tools', `[STEP-BY-STEP] Triggered: retry attempt ${item.attempt}`);
+            return true;
+        }
+
+        // RULE 4: Mix of different servers → step-by-step
+        const uniqueServers = new Set(plan.tool_calls.map(t => t.server));
+        if (uniqueServers.size > 2) {
+            this.logger.system('tetyana-execute-tools', `[STEP-BY-STEP] Triggered: ${uniqueServers.size} different servers`);
+            return true;
+        }
+
+        // Default: use batch execution
+        return false;
+    }
+
+    /**
+     * Execute tools step-by-step with intermediate checks
+     * NEW 2025-10-18
+     * 
+     * @param {Object} plan - Tool execution plan
+     * @param {Object} item - TODO item
+     * @returns {Promise<Object>} Execution result
+     * @private
+     */
+    async _executeStepByStep(plan, item) {
+        const results = [];
+        let successfulCalls = 0;
+        let failedCalls = 0;
+        const startTime = Date.now();
+
+        for (let i = 0; i < plan.tool_calls.length; i++) {
+            const toolCall = plan.tool_calls[i];
+            
+            this.logger.system('tetyana-execute-tools', `[STEP-BY-STEP] [${i + 1}/${plan.tool_calls.length}] ${toolCall.server}__${toolCall.tool}`);
+
+            try {
+                // Execute ONE tool
+                const result = await this._executeOneTool(toolCall);
+                results.push(result);
+
+                if (result.success) {
+                    successfulCalls++;
+                    this.logger.system('tetyana-execute-tools', `[STEP-BY-STEP] ✅ Success`);
+                } else {
+                    failedCalls++;
+                    this.logger.system('tetyana-execute-tools', `[STEP-BY-STEP] ❌ Failed: ${result.error}`);
+                    
+                    // CRITICAL: Stop on first failure
+                    this.logger.warn(`[STEP-BY-STEP] Stopping execution at tool ${i + 1} due to failure`, {
+                        category: 'tetyana-execute-tools',
+                        component: 'tetyana-execute-tools'
+                    });
+                    
+                    return {
+                        all_successful: false,
+                        successful_calls: successfulCalls,
+                        failed_calls: failedCalls,
+                        results,
+                        stopped_at_index: i,
+                        stopped_reason: result.error,
+                        execution_time_ms: Date.now() - startTime
+                    };
+                }
+
+                // Wait between tools (especially for web operations)
+                const delay = this._getDelayBetweenTools(toolCall);
+                if (delay > 0 && i < plan.tool_calls.length - 1) {
+                    this.logger.system('tetyana-execute-tools', `[STEP-BY-STEP] Waiting ${delay}ms before next tool...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+
+            } catch (error) {
+                failedCalls++;
+                this.logger.error(`[STEP-BY-STEP] Tool execution error: ${error.message}`, {
+                    category: 'tetyana-execute-tools',
+                    component: 'tetyana-execute-tools'
+                });
+                
+                results.push({
+                    success: false,
+                    error: error.message,
+                    tool: `${toolCall.server}__${toolCall.tool}`
+                });
+
+                // Stop on error
+                return {
+                    all_successful: false,
+                    successful_calls: successfulCalls,
+                    failed_calls: failedCalls,
+                    results,
+                    stopped_at_index: i,
+                    stopped_reason: error.message,
+                    execution_time_ms: Date.now() - startTime
+                };
+            }
+        }
+
+        // All tools executed successfully
+        return {
+            all_successful: true,
+            successful_calls: successfulCalls,
+            failed_calls: failedCalls,
+            results,
+            execution_time_ms: Date.now() - startTime
+        };
+    }
+
+    /**
+     * Execute a single tool call
+     * NEW 2025-10-18
+     * 
+     * @param {Object} toolCall - Tool call specification
+     * @returns {Promise<Object>} Tool execution result
+     * @private
+     */
+    async _executeOneTool(toolCall) {
+        try {
+            // Use MCPManager to execute the tool
+            const result = await this.mcpManager.callTool(
+                toolCall.server,
+                toolCall.tool,
+                toolCall.parameters
+            );
+
+            return {
+                success: true,
+                tool: `${toolCall.server}__${toolCall.tool}`,
+                data: result,
+                timestamp: new Date().toISOString()
+            };
+
+        } catch (error) {
+            return {
+                success: false,
+                tool: `${toolCall.server}__${toolCall.tool}`,
+                error: error.message,
+                timestamp: new Date().toISOString()
+            };
+        }
+    }
+
+    /**
+     * Get delay duration between tools
+     * NEW 2025-10-18
+     * 
+     * @param {Object} toolCall - Just executed tool call
+     * @returns {number} Delay in milliseconds
+     * @private
+     */
+    _getDelayBetweenTools(toolCall) {
+        // Playwright tools need more time for page updates
+        if (toolCall.server === 'playwright') {
+            // navigate, fill, click need time
+            if (['playwright_navigate', 'playwright_fill', 'playwright_click'].includes(toolCall.tool)) {
+                return 2000; // 2 seconds
+            }
+            // Other playwright tools
+            return 1000; // 1 second
+        }
+
+        // Filesystem, shell - minimal delay
+        if (toolCall.server === 'filesystem' || toolCall.server === 'shell') {
+            return 200; // 200ms
+        }
+
+        // Default
+        return 500; // 500ms
     }
 }
 

@@ -56,6 +56,12 @@ export const SYSTEM_PROMPT = `You are a JSON-only API. You must respond ONLY wit
 **Сервер:** memory
 **Tools:** store_memory, retrieve_memory, search_memory, list_memories
 
+### 7. ОФІСНІ ДОКУМЕНТИ (PPTX, XLSX, DOCX)
+**Ключові слова:** презентація, pptx, powerpoint, excel, xlsx, word, docx, слайд
+**Підхід:** Python scripts через shell + filesystem для даних
+**Сервери:** shell, filesystem
+**Reasoning:** Python libraries (python-pptx, openpyxl, python-docx) через shell для створення, filesystem для читання/збереження даних
+
 ## ПРАВИЛА ПІДБОРУ
 
 ### ОДИНОЧНІ СЕРВЕРИ (95% випадків):
@@ -64,10 +70,12 @@ export const SYSTEM_PROMPT = `You are a JSON-only API. You must respond ONLY wit
 - **Тільки команди** → shell
 - **Тільки Git** → git
 
-### ДВА СЕРВЕРИ (5% випадків):
+### ДВА СЕРВЕРИ (15% випадків, НЕ 5%):
 - **Web + зберегти файл** → playwright, filesystem
 - **Web + запам'ятати** → playwright, memory
 - **Команда + файл** → shell, filesystem
+- **Презентація/Excel/Word** → shell (python script), filesystem
+- **Складна обробка даних** → fetch, filesystem
 - **GUI + перевірка** → applescript, shell (для screenshot/verify)
 - **Git + файли** → git, filesystem
 
@@ -129,6 +137,21 @@ export const SYSTEM_PROMPT = `You are a JSON-only API. You must respond ONLY wit
   "confidence": 0.95
 }
 
+### Приклад 6: Презентація PPTX
+**TODO Item:** "Створи презентацію BYD_Song_Plus_2025.pptx з даними про ціни"
+**Аналіз:**
+- Дієслова: "створи презентацію"
+- Формат: PPTX (офісний документ)
+- Категорії: ОФІСНІ ДОКУМЕНТИ (python-pptx) + ФАЙЛ (дані про ціни)
+- Сервери: shell, filesystem
+
+**Output:**
+{
+  "selected_servers": ["shell", "filesystem"],
+  "reasoning": "shell для виконання python-pptx script створення PPTX, filesystem для читання даних про ціни та збереження файлу",
+  "confidence": 0.92
+}
+
 ### Приклад 3: Системна команда
 **TODO Item:** "Запусти калькулятор через CLI"
 **Аналіз:**
@@ -175,8 +198,9 @@ export const SYSTEM_PROMPT = `You are a JSON-only API. You must respond ONLY wit
 
 ⚠️ **КРИТИЧНО:**
 - Обирай МІНІМУМ серверів (1-2, НЕ більше)
-- Якщо сумніваєшся між 1 і 2 → обирай 1
-- Confidence < 0.7 → обирай 1 сервер (safer)
+- Якщо ОЧЕВИДНО потрібно 2 → обирай 2 (офісні документи, web+save, command+file)
+- Якщо сумніваєшся → обирай безпечний варіант
+- Confidence < 0.7 → вибір має бути консервативним
 - Повертай ТІЛЬКИ JSON, БЕЗ пояснень
 
 ⚠️ **ЗАБОРОНЕНО:**

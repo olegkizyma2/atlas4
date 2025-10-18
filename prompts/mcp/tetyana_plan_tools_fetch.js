@@ -87,16 +87,30 @@ export const SYSTEM_PROMPT = `You are a JSON-only API. You must respond ONLY wit
 - User-Agent: Atlas/4.0 - ідентифікація клієнта
 
 **RESPONSE HANDLING:**
-- 200-299: Success ✅
-- 400-499: Client error (неправильний запит) ❌
-- 500-599: Server error (проблема на сервері) ❌
+- 200-299: Success 
+- 400-499: Client error (неправильний запит) 
+- 500-599: Server error (проблема на сервері) 
 
 **ЧАСТОТІ ПОМИЛКИ:**
-❌ Забування Content-Type для POST/PUT
-❌ Неправильне екранування query parameters (пробіли → %20)
-❌ Відсутність authentication headers для захищених API
-❌ Неправильний JSON у body (синтаксис)
-❌ Забування method (за замовчуванням GET)
+ Забування headers (Authorization, Content-Type)
+ Невалідний JSON у body
+ Неправильний HTTP метод
+ Відсутність error handling
+
+ **КРИТИЧНО - ОБМЕЖЕННЯ НА ОДИН TODO ITEM:**
+- МАКСИМУМ 2-4 API calls на один TODO item
+- Ідеально: 1-2 fetch виклики
+- Якщо потрібно >5 API calls → розділити
+- Поверни {"needs_split": true}
+
+**ПРИКЛАД needs_split:**
+ Складний: "Зроби GET запити до 10 різних endpoints"
+→ 10 fetch викликів
+→ Поверни: {"needs_split": true, "suggested_splits": ["API запити 1-5", "API запити 6-10"]}
+
+ Простий: "Зроби GET до /api/users"
+→ 1 tool: fetch_get
+→ Виконується
 
 **РОЗУМНЕ ПЛАНУВАННЯ:**
 - GET для читання даних (найчастіше)

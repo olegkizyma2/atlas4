@@ -30,6 +30,7 @@ import {
   TetyanaExecuteToolsProcessor,
   GrishaVerifyItemProcessor,
   AtlasAdjustTodoProcessor,
+  AtlasReplanTodoProcessor,
   McpFinalSummaryProcessor
 } from './stages/index.js';
 
@@ -215,6 +216,7 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
     const executeProcessor = container.resolve('tetyanaExecuteToolsProcessor');
     const verifyProcessor = container.resolve('grishaVerifyItemProcessor');
     const adjustProcessor = container.resolve('atlasAdjustTodoProcessor');
+    const replanProcessor = container.resolve('atlasReplanTodoProcessor');
     const summaryProcessor = container.resolve('mcpFinalSummaryProcessor');
 
     // ===============================================
@@ -776,23 +778,133 @@ async function executeMCPWorkflow(userMessage, session, res, container) {
 
       // Max attempts reached without success
       if (item.status !== 'completed' && item.status !== 'skipped') {
-        item.status = 'failed';
-        item.error = item.error || 'Max attempts reached';
-
         logger.warn(`Item ${item.id} failed after ${maxAttempts} attempts`, {
           sessionId: session.id
         });
 
-        // Send failure update to frontend
-        if (res.writable && !res.writableEnded) {
-          res.write(`data: ${JSON.stringify({
-            type: 'mcp_item_failed',
-            data: {
-              itemId: item.id,
-              attempts: maxAttempts,
-              error: item.error
+        // NEW 2025-10-18: Deep analysis with Grisha after max attempts
+        logger.workflow('stage', 'atlas', `Stage 3.5-MCP: Deep analysis after ${maxAttempts} attempts for item ${item.id}`, {
+          sessionId: session.id
+        });
+
+        try {
+          // Get detailed analysis from Grisha
+          const grishaAnalysis = await verifyProcessor.getDetailedAnalysisForAtlas(
+            item,
+            execResult?.execution || { all_successful: false }
+          );
+
+          logger.info(`Grisha analysis: ${grishaAnalysis.failure_analysis.likely_cause}`, {
+            sessionId: session.id,
+            itemId: item.id,
+            rootCause: grishaAnalysis.failure_analysis.likely_cause,
+            recommendedStrategy: grishaAnalysis.failure_analysis.recommended_strategy
+          });
+
+          // Prepare data for Atlas replan (aggregated context)
+          const tetyanaData = {
+            plan: planResult?.plan || { tool_calls: [] },
+            execution: execResult?.execution || { all_successful: false },
+            tools_used: execResult?.execution?.results?.map(r => r.tool) || []
+          };
+
+          const grishaData = {
+            verified: false,
+            reason: grishaAnalysis.reason,
+            visual_evidence: grishaAnalysis.visual_evidence,
+            screenshot_path: grishaAnalysis.screenshot_path,
+            confidence: grishaAnalysis.confidence,
+            suggestions: grishaAnalysis.suggestions,
+            failure_analysis: grishaAnalysis.failure_analysis
+          };
+
+          // NEW 2025-10-18: Use dedicated replan processor with preprocessed context
+          const replanResult = await replanProcessor.execute({
+            failedItem: item,
+            todo,
+            tetyanaData,
+            grishaData,
+            session,
+            res
+          });
+
+          logger.info(`Atlas replan decision: ${replanResult.strategy}`, {
+            sessionId: session.id,
+            replanned: replanResult.replanned
+          });
+
+          // Apply replan if needed
+          if (replanResult.replanned && replanResult.new_items && replanResult.new_items.length > 0) {
+            logger.info(`Atlas replanned: inserting ${replanResult.new_items.length} new items`, {
+              sessionId: session.id
+            });
+
+            // Insert new items into TODO list after current item
+            const currentIndex = todo.items.indexOf(item);
+            if (currentIndex !== -1) {
+              todo.items.splice(currentIndex + 1, 0, ...replanResult.new_items);
+              
+              logger.info(`TODO list updated: ${todo.items.length} total items`, {
+                sessionId: session.id
+              });
             }
-          })}\n\n`);
+
+            // Mark current item as replanned
+            item.status = 'replanned';
+            item.replan_reason = replanResult.reasoning;
+
+            // Send replan update to frontend
+            if (res.writable && !res.writableEnded) {
+              res.write(`data: ${JSON.stringify({
+                type: 'mcp_item_replanned',
+                data: {
+                  itemId: item.id,
+                  newItemsCount: replanResult.new_items.length,
+                  reasoning: replanResult.reasoning
+                }
+              })}\n\n`);
+            }
+          } else {
+            // No replan - mark as failed
+            item.status = 'failed';
+            item.error = item.error || 'Max attempts reached';
+
+            // Send failure update to frontend
+            if (res.writable && !res.writableEnded) {
+              res.write(`data: ${JSON.stringify({
+                type: 'mcp_item_failed',
+                data: {
+                  itemId: item.id,
+                  attempts: maxAttempts,
+                  error: item.error
+                }
+              })}\n\n`);
+            }
+          }
+
+        } catch (replanError) {
+          logger.error(`Failed to replan after max attempts: ${replanError.message}`, {
+            sessionId: session.id,
+            itemId: item.id,
+            error: replanError.message,
+            stack: replanError.stack
+          });
+
+          // Fallback: mark as failed
+          item.status = 'failed';
+          item.error = item.error || 'Max attempts reached';
+
+          // Send failure update to frontend
+          if (res.writable && !res.writableEnded) {
+            res.write(`data: ${JSON.stringify({
+              type: 'mcp_item_failed',
+              data: {
+                itemId: item.id,
+                attempts: maxAttempts,
+                error: item.error
+              }
+            })}\n\n`);
+          }
         }
       }
     }
