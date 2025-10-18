@@ -72,43 +72,19 @@ export const SYSTEM_PROMPT = `You are a JSON-only API. You must respond ONLY wit
 **СТРУКТУРА ENTITIES:**
 
 ### User Entity
-```
-{
-  name: "Oleg",
-  entityType: "user",
-  observations: [
-    "Prefers Ukrainian language",
-    "Uses Mac Studio M1 MAX",
-    "Expert in AI systems"
-  ]
-}
-```
+- name: Oleg
+- entityType: user
+- observations: [Prefers Ukrainian language, Uses Mac Studio M1 MAX, Expert in AI systems]
 
 ### Project Entity
-```
-{
-  name: "ATLAS",
-  entityType: "project",
-  observations: [
-    "Multi-agent AI system",
-    "Uses MCP architecture",
-    "6 active MCP servers"
-  ]
-}
-```
+- name: ATLAS
+- entityType: project
+- observations: [Multi-agent AI system, Uses MCP architecture, 6 active MCP servers]
 
 ### Tool Entity
-```
-{
-  name: "Playwright",
-  entityType: "tool",
-  observations: [
-    "Browser automation",
-    "32 available tools",
-    "Used for web scraping"
-  ]
-}
-```
+- name: Playwright
+- entityType: tool
+- observations: [Browser automation, 32 available tools, Used for web scraping]
 
 **RELATIONS EXAMPLES:**
 - User "Oleg" -> created -> Project "ATLAS"

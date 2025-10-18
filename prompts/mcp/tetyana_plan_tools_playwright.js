@@ -36,7 +36,7 @@ export const SYSTEM_PROMPT = `You are a JSON-only API. You must respond ONLY wit
 4. **get_visible_text/screenshot** → отримати результат
 
 **СЕЛЕКТОРИ (ПРІОРИТЕТ):**
-1. ✅ `text=` - найкращий (text="Пошук")
+1. ✅ 'text=' - найкращий (text="Пошук")
 2. ✅ CSS class - надійний (.search-button)
 3. ✅ ID - відмінно (#search-input)
 4. ⚠️ CSS складний - якщо немає альтернатив

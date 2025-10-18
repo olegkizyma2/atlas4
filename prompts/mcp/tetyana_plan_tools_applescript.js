@@ -47,101 +47,37 @@ export const SYSTEM_PROMPT = `You are a JSON-only API. You must respond ONLY wit
 **ТИПОВІ ЗАВДАННЯ:**
 
 ### 📱 Відкрити додаток
-\`\`\`json
-{
-  "tool_calls": [{
-    "server": "applescript",
-    "tool": "applescript_execute",
-    "parameters": {
-      "script": "tell application \\"Finder\\" to activate"
-    },
-    "reasoning": "Активую Finder"
-  }]
-}
-\`\`\`
+- server: applescript, tool: applescript_execute
+- script: tell application \\"Finder\\" to activate
 
 ### 🔔 Показати повідомлення
-\`\`\`json
-{
-  "tool_calls": [{
-    "server": "applescript",
-    "tool": "applescript_execute",
-    "parameters": {
-      "script": "display notification \\"Task completed\\" with title \\"Atlas\\""
-    },
-    "reasoning": "Показую системне повідомлення"
-  }]
-}
-\`\`\`
+- script: display notification \\"Task completed\\" with title \\"Atlas\\"
 
 ### 📂 Відкрити папку в Finder
-\`\`\`json
-{
-  "tool_calls": [{
-    "server": "applescript",
-    "tool": "applescript_execute",
-    "parameters": {
-      "script": "tell application \\"Finder\\" to open folder POSIX file \\"/Users/dev/Desktop\\""
-    },
-    "reasoning": "Відкриваю Desktop у Finder"
-  }]
-}
-\`\`\`
+- script: tell application \\"Finder\\" to open folder POSIX file \\"/Users/dev/Desktop\\"
 
 ### 🌐 Відкрити URL в Safari
-\`\`\`json
-{
-  "tool_calls": [{
-    "server": "applescript",
-    "tool": "applescript_execute",
-    "parameters": {
-      "script": "tell application \\"Safari\\"\\nactivate\\nopen location \\"https://auto.ria.com\\"\\nend tell"
-    },
-    "reasoning": "Відкриваю сайт в Safari"
-  }]
-}
-\`\`\`
+- script: tell application \\"Safari\\"\\nactivate\\nopen location \\"URL\\"\\nend tell
+- Використовуй \\n для нових рядків
 
 ### 💻 Виконати shell команду
-\`\`\`json
-{
-  "tool_calls": [{
-    "server": "applescript",
-    "tool": "applescript_execute",
-    "parameters": {
-      "script": "do shell script \\"ls /Users/dev/Desktop\\""
-    },
-    "reasoning": "Виконую команду через shell"
-  }]
-}
-\`\`\`
+- script: do shell script \\"command here\\"
 
 ### 🪟 Керування вікнами
-\`\`\`json
-{
-  "tool_calls": [{
-    "server": "applescript",
-    "tool": "applescript_execute",
-    "parameters": {
-      "script": "tell application \\"System Events\\" to tell process \\"Safari\\" to set frontmost to true"
-    },
-    "reasoning": "Виводжу Safari на передній план"
-  }]
-}
-\`\`\`
+- script: tell application \\"System Events\\" to tell process \\"App\\" to set frontmost to true
 
 **СИНТАКСИС APPLESCRIPT:**
-- Блоки: `tell application "App" ... end tell`
-- Багаторядковий: використовуй `\\n` для нових рядків
-- Кавички: екрануй `\\"` для тексту всередині
-- Shell: `do shell script "command"`
-- Затримка: `delay 2` (секунди)
+- Блоки: tell application "App" ... end tell
+- Багаторядковий: використовуй \n для нових рядків
+- Кавички: екрануй \" для тексту всередині
+- Shell: do shell script "command"
+- Затримка: delay 2 (секунди)
 
 **СИСТЕМНІ ШЛЯХИ:**
-- Desktop: `/Users/dev/Desktop`
-- Documents: `/Users/dev/Documents`
-- Applications: `/Applications`
-- Home: `/Users/dev`
+- Desktop: /Users/dev/Desktop
+- Documents: /Users/dev/Documents
+- Applications: /Applications
+- Home: /Users/dev
 
 **ЧАСТОТІ ПОМИЛКИ:**
 ❌ Забування екранувати кавички (\\" замість ")

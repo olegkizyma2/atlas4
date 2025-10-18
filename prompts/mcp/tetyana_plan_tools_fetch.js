@@ -44,118 +44,47 @@ export const SYSTEM_PROMPT = `You are a JSON-only API. You must respond ONLY wit
 
 **ТИПОВІ ЗАВДАННЯ:**
 
-### 🔍 GET запит (без параметрів)
-\`\`\`json
-{
-  "tool_calls": [{
-    "server": "fetch",
-    "tool": "fetch",
-    "parameters": {
-      "url": "https://api.example.com/users",
-      "method": "GET"
-    },
-    "reasoning": "Отримую список користувачів"
-  }]
-}
-\`\`\`
+### GET запит (без параметрів)
+- server: fetch, tool: fetch
+- url: https://api.example.com/users
+- method: GET
 
-### 🔍 GET з query parameters
-\`\`\`json
-{
-  "tool_calls": [{
-    "server": "fetch",
-    "tool": "fetch",
-    "parameters": {
-      "url": "https://api.example.com/search?q=laptop&limit=10",
-      "method": "GET"
-    },
-    "reasoning": "Пошук товарів через query"
-  }]
-}
-\`\`\`
+### GET з query parameters
+- url: https://api.example.com/search?q=laptop&limit=10
+- Query string в URL
 
-### 🔐 GET з headers (authentication)
-\`\`\`json
-{
-  "tool_calls": [{
-    "server": "fetch",
-    "tool": "fetch",
-    "parameters": {
-      "url": "https://api.example.com/protected",
-      "method": "GET",
-      "headers": {
-        "Authorization": "Bearer YOUR_TOKEN_HERE",
-        "Content-Type": "application/json"
-      }
-    },
-    "reasoning": "Запит до захищеного endpoint"
-  }]
-}
-\`\`\`
+### GET з headers (authentication)
+- headers: Authorization: Bearer TOKEN
+- headers: Content-Type: application/json
 
-### 📝 POST з JSON body
-\`\`\`json
-{
-  "tool_calls": [{
-    "server": "fetch",
-    "tool": "fetch",
-    "parameters": {
-      "url": "https://api.example.com/users",
-      "method": "POST",
-      "headers": {
-        "Content-Type": "application/json"
-      },
-      "body": {
-        "name": "John Doe",
-        "email": "john@example.com"
-      }
-    },
-    "reasoning": "Створюю нового користувача"
-  }]
-}
-\`\`\`
+### POST з JSON body
+- method: POST
+- headers: Content-Type: application/json
+- body: JSON object з даними
 
-### 🔄 PUT для оновлення
-\`\`\`json
-{
-  "tool_calls": [{
-    "server": "fetch",
-    "tool": "fetch",
-    "parameters": {
-      "url": "https://api.example.com/users/123",
-      "method": "PUT",
-      "headers": {
-        "Content-Type": "application/json"
-      },
-      "body": {
-        "name": "Jane Doe Updated"
-      }
-    },
-    "reasoning": "Оновлюю дані користувача"
-  }]
-}
-\`\`\`
+### PUT для оновлення
+- method: PUT
+- url з ID ресурсу
+- body з оновленими полями
 
 **ПОПУЛЯРНІ API:**
-- **GitHub API** - `https://api.github.com`
-- **JSONPlaceholder** - `https://jsonplaceholder.typicode.com` (тестовий)
-- **OpenWeatherMap** - `https://api.openweathermap.org`
-- **REST Countries** - `https://restcountries.com/v3.1`
+- GitHub API - https://api.github.com
+- JSONPlaceholder - https://jsonplaceholder.typicode.com (тестовий)
+- OpenWeatherMap - https://api.openweathermap.org
+- REST Countries - https://restcountries.com/v3.1
 
 **QUERY PARAMETERS:**
-```
-https://api.example.com/search?q=query&limit=10&offset=0&sort=date
-                                └─ q=query
-                                   └─ limit=10
-                                      └─ offset=0
-                                         └─ sort=date
-```
+Приклад: https://api.example.com/search?q=query&limit=10&offset=0&sort=date
+- q=query (пошуковий запит)
+- limit=10 (кількість результатів)
+- offset=0 (зсув для pagination)
+- sort=date (сортування)
 
 **HEADERS (загальні):**
-- `Content-Type: application/json` - для JSON body
-- `Authorization: Bearer TOKEN` - для authentication
-- `Accept: application/json` - очікуємо JSON response
-- `User-Agent: Atlas/4.0` - ідентифікація клієнта
+- Content-Type: application/json - для JSON body
+- Authorization: Bearer TOKEN - для authentication
+- Accept: application/json - очікуємо JSON response
+- User-Agent: Atlas/4.0 - ідентифікація клієнта
 
 **RESPONSE HANDLING:**
 - 200-299: Success ✅
