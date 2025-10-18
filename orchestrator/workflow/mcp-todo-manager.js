@@ -512,6 +512,70 @@ export class MCPTodoManager {
           todo.execution.completed_items++;
         } else if (itemResult.status === 'failed') {
           todo.execution.failed_items++;
+
+          // NEW 18.10.2025 - Stage 3.5: Atlas deep analysis and dynamic replan
+          this.logger.system('mcp-todo', `[TODO] 🔍 Item ${item.id} failed - triggering Atlas replan analysis`);
+
+          try {
+            // Collect Tetyana and Grisha data from last execution
+            const tetyanaData = {
+              plan: itemResult.item.last_plan || null,
+              execution: itemResult.item.execution_results || null
+            };
+
+            const grishaData = itemResult.item.verification || {
+              verified: false,
+              reason: itemResult.error || 'Unknown error',
+              evidence: 'No verification data available'
+            };
+
+            // Atlas analyzes and decides on replan
+            const replanResult = await this._analyzeAndReplanTodo(item, todo, tetyanaData, grishaData);
+
+            // Handle replan result
+            if (replanResult.replanned && replanResult.new_items && replanResult.new_items.length > 0) {
+              // Insert new items into TODO list
+              this.logger.system('mcp-todo', `[TODO] 🔄 Inserting ${replanResult.new_items.length} new items after position ${i}`);
+
+              // Assign IDs to new items
+              let nextId = Math.max(...todo.items.map(it => it.id)) + 1;
+              replanResult.new_items.forEach(newItem => {
+                newItem.id = nextId++;
+                newItem.status = 'pending';
+                newItem.attempt = 0;
+                newItem.max_attempts = newItem.max_attempts || 3;
+              });
+
+              // Insert new items after current position
+              todo.items.splice(i + 1, 0, ...replanResult.new_items);
+
+              this.logger.system('mcp-todo', `[TODO] 🔄 TODO list updated: ${todo.items.length} items (was ${todo.items.length - replanResult.new_items.length})`);
+
+              // Send updated plan to chat
+              const newItemsList = replanResult.new_items.map((it, idx) => `  ${it.id}. ${it.action}`).join('\n');
+              this._sendChatMessage(
+                `📋 Оновлений план (додано ${replanResult.new_items.length} пунктів):\n${newItemsList}`,
+                'atlas'
+              );
+            } else if (replanResult.strategy === 'abort') {
+              this.logger.system('mcp-todo', `[TODO] ⛔ Atlas decided to abort execution`);
+              this._sendChatMessage('⛔ Atlas: Зупиняю виконання - проблема не вирішується', 'atlas');
+              await this._safeTTSSpeak('Зупиняю виконання', { mode: 'normal', duration: 1000, agent: 'atlas' });
+              break; // Exit loop
+            } else {
+              // skip_and_continue - just continue to next item
+              this.logger.system('mcp-todo', `[TODO] ⏭️ Atlas decided to skip and continue`);
+            }
+
+          } catch (replanError) {
+            this.logger.error(`[MCP-TODO] Replan failed: ${replanError.message}`, {
+              category: 'mcp-todo',
+              component: 'mcp-todo',
+              stack: replanError.stack
+            });
+            // Continue with next item on replan error
+            this.logger.system('mcp-todo', `[TODO] ⚠️ Replan error - continuing to next item`);
+          }
         }
         todo.execution.total_attempts += itemResult.attempts;
       }
@@ -607,6 +671,8 @@ export class MCPTodoManager {
           selectedServers,
           toolsSummary
         });
+        // Store plan for Atlas replan (NEW 18.10.2025)
+        item.last_plan = plan;
         await this._safeTTSSpeak(plan.tts_phrase, { mode: 'quick', duration: 150, agent: 'tetyana' });
 
         // Stage 2.1.5: Screenshot and Adjust (NEW 16.10.2025 - Tetyana)
@@ -1309,6 +1375,231 @@ Attempt: ${attempt}/${item.max_attempts}
     } catch (error) {
       this.logger.error(`[MCP-TODO] Failed to adjust item ${item.id}: ${error.message}`, { category: 'mcp-todo', component: 'mcp-todo' });
       throw new Error(`Adjustment failed: ${error.message}`);
+    }
+  }
+
+  /**
+     * Deep analysis and dynamic TODO replanning (Stage 3.5 - Atlas)
+     * NEW 18.10.2025 - Analyze failure context from Tetyana + Grisha and rebuild TODO
+     *
+     * @param {TodoItem} failedItem - Failed item
+     * @param {TodoList} todo - Parent TODO list
+     * @param {Object} tetyanaData - Tetyana's execution data (plan + results)
+     * @param {Object} grishaData - Grisha's verification data
+     * @returns {Promise<Object>} {replanned: boolean, new_items: TodoItem[], reasoning: string}
+     */
+  async _analyzeAndReplanTodo(failedItem, todo, tetyanaData, grishaData) {
+    this.logger.system('mcp-todo', `[TODO] 🔍 Stage 3.5: Atlas analyzing failure and replanning TODO`);
+
+    try {
+      // Build comprehensive failure context
+      const failureContext = {
+        original_request: todo.request,
+        failed_item: {
+          id: failedItem.id,
+          action: failedItem.action,
+          success_criteria: failedItem.success_criteria,
+          attempts: failedItem.attempt,
+          max_attempts: failedItem.max_attempts
+        },
+        tetyana_execution: {
+          plan: tetyanaData.plan || 'N/A',
+          tools_used: tetyanaData.execution?.results?.map(r => r.tool) || [],
+          execution_success: tetyanaData.execution?.all_successful || false,
+          execution_summary: this._truncateData(tetyanaData.execution?.results, 500)
+        },
+        grisha_verification: {
+          verified: grishaData.verified,
+          reason: grishaData.reason,
+          evidence: this._truncateData(grishaData.evidence, 300),
+          confidence: grishaData.confidence || 'N/A'
+        },
+        remaining_items: todo.items.slice(failedItem.id).map(i => ({
+          id: i.id,
+          action: i.action,
+          status: i.status
+        })),
+        completed_items: todo.items.filter(i => i.status === 'completed').map(i => ({
+          id: i.id,
+          action: i.action
+        }))
+      };
+
+      // Import Atlas Replan prompt
+      const { MCP_PROMPTS } = await import('../../prompts/mcp/index.js');
+      const replanPrompt = MCP_PROMPTS.ATLAS_REPLAN_TODO;
+
+      if (!replanPrompt) {
+        this.logger.warn('[MCP-TODO] ATLAS_REPLAN_TODO prompt not found, using fallback', {
+          category: 'mcp-todo',
+          component: 'mcp-todo'
+        });
+        return {
+          replanned: false,
+          reasoning: 'Replan prompt not available',
+          continue_from_next: true
+        };
+      }
+
+      const userMessage = `
+Original Request: ${failureContext.original_request}
+
+Failed Item #${failureContext.failed_item.id}: "${failureContext.failed_item.action}"
+Success Criteria: ${failureContext.failed_item.success_criteria}
+Attempts: ${failureContext.failed_item.attempts}/${failureContext.failed_item.max_attempts}
+
+Tetyana's Execution:
+- Tools Used: ${failureContext.tetyana_execution.tools_used.join(', ')}
+- Success: ${failureContext.tetyana_execution.execution_success}
+- Summary: ${JSON.stringify(failureContext.tetyana_execution.execution_summary)}
+
+Grisha's Verification:
+- Verified: ${failureContext.grisha_verification.verified}
+- Reason: ${failureContext.grisha_verification.reason}
+- Evidence: ${failureContext.grisha_verification.evidence}
+
+Completed Items (${failureContext.completed_items.length}):
+${failureContext.completed_items.map(i => `  ${i.id}. ${i.action}`).join('\n')}
+
+Remaining Items (${failureContext.remaining_items.length}):
+${failureContext.remaining_items.map(i => `  ${i.id}. ${i.action} [${i.status}]`).join('\n')}
+
+Analyze why item #${failedItem.id} failed and decide:
+1. Should we replan the TODO list? (add new items, modify existing, change approach)
+2. Or should we skip failed item and continue from next?
+3. Or should we abort the entire TODO?
+
+Respond with JSON:
+{
+  "replanned": true/false,
+  "reasoning": "detailed analysis",
+  "strategy": "replan_and_continue" | "skip_and_continue" | "abort",
+  "new_items": [ /* array of new TODO items if replanned */ ],
+  "modified_items": [ /* array of {id, changes} for existing items */ ],
+  "continue_from_item_id": number,
+  "tts_phrase": "Ukrainian phrase for Atlas"
+}
+`;
+
+      // Wait for rate limit
+      await this._waitForRateLimit();
+
+      // Use Atlas model for deep analysis
+      const modelConfig = GlobalConfig.MCP_MODEL_CONFIG?.getStageConfig?.('replan_todo') || {
+        model: 'copilot-gpt-4o',
+        temperature: 0.3,
+        max_tokens: 2500
+      };
+
+      this.logger.system('mcp-todo', `[TODO] 🔍 Atlas using model: ${modelConfig.model}`);
+
+      const apiEndpointConfig = GlobalConfig.MCP_MODEL_CONFIG?.apiEndpoint;
+      const apiUrl = apiEndpointConfig
+        ? (typeof apiEndpointConfig === 'string' ? apiEndpointConfig : apiEndpointConfig.primary)
+        : 'http://localhost:4000/v1/chat/completions';
+
+      const apiResponse = await axios.post(apiUrl, {
+        model: modelConfig.model,
+        messages: [
+          {
+            role: 'system',
+            content: replanPrompt.systemPrompt || 'You are Atlas, an intelligent TODO replanning agent. Analyze failures deeply and rebuild plans.'
+          },
+          {
+            role: 'user',
+            content: userMessage
+          }
+        ],
+        temperature: modelConfig.temperature,
+        max_tokens: modelConfig.max_tokens
+      }, {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 60000
+      });
+
+      const response = apiResponse.data.choices[0].message.content;
+      const replan = this._parseReplanResponse(response);
+
+      this.logger.system('mcp-todo', `[TODO] 🔍 Atlas replan decision: ${replan.strategy} (replanned: ${replan.replanned})`);
+
+      // Send chat message from Atlas
+      if (replan.replanned) {
+        const newItemsCount = replan.new_items?.length || 0;
+        this._sendChatMessage(
+          `🔄 Atlas: Аналіз завершено. Змінюю план: ${newItemsCount} нових пунктів. ${replan.reasoning}`,
+          'atlas'
+        );
+      } else {
+        this._sendChatMessage(
+          `🔄 Atlas: ${replan.strategy === 'skip_and_continue' ? 'Пропускаю і продовжую' : 'Зупиняю виконання'}. ${replan.reasoning}`,
+          'atlas'
+        );
+      }
+
+      // TTS feedback
+      const atlasPhrase = replan.tts_phrase || (replan.replanned ? 'Змінюю план та продовжую' : 'Продовжую з наступного пункту');
+      await this._safeTTSSpeak(atlasPhrase, { mode: 'detailed', duration: 2000, agent: 'atlas' });
+
+      return replan;
+
+    } catch (error) {
+      this.logger.error(`[MCP-TODO] Atlas replan failed: ${error.message}`, {
+        category: 'mcp-todo',
+        component: 'mcp-todo',
+        stack: error.stack
+      });
+
+      // Fallback: continue from next item
+      return {
+        replanned: false,
+        reasoning: `Replan error: ${error.message}`,
+        strategy: 'skip_and_continue',
+        continue_from_item_id: failedItem.id + 1
+      };
+    }
+  }
+
+  /**
+     * Truncate data for context (helper)
+     * @private
+     */
+  _truncateData(data, maxLength = 300) {
+    const str = typeof data === 'string' ? data : JSON.stringify(data);
+    return str.length > maxLength ? str.substring(0, maxLength) + '... [truncated]' : str;
+  }
+
+  /**
+     * Parse Atlas replan response
+     * @private
+     */
+  _parseReplanResponse(response) {
+    try {
+      // Remove markdown code blocks if present
+      const cleaned = response.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      const parsed = JSON.parse(cleaned);
+
+      return {
+        replanned: parsed.replanned || false,
+        reasoning: parsed.reasoning || 'No reasoning provided',
+        strategy: parsed.strategy || 'skip_and_continue',
+        new_items: parsed.new_items || [],
+        modified_items: parsed.modified_items || [],
+        continue_from_item_id: parsed.continue_from_item_id || null,
+        tts_phrase: parsed.tts_phrase || null
+      };
+    } catch (error) {
+      this.logger.warn(`[MCP-TODO] Failed to parse replan response: ${error.message}`, {
+        category: 'mcp-todo',
+        component: 'mcp-todo',
+        response: response.substring(0, 200)
+      });
+
+      return {
+        replanned: false,
+        reasoning: 'Parse error',
+        strategy: 'skip_and_continue',
+        continue_from_item_id: null
+      };
     }
   }
 
