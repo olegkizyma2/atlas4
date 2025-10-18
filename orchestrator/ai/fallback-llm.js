@@ -10,24 +10,42 @@ import logger from '../utils/logger.js';
 import * as agentProtocol from '../agents/agent-protocol.js';
 import GlobalConfig from '../../config/global-config.js';
 
-// Model registry - dynamically built from GlobalConfig
+// Model registry - dynamically built from GlobalConfig (lazy loaded)
+let MODELS_CACHE = null;
+
 function getAvailableModels() {
+  if (MODELS_CACHE) return MODELS_CACHE;
+  
   const models = [];
   
-  // Add models from AI_MODEL_CONFIG
-  Object.values(GlobalConfig.AI_MODEL_CONFIG.models).forEach(config => {
-    if (config.model && !models.includes(config.model)) {
-      models.push(config.model);
+  try {
+    // Add models from AI_MODEL_CONFIG
+    if (GlobalConfig.AI_MODEL_CONFIG?.models) {
+      Object.values(GlobalConfig.AI_MODEL_CONFIG.models).forEach(config => {
+        if (config.model && !models.includes(config.model)) {
+          models.push(config.model);
+        }
+      });
     }
-  });
-  
-  // Add models from MCP_MODEL_CONFIG
-  Object.values(GlobalConfig.MCP_MODEL_CONFIG.stages).forEach(config => {
-    if (config.model && !models.includes(config.model)) {
-      models.push(config.model);
+    
+    // Add models from MCP_MODEL_CONFIG
+    if (GlobalConfig.MCP_MODEL_CONFIG?.stages) {
+      Object.values(GlobalConfig.MCP_MODEL_CONFIG.stages).forEach(config => {
+        if (config.model && !models.includes(config.model)) {
+          models.push(config.model);
+        }
+      });
     }
-  });
+  } catch (error) {
+    logger.warn('[FALLBACK-LLM] Failed to load models from GlobalConfig, using defaults');
+  }
   
+  // Fallback to basic models if config failed
+  if (models.length === 0) {
+    models.push('atlas-ministral-3b', 'atlas-gpt-4o-mini');
+  }
+  
+  MODELS_CACHE = models;
   return models;
 }
 
@@ -148,8 +166,8 @@ export async function chatCompletion(messages, options = {}) {
   }
 }
 
-// Get available models
-export function getAvailableModels() {
+// Export available models list
+export function getAvailableModelsList() {
   return MODELS.map(m => ({
     id: m,
     object: 'model',

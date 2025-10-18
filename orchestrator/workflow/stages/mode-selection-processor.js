@@ -28,17 +28,23 @@ export class ModeSelectionProcessor {
         this.llmClient = llmClient;
         this.logger = loggerInstance || logger;
 
-        // Get API endpoint and model from GlobalConfig
-        const apiConfig = GlobalConfig.MCP_MODEL_CONFIG.apiEndpoint;
-        this.apiEndpoint = apiConfig.useFallback && apiConfig.fallback
-            ? apiConfig.fallback
-            : apiConfig.primary;
-        this.apiTimeout = apiConfig.timeout || 60000;
+        // Get API endpoint and model from GlobalConfig (lazy evaluation)
+        this.apiEndpoint = null;
+        this.apiTimeout = 60000;
+        this.modelConfig = null;
+    }
 
-        // Get model config for mode selection stage
-        this.modelConfig = GlobalConfig.MCP_MODEL_CONFIG.stages.mode_selection;
-
-        this.logger.system('mode-selection', `[STAGE-0-MCP] 🔧 Using API: ${this.apiEndpoint}, Model: ${this.modelConfig.model}`);
+    _ensureConfig() {
+        if (!this.modelConfig) {
+            const apiConfig = GlobalConfig.MCP_MODEL_CONFIG.apiEndpoint;
+            this.apiEndpoint = apiConfig.useFallback && apiConfig.fallback
+                ? apiConfig.fallback
+                : apiConfig.primary;
+            this.apiTimeout = apiConfig.timeout || 60000;
+            this.modelConfig = GlobalConfig.MCP_MODEL_CONFIG.stages.mode_selection;
+            
+            this.logger.system('mode-selection', `[STAGE-0-MCP] 🔧 Using API: ${this.apiEndpoint}, Model: ${this.modelConfig.model}`);
+        }
     }
 
     /**
@@ -50,6 +56,7 @@ export class ModeSelectionProcessor {
      * @returns {Promise<Object>} Selection result with mode
      */
     async execute(context) {
+        this._ensureConfig();
         this.logger.system('mode-selection', '[STAGE-0-MCP] 🔍 Starting mode selection...');
 
         const { userMessage, session } = context;

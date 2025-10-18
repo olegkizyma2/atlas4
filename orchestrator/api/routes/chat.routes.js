@@ -8,7 +8,7 @@
 import logger from '../../utils/logger.js';
 import pauseState from '../../state/pause-state.js';
 import { executeStepByStepWorkflow } from '../../workflow/executor-v3.js';
-import { chatCompletion, getAvailableModels } from '../../ai/fallback-llm.js';
+import { chatCompletion, getAvailableModelsList } from '../../ai/fallback-llm.js';
 
 /**
  * Налаштовує chat та session management routes
@@ -238,7 +238,7 @@ export function setupChatRoutes(app, context) {
     app.get('/v1/models', (req, res) => {
         res.json({
             object: 'list',
-            data: getAvailableModels()
+            data: getAvailableModelsList()
         });
     });
 
