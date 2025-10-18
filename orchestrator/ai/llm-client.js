@@ -18,9 +18,10 @@ export class LLMClient {
    */
   constructor(config) {
     this.config = config;
-    this.provider = config.provider || 'openai';
+    this.provider = config.provider || 'atlas';
     this.endpoint = config.apiEndpoint || 'http://localhost:4000/v1/chat/completions';
-    this.model = config.model || 'mistral-ai/ministral-3b';  // OPTIMIZED 14.10.2025 - 45 req/min
+    // Use model from config, fallback to global config
+    this.model = config.model;
     this.temperature = config.temperature || 0.3;
   }
 

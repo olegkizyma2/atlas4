@@ -238,9 +238,9 @@ export default class AgentStageProcessor {
       });
 
       // Викликаємо API з ПОВНИМ контекстом розмови
-      // OPTIMIZED 14.10.2025 - ministral-3b замість gpt-4o-mini (45 req/min)
+      // OPTIMIZED 18.10.2025 - atlas-ministral-3b (45 req/min)
       const requestBody = {
-        model: 'mistral-ai/ministral-3b',
+        model: 'atlas-ministral-3b',
         temperature: 0.7, // Вища температура для природної розмови
         max_tokens: 500,
         messages: contextMessages // ✅ ПЕРЕДАЄМО ВЕСЬ КОНТЕКСТ!

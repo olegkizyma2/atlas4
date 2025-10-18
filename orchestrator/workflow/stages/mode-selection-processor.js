@@ -28,14 +28,17 @@ export class ModeSelectionProcessor {
         this.llmClient = llmClient;
         this.logger = loggerInstance || logger;
 
-        // Get API endpoint from GlobalConfig with fallback support
-        const apiConfig = GlobalConfig.AI_MODEL_CONFIG.apiEndpoint;
+        // Get API endpoint and model from GlobalConfig
+        const apiConfig = GlobalConfig.MCP_MODEL_CONFIG.apiEndpoint;
         this.apiEndpoint = apiConfig.useFallback && apiConfig.fallback
             ? apiConfig.fallback
             : apiConfig.primary;
         this.apiTimeout = apiConfig.timeout || 60000;
 
-        this.logger.system('mode-selection', `[STAGE-0-MCP] 🔧 Using API endpoint: ${this.apiEndpoint}`);
+        // Get model config for mode selection stage
+        this.modelConfig = GlobalConfig.MCP_MODEL_CONFIG.stages.mode_selection;
+
+        this.logger.system('mode-selection', `[STAGE-0-MCP] 🔧 Using API: ${this.apiEndpoint}, Model: ${this.modelConfig.model}`);
     }
 
     /**
@@ -67,10 +70,10 @@ export class ModeSelectionProcessor {
             this.logger.system('mode-selection', `[STAGE-0-MCP] Messages: ${JSON.stringify(messages.map(m => ({ role: m.role, content: m.content.substring(0, 80) })))}`);
 
             const response = await axios.post(this.apiEndpoint, {
-                model: 'openai/gpt-4o-mini',  // Fast model for classification
+                model: this.modelConfig.model,
                 messages,
-                temperature: 0.1,  // Low temp for deterministic classification
-                max_tokens: 150
+                temperature: this.modelConfig.temperature,
+                max_tokens: this.modelConfig.max_tokens
             }, {
                 timeout: this.apiTimeout  // Use configured timeout with fallback support
             });

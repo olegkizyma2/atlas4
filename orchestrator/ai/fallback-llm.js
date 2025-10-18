@@ -8,17 +8,30 @@ import axios from 'axios';
 // Імпортуємо нові модулі
 import logger from '../utils/logger.js';
 import * as agentProtocol from '../agents/agent-protocol.js';
+import GlobalConfig from '../../config/global-config.js';
 
-// Model registry
-const MODELS = [
-  'mistral-ai/ministral-3b',
-  'mistral-ai/mistral-small-2503',
-  'mistral-ai/mistral-nemo',
-  'openai/gpt-4o-mini',
-  'microsoft/phi-3.5-mini-instruct',
-  'microsoft/phi-4-mini-instruct',
-  'meta/meta-llama-3.1-8b-instruct'
-];
+// Model registry - dynamically built from GlobalConfig
+function getAvailableModels() {
+  const models = [];
+  
+  // Add models from AI_MODEL_CONFIG
+  Object.values(GlobalConfig.AI_MODEL_CONFIG.models).forEach(config => {
+    if (config.model && !models.includes(config.model)) {
+      models.push(config.model);
+    }
+  });
+  
+  // Add models from MCP_MODEL_CONFIG
+  Object.values(GlobalConfig.MCP_MODEL_CONFIG.stages).forEach(config => {
+    if (config.model && !models.includes(config.model)) {
+      models.push(config.model);
+    }
+  });
+  
+  return models;
+}
+
+const MODELS = getAvailableModels();
 
 // Token budget controls
 const MAX_INPUT_TOKENS = parseInt((process.env && process.env.FALLBACK_MAX_INPUT_TOKENS) || '8000', 10);

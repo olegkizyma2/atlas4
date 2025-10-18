@@ -9,6 +9,7 @@ import { STATE_ANALYSIS_PROMPTS, FALLBACK_ANALYSIS_RULES, DEFAULT_STATES } from 
 // Імпортуємо централізовані модулі
 import stateManager from '../state/state-manager.js';
 import logger from '../utils/logger.js';
+import GlobalConfig from '../../config/global-config.js';
 
 // Функція для аналізу відповіді агента за допомогою AI
 export async function analyzeAgentResponse(agent, response, stage) {
@@ -53,8 +54,9 @@ Return ONLY a valid JSON object with these exact fields:
 }
 DO NOT include any additional text, markdown formatting or explanation.`;
 
-  // OPTIMIZED 14.10.2025 - ministral-3b замість gpt-4o-mini (45 req/min vs 35 req/min)
-  const MODEL = 'mistral-ai/ministral-3b';
+  // Get model from GlobalConfig (classification model for state analysis)
+  const modelConfig = GlobalConfig.AI_MODEL_CONFIG.models.classification;
+  const MODEL = modelConfig.model;
 
   // Формуємо чіткий prompt для аналізу
   const userPrompt = `

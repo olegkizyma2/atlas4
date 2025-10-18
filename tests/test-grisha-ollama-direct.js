@@ -77,10 +77,10 @@ async function testGrishaVision() {
         console.log(`${COLORS.cyan}🔄 Base64 розмір: ${Math.round(base64Image.length / 1024)}KB${COLORS.reset}`);
 
         // Call Port 4000 Vision API with compressed image
-        console.log('\n🔍 Calling Port 4000 Vision API (openai/gpt-4o)...');
+        console.log('\n🔍 Calling Port 4000 Vision API (copilot-gpt-4o)...');
         const startTime = Date.now();
         const response = await axios.post('http://localhost:4000/v1/chat/completions', {
-            model: 'openai/gpt-4o',
+            model: 'copilot-gpt-4o',
             messages: [
                 {
                     role: 'user',

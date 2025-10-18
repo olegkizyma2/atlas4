@@ -48,29 +48,27 @@ export const USER_CONFIG = {
   }
 };
 
-// === VISION MODELS CONFIGURATION (UPDATED 17.10.2025) ===
+// === VISION MODELS CONFIGURATION (UPDATED 18.10.2025) ===
 // Vision AI моделі для Grishy verification system
-// PRIORITY: Ollama local (free!) → OpenRouter API (paid fallback)
-// Cost comparison: Ollama ($0) > Phi-3.5 ($0.0001/img) > Llama-11b ($0.0002/img) vs GPT-4 ($0.01/img)!
+// PRIORITY: Copilot GPT-4o (primary) → Atlas vision models (fallback)
 export const VISION_CONFIG = {
-  // Tier 0: LOCAL OLLAMA (FREE - RECOMMENDED!) - NEW 17.10.2025
-  // Запущено на localhost:11434, модель: llama3.2-vision
-  // Speed: 2-5s (залежно від GPU), Accuracy: 94%, Cost: $0!
-  local: {
-    model: 'llama3.2-vision',
-    provider: 'ollama',
-    cost: 0,                // FREE!
-    speed: '2-5s',          // Залежно від процесу, але прийнятно
-    rateLimitPerMin: null,  // Немає ліміту (локальний)
-    use_cases: ['any_task', 'frequent_verifications', 'budget_critical'],
-    endpoint: 'http://localhost:11434',
-    isLocal: true
+  // Tier 0: COPILOT GPT-4O (PRIMARY - RECOMMENDED!)
+  // Найкраща якість для vision tasks
+  primary: {
+    model: 'copilot-gpt-4o',
+    provider: 'atlas',
+    cost: 0.01,             // Per image
+    speed: '1-2s',
+    rateLimitPerMin: 10,
+    use_cases: ['any_task', 'complex_ui', 'high_accuracy_required'],
+    endpoint: 'http://localhost:4000/v1/chat/completions',
+    isLocal: false
   },
 
-  // Tier 1: Fast & cheap (для простих перевірок коли Ollama недоступна)
+  // Tier 1: Fast & cheap (для простих перевірок)
   fast: {
-    model: 'meta/llama-3.2-11b-vision-instruct',
-    provider: 'openrouter',
+    model: 'atlas-llama-3.2-11b-vision-instruct',
+    provider: 'atlas',
     cost: 0.0002,           // Per image
     speed: '0.8-1.2s',
     rateLimitPerMin: 6,
@@ -81,8 +79,8 @@ export const VISION_CONFIG = {
 
   // Tier 2: Standard (для середніх UI завдань)
   standard: {
-    model: 'meta/llama-3.2-90b-vision-instruct',
-    provider: 'openrouter',
+    model: 'atlas-llama-3.2-90b-vision-instruct',
+    provider: 'atlas',
     cost: 0.0003,           // Per image
     speed: '1.5-2.5s',
     rateLimitPerMin: 3,
@@ -91,10 +89,10 @@ export const VISION_CONFIG = {
     isLocal: false
   },
 
-  // Tier 3: Fastest & cheapest (OpenRouter)
+  // Tier 3: Fastest & cheapest
   cheapest: {
-    model: 'microsoft/phi-3.5-vision-instruct',
-    provider: 'openrouter',
+    model: 'atlas-phi-3.5-vision-instruct',
+    provider: 'atlas',
     cost: 0.0001,           // Per image
     speed: '1-1.5s',
     rateLimitPerMin: 12,
@@ -105,43 +103,24 @@ export const VISION_CONFIG = {
 
   // Default configuration
   get default() {
-    // Try local Ollama first, fallback to cloud
-    return this.isOllamaAvailable() ? this.local : this.fast;
+    return this.primary;
   },
 
   // API configuration
   api: {
     primaryEndpoint: 'http://localhost:4000/v1/chat/completions',
-    ollamaEndpoint: 'http://localhost:11434',
     timeout: 60000,         // 60s timeout for vision analysis
     temperature: 0.2,       // Low for accuracy
-    maxTokens: 1000,
-    ollamaModel: process.env.OLLAMA_VISION_MODEL || 'llama3.2-vision'
+    maxTokens: 1000
   },
 
-  // Check if Ollama is available
-  async isOllamaAvailable() {
-    try {
-      const response = await fetch('http://localhost:11434/api/tags', { timeout: 2000 });
-      return response.ok;
-    } catch {
-      return false;
-    }
-  },
-
-  // Adaptive selection based on task complexity (prefers local)
-  async selectModel(complexity) {
+  // Adaptive selection based on task complexity
+  selectModel(complexity) {
     // complexity: 1-10 scale
-    const isOllamaUp = await this.isOllamaAvailable();
-
-    if (isOllamaUp) {
-      return this.local;  // ALWAYS prefer free local model
-    }
-
-    // Fallback to OpenRouter if Ollama unavailable
     if (complexity <= 3) return this.cheapest;    // Simplest & fastest
     if (complexity <= 6) return this.fast;        // Recommended default
-    return this.standard;                         // More powerful for complex UI
+    if (complexity <= 8) return this.standard;    // More powerful for complex UI
+    return this.primary;                          // Highest accuracy
   },
 
   // Cost estimation
@@ -177,7 +156,7 @@ export const AI_MODEL_CONFIG = {
     // T=0.05 для максимальної точності (бінарна класифікація)
     // ministral-3b: 45 req/min (найбільш доступна)
     classification: {
-      get model() { return process.env.AI_MODEL_CLASSIFICATION || 'mistral-ai/ministral-3b'; },
+      get model() { return process.env.AI_MODEL_CLASSIFICATION || 'atlas-ministral-3b'; },
       get temperature() { return parseFloat(process.env.AI_TEMP_CLASSIFICATION || '0.05'); },
       max_tokens: 50,
       description: 'Бінарна класифікація - максимальна точність'
@@ -185,9 +164,9 @@ export const AI_MODEL_CONFIG = {
 
     // Чат та розмова
     // T=0.7 для природності та креативності
-    // cohere/cohere-command-r-plus-08-2024: Швидка та надійна Cohere модель
+    // cohere-command-r-plus-08-2024: Швидка та надійна Cohere модель
     chat: {
-      get model() { return process.env.AI_MODEL_CHAT || 'cohere/cohere-command-r-plus-08-2024'; },
+      get model() { return process.env.AI_MODEL_CHAT || 'atlas-cohere-command-r-plus-08-2024'; },
       get temperature() { return parseFloat(process.env.AI_TEMP_CHAT || '0.7'); },
       max_tokens: 500,
       description: 'Природні розмови - креативність'
@@ -197,7 +176,7 @@ export const AI_MODEL_CONFIG = {
     // T=0.2 для точного аналізу з мінімальною варіативністю
     // gpt-4o-mini: 35 req/min (балансує якість та швидкість)
     analysis: {
-      get model() { return process.env.AI_MODEL_ANALYSIS || 'openai/gpt-4o-mini'; },
+      get model() { return process.env.AI_MODEL_ANALYSIS || 'atlas-gpt-4o-mini'; },
       get temperature() { return parseFloat(process.env.AI_TEMP_ANALYSIS || '0.2'); },
       max_tokens: 1000,
       description: 'Аналіз та контекст - точність'
@@ -207,7 +186,7 @@ export const AI_MODEL_CONFIG = {
     // T=0.15 для стабільного результату (важливо щоб озвучка звучала однаково)
     // ministral-3b: 45 req/min
     tts_optimization: {
-      get model() { return process.env.AI_MODEL_TTS_OPT || 'mistral-ai/ministral-3b'; },
+      get model() { return process.env.AI_MODEL_TTS_OPT || 'atlas-ministral-3b'; },
       get temperature() { return parseFloat(process.env.AI_TEMP_TTS_OPT || '0.15'); },
       max_tokens: 300,
       description: 'Оптимізація для TTS - стабільність'
@@ -259,7 +238,7 @@ export const MCP_MODEL_CONFIG = {
     // T=0.05 для максимальної точності (бінарна класифікація)
     // ministral-3b: 45 req/min (найбільш доступна)
     mode_selection: {
-      get model() { return process.env.MCP_MODEL_MODE_SELECTION || 'mistral-ai/ministral-3b'; },
+      get model() { return process.env.MCP_MODEL_MODE_SELECTION || 'atlas-ministral-3b'; },
       get temperature() { return parseFloat(process.env.MCP_TEMP_MODE_SELECTION || '0.05'); },
       max_tokens: 50,
       description: 'Бінарна класифікація task vs chat - максимальна точність (45 req/min)'
@@ -269,7 +248,7 @@ export const MCP_MODEL_CONFIG = {
     // T=0.05 для точної класифікації
     // ministral-3b: 45 req/min
     backend_selection: {
-      get model() { return process.env.MCP_MODEL_BACKEND_SELECTION || 'mistral-ai/ministral-3b'; },
+      get model() { return process.env.MCP_MODEL_BACKEND_SELECTION || 'atlas-ministral-3b'; },
       get temperature() { return parseFloat(process.env.MCP_TEMP_BACKEND_SELECTION || '0.05'); },
       max_tokens: 50,
       description: 'Keyword routing - точність (45 req/min, deprecated)'
@@ -277,29 +256,29 @@ export const MCP_MODEL_CONFIG = {
 
     // Stage 1-MCP: Atlas TODO Planning
     // T=0.3 для балансу планування (точність + креатив для генерації ідей)
-    // xai/grok-3: Потужна модель для планування
+    // grok-3: Потужна модель для планування
     todo_planning: {
-      get model() { return process.env.MCP_MODEL_TODO_PLANNING || 'xai/grok-3'; },
+      get model() { return process.env.MCP_MODEL_TODO_PLANNING || 'atlas-grok-3'; },
       get temperature() { return parseFloat(process.env.MCP_TEMP_TODO_PLANNING || '0.3'); },
       max_tokens: 4000,
-      description: 'Atlas TODO Planning - баланс точності та креативу (xai/grok-3)'
+      description: 'Atlas TODO Planning - баланс точності та креативу (atlas-grok-3)'
     },
 
     // Stage 2.1-MCP: Tetyana Plan Tools
     // T=0.1 для ЧИСТОГО JSON output без варіацій (критично важливо!)
-    // openai/gpt-4o: Чистий JSON, надійна структура
+    // gpt-4o: Чистий JSON, надійна структура
     plan_tools: {
-      get model() { return process.env.MCP_MODEL_PLAN_TOOLS || 'openai/gpt-4o'; },
+      get model() { return process.env.MCP_MODEL_PLAN_TOOLS || 'atlas-gpt-4o'; },
       get temperature() { return parseFloat(process.env.MCP_TEMP_PLAN_TOOLS || '0.1'); },
       max_tokens: 2500,
-      description: 'Tetyana Plan Tools - чистий JSON без markdown (openai/gpt-4o)'
+      description: 'Tetyana Plan Tools - чистий JSON без markdown (atlas-gpt-4o)'
     },
 
     // Stage 2.3-MCP: Grisha Verify Item
     // T=0.15 для точної верифікації з мінімальною варіативністю
-    // openai/gpt-4o-mini: Швидка верифікація, точна, 90 req/min (FIXED 17.10.2025)
+    // gpt-4o-mini: Швидка верифікація, точна, 90 req/min (FIXED 17.10.2025)
     verify_item: {
-      get model() { return process.env.MCP_MODEL_VERIFY_ITEM || 'openai/gpt-4o-mini'; },
+      get model() { return process.env.MCP_MODEL_VERIFY_ITEM || 'atlas-gpt-4o-mini'; },
       get temperature() { return parseFloat(process.env.MCP_TEMP_VERIFY_ITEM || '0.15'); },
       max_tokens: 800,
       description: 'Grisha Verify Item - швидка верифікація з JSON output (90 req/min, ~0.3ms latency)'
@@ -309,7 +288,7 @@ export const MCP_MODEL_CONFIG = {
     // T=0.2 для точного аналізу та корекції з великим контекстом
     // gpt-4o-mini: 35 req/min (якість + 128K контекст вже не потрібен)
     adjust_todo: {
-      get model() { return process.env.MCP_MODEL_ADJUST_TODO || 'openai/gpt-4o-mini'; },
+      get model() { return process.env.MCP_MODEL_ADJUST_TODO || 'atlas-gpt-4o-mini'; },
       get temperature() { return parseFloat(process.env.MCP_TEMP_ADJUST_TODO || '0.2'); },
       max_tokens: 1500,
       description: 'Atlas Adjust TODO - точна корекція з аналізом (35 req/min)'
@@ -319,7 +298,7 @@ export const MCP_MODEL_CONFIG = {
     // T=0.5 для природного резюме користувачу (баланс точності та креативності)
     // ministral-3b: 45 req/min (швидкість для фінальної відповіді)
     final_summary: {
-      get model() { return process.env.MCP_MODEL_FINAL_SUMMARY || 'mistral-ai/ministral-3b'; },
+      get model() { return process.env.MCP_MODEL_FINAL_SUMMARY || 'atlas-ministral-3b'; },
       get temperature() { return parseFloat(process.env.MCP_TEMP_FINAL_SUMMARY || '0.5'); },
       max_tokens: 600,
       description: 'Final Summary для користувача - природність (45 req/min)'
@@ -427,9 +406,9 @@ export const AI_BACKEND_CONFIG = {
 
       // LLM для MCP mode (використовується для reasoning)
       llm: {
-        provider: 'openai',
+        provider: 'atlas',
         apiEndpoint: 'http://localhost:4000/v1/chat/completions',
-        model: 'mistral-ai/ministral-3b',  // OPTIMIZED 14.10.2025
+        model: 'atlas-ministral-3b',  // OPTIMIZED 18.10.2025
         temperature: 0.3
       },
 

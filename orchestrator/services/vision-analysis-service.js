@@ -23,6 +23,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
 import CircuitBreaker from '../utils/circuit-breaker.js';
+import GlobalConfig from '../../config/global-config.js';
 
 /**
  * Vision Analysis Service
@@ -166,9 +167,11 @@ export class VisionAnalysisService {
         this.visionProvider = 'ollama';
         this.visionModel = 'llama3.2-vision';
       } else {
-        this.logger.system('vision-analysis', '[VISION] ℹ️ No local services - using OpenRouter as emergency fallback');
-        this.visionProvider = 'openrouter';
-        this.visionModel = 'meta/llama-3.2-11b-vision-instruct';
+        this.logger.system('vision-analysis', '[VISION] ℹ️ No local services - using Atlas API as emergency fallback');
+        this.visionProvider = 'atlas';
+        // Use fast vision model from config as fallback
+        const fallbackConfig = GlobalConfig.VISION_CONFIG.fast;
+        this.visionModel = fallbackConfig.model;
       }
     }
 
@@ -705,8 +708,12 @@ Return ONLY the JSON object.`;
       // OPTIMIZATION 2025-10-17: Check and optimize image to prevent 413 errors
       const optimizedImage = this._optimizeImageForAPI(base64Image);
 
-      const response = await axios.post('http://localhost:4000/v1/chat/completions', {
-        model: 'openai/gpt-4o',  // FIXED 17.10.2025 - gpt-4o (full) supports vision, mini doesn't
+      // Get vision model from GlobalConfig
+      const visionConfig = GlobalConfig.VISION_CONFIG.default;
+      const apiEndpoint = visionConfig.endpoint;
+
+      const response = await axios.post(apiEndpoint, {
+        model: visionConfig.model,
         messages: [
           {
             role: 'user',
