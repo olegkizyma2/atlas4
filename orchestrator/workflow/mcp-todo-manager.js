@@ -312,14 +312,14 @@ export class MCPTodoManager {
 
       } catch (primaryError) {
         // Try fallback if primary fails
-        if (apiEndpointConfig.fallback && !usedFallback) {
+        if (apiEndpointConfig?.fallback && !usedFallback) {
           this.logger.warn('mcp-todo', `[TODO] Primary API failed, attempting fallback endpoint...`, {
             category: 'mcp-todo',
             primaryError: primaryError.message,
             code: primaryError.code
           });
 
-          apiUrl = apiEndpointConfig.fallback;
+          apiUrl = apiEndpointConfig?.fallback;
           usedFallback = true;
           this.logger.system('mcp-todo', `[TODO] Using fallback API endpoint: ${apiUrl}`);
 
